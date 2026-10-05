@@ -60,6 +60,7 @@ function Login() {
   const [setupLinkStatus, setSetupLinkStatus] = useState<"checking" | "valid" | "completed" | "expired" | "invalid">(setupToken ? "checking" : "valid");
   const [linkSent, setLinkSent] = useState(false);
   const [faceSignIn, setFaceSignIn] = useState(false);
+  const [faceAvailable, setFaceAvailable] = useState(() => sessionStorage.getItem("vd_face_login_available") === "yes");
   const [showPassword, setShowPassword] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -79,10 +80,13 @@ function Login() {
     setBusy(true);
     setError("");
     try {
-      await api(
+      const result = await api<{ student?: { photo_url?: string } }>(
         "/api/auth/student-login",
         json({ ...credentials, ...(webcamPhoto ? { webcam_photo: webcamPhoto } : {}) }),
       );
+      const available = Boolean(result.student?.photo_url);
+      sessionStorage.setItem("vd_face_login_available", available ? "yes" : "no");
+      setFaceAvailable(available);
       setPendingPhoto(null);
       await auth.refresh();
     } catch (e) {
@@ -91,6 +95,10 @@ function Login() {
       if (code === "PHOTO_REQUIRED") {
         setPendingPhoto(credentials);
         return;
+      }
+      if (credentials.auth_method === "face" && (code === "PHOTO_REFERENCE_MISSING" || (e instanceof ApiError && e.status === 401))) {
+        sessionStorage.setItem("vd_face_login_available", "no");
+        setFaceAvailable(false);
       }
       if (code === "ACTIVE_SESSION_EXISTS") setConflict(true);
       if (e instanceof ApiError && (e.status === 401 || e.status === 429)) setPendingPhoto(null);
@@ -237,7 +245,7 @@ function Login() {
               <ArrowRight size={17} />
             </button>
           </form>}
-          {!pendingPhoto && !setupToken && !setupComplete && <button className="text-button" disabled={busy}
+          {!pendingPhoto && !setupToken && !setupComplete && faceAvailable && <button className="text-button" disabled={busy}
             onClick={() => { setFaceSignIn(!faceSignIn); setError(""); setConflict(false); setReplaceSession(false); }}>
             {faceSignIn ? "Use password instead" : "Sign in with face"}
           </button>}
