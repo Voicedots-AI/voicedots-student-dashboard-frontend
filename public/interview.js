@@ -4254,7 +4254,8 @@ async function loadAnswerFeedback(report) {
   renderResults(report);
   if (report.feedback_error && resultsQuestionReviews) {
     const retry = document.createElement("button");
-    retry.className = "btn btn-secondary";
+    retry.type = "button";
+    retry.className = "pj-btn pj-btn-ghost report-feedback-retry";
     retry.textContent = "Retry answer feedback";
     retry.onclick = () => { retry.disabled = true; retry.textContent = "Preparing feedback…"; void loadAnswerFeedback(report); };
     resultsQuestionReviews.append(retry);

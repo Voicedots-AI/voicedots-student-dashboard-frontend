@@ -138,7 +138,9 @@ test('feedback service failure offers a retry without discarding answers', async
       { json: { complete: true, feedback: { '7': { improve: 'Show a test assertion.' } } } });
   });
   await page.evaluate(report => (window as any).conversationAudit.report(report), report);
-  await page.getByRole('button', { name: 'Retry answer feedback' }).click();
+  const retry = page.getByRole('button', { name: 'Retry answer feedback' });
+  await expect(retry).toHaveClass(/pj-btn-ghost/);
+  await retry.click();
   await expect(page.locator('#results-question-reviews')).toContainText('Show a test assertion.');
   await expect(page.locator('#results-question-reviews')).toContainText('I tested all endpoints with pytest.');
 });
