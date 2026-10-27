@@ -19,7 +19,6 @@ import {
   Compass,
   FileText,
   House,
-  ChartLine,
   Library,
   LogOut,
   Menu,
@@ -40,7 +39,7 @@ import { api, ApiError, json } from "./api";
 import { useAuth } from "./auth";
 import { Brand, ErrorMessage, Loading } from "./ui";
 import { InterviewReport } from "./interview-report";
-import { Overview, Placements, Profile, Reports } from "./pages";
+import { Placements, Profile, Reports } from "./pages";
 import { Academics } from "./academics";
 import { StudyResources } from "./study-resources";
 import { StudentErp } from "./student-erp";
@@ -297,7 +296,6 @@ const PRESENCE_ACTIVE_FOR_MS = 30 * 60000;
 
 const nav = [
   { to: "/", label: "Overview", icon: House },
-  { to: "/performance", label: "My performance", icon: ChartLine },
   { to: "/placements", label: "Placements", icon: BriefcaseBusiness },
   { to: "/calendar", label: "Calendar", icon: CalendarDays },
   { to: "/practice", label: "Interview practice", icon: Mic },
@@ -542,8 +540,8 @@ export function App() {
           <ProfileSetupPrompt />
           <ProductTour />
           <Routes>
-            <Route path="/" element={<Overview />} />
-            <Route path="/performance" element={<Performance />} />
+            <Route path="/" element={<Performance />} />
+            <Route path="/performance" element={<Navigate to="/" replace />} />
             <Route path="/login" element={<Navigate to="/" replace />} />
             <Route
               path="/practice"

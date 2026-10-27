@@ -19,16 +19,16 @@ export const START_TOUR_EVENT = "vd:start-product-tour";
 
 const STEPS: Step[] = [
   { group: "Welcome", title: "", text: "A one-minute look at what you can do here. You can leave at any time and replay the tour from the top bar." },
-  { target: '[data-testid="overview-hero"] .button.white', group: "Home", title: "Start an AI interview",
-    text: "Practice with an AI interview panel that listens, asks follow-up questions and gives you feedback when you finish." },
-  { target: '[data-testid="overview-kpis"]', group: "Home", title: "Your progress at a glance",
-    text: "Completed interviews, placement drives you are eligible for, your placement readiness and any interview you can resume." },
-  { target: '[data-testid="overview-latest-drive"]', group: "Home", title: "Latest placement drives",
-    text: "Drives from your placement cell. Prepare with AI Coach or start the drive’s AI interview from here." },
-  { target: '[data-testid="overview-feedback"]', group: "Home", title: "Your latest feedback",
-    text: "Your most recent score and what to focus on. Placement results appear once your placement team releases them." },
-  { target: '[data-testid="overview-next-steps"]', group: "Home", title: "A simple way forward",
-    text: "Quick links to update your profile, practice, prepare with AI Coach, polish your resume and explore careers." },
+  { target: '.spi-buttons .button.primary', group: "Overview", title: "Start a new interview",
+    text: "Begin another interview when you are ready to build more assessment evidence." },
+  { target: '.spi-kpis', group: "Overview", title: "Your latest assessment",
+    text: "Review your released score, role readiness, comparable progress and scorecard." },
+  { target: '.spi-analysis', group: "Overview", title: "Skills and evidence",
+    text: "See assessed competencies, comparable interview history, strengths and development gaps." },
+  { target: '.spi-evidence-card', group: "Overview", title: "Question-level evidence",
+    text: "Review the questions and evidence included in your released assessment." },
+  { target: '.spi-bottom', group: "Overview", title: "Your next steps",
+    text: "Use your development plan, assessment context and private scorecard sharing controls." },
   { target: '[data-tour="nav:/practice"]', desktop: true, group: "Your workspace", title: "Interview practice",
     text: "Choose a practice conversation or continue a placement interview. Your camera and microphone are checked before you begin." },
   { target: '[data-tour="nav:/placements"]', desktop: true, group: "Your workspace", title: "Placements",
@@ -39,8 +39,6 @@ const STEPS: Step[] = [
     text: "Build and design resumes, review AI suggestions before they are applied, and download PDF or Word." },
   { target: '[data-tour="nav:/career"]', desktop: true, group: "Your workspace", title: "Career coach",
     text: "Explore roles that fit your resume, your studies and the interests you share." },
-  { target: '[data-tour="nav:/performance"]', desktop: true, group: "Your workspace", title: "My performance",
-    text: "See how your scores, skills and placement readiness change over time." },
   { target: '[data-tour="nav:/reports"]', desktop: true, group: "Your workspace", title: "My reports",
     text: "Every interview report with detailed feedback. Placement reports include the recording, bookmarked at each question." },
   { target: '[data-tour="nav:/calendar"]', desktop: true, group: "Your workspace", title: "Calendar",
@@ -109,7 +107,7 @@ export function ProductTour() {
     if (steps || !(pending || replayRequested) || location.pathname !== "/") return;
     let frame = 0;
     const tryStart = () => {
-      const ready = visible('[data-testid="overview-kpis"]') && !document.querySelector("dialog[open], [role=dialog][aria-modal=true]");
+      const ready = (visible('.spi-kpis') || visible('.spi-empty-state')) && !document.querySelector("dialog[open], [role=dialog][aria-modal=true]");
       if (!ready) return false;
       setIndex(0);
       setSteps(stepsForScreen());
