@@ -39,7 +39,7 @@ export async function mockPerformance(page: Page, options: { reportRows?: Record
 
 export async function openPerformance(page: Page, options: Parameters<typeof mockPerformance>[1] = {}) {
   const requested = await mockPerformance(page, options);
-  await page.goto("/performance");
+  await page.goto("/");
   await expect(page.getByRole("heading", { name: "Student Assessment Intelligence" })).toBeVisible();
   return requested;
 }

@@ -39,18 +39,21 @@ test("shows missing API fields as dashes instead of demo values", async ({ page 
 
 test("shows a read error instead of made-up numbers", async ({ page }) => {
   await mockPerformance(page, { reportsStatus: 500 });
-  await page.goto("/performance");
+  await page.goto("/");
   await expect(page.getByRole("heading", { name: "Student Assessment Intelligence" })).toBeVisible();
   await expect(page.locator(".spi-kpis")).toHaveCount(0);
   await expect(page.getByRole("alert")).toBeVisible();
 });
 
-test("fits phone width and keeps the navigation route", async ({ page }) => {
+test("fits phone width, uses Overview and redirects the retired performance route", async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 800 });
   await openPerformance(page);
   await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.setViewportSize({ width: 1280, height: 800 });
-  await expect(page.getByRole("link", { name: "My performance" })).toHaveAttribute("href", "/performance");
+  await expect(page.getByRole("link", { name: "My performance" })).toHaveCount(0);
+  await page.goto("/performance");
+  await expect(page).toHaveURL(/\/$/);
+  await expect(page.getByRole("heading", { name: "Student Assessment Intelligence" })).toBeVisible();
 });
 
 test("keeps scorecard sharing connected to the latest real session", async ({ page }) => {
@@ -62,7 +65,7 @@ test("keeps scorecard sharing connected to the latest real session", async ({ pa
     return route.fulfill({ json: { items: [{ id: "share-1", session_id: reports[1].session_id, expires_at: "2099-10-13" }] } });
   });
   await page.route("**/api/student/scorecard-shares/share-1", route => { revoked = true; return route.fulfill({ json: { revoked: true } }); });
-  await page.goto("/performance");
+  await page.goto("/");
   await page.getByRole("button", { name: "Share scorecard", exact: true }).first().click();
   await page.getByRole("button", { name: "Create share link" }).click();
   await expect(page.getByLabel("Share link")).toHaveValue(/shared-scorecard\/opaque-share-token/);
