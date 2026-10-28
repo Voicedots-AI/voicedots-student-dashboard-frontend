@@ -1,3 +1,140 @@
-.drive-ats-panel{border:1px solid var(--border,#e3e8f0);border-radius:16px;padding:24px;margin:16px 0;background:var(--panel,#fff);color:var(--text,#17324f)}.drive-ats-panel header{display:flex;justify-content:space-between;align-items:flex-start;gap:16px}.drive-ats-panel h3,.drive-ats-panel h4{margin:0 0 10px}.drive-ats-panel p{font-size:14px;line-height:1.5;margin:10px 0}.drive-ats-panel header strong{font-size:28px;color:#5146e5;white-space:nowrap}.drive-ats-panel small{font-size:12px;margin-left:6px}.drive-ats-columns{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:16px 0}.drive-ats-chips{display:flex;flex-wrap:wrap;gap:8px}.drive-ats-chips span,.drive-ats-chips label{padding:7px 10px;background:#fff5e1;color:#855900;border-radius:8px;font-size:13px;overflow-wrap:anywhere}.drive-ats-chips span.matched{background:#e8f8ef;color:#087a50}.drive-ats-chips label{display:flex;align-items:center;gap:6px}.drive-ats-panel .button{margin-top:8px}@media(max-width:640px){.drive-ats-panel{padding:16px}.drive-ats-columns{grid-template-columns:1fr}}
+.drive-ats-panel{--ats-navy:#17164d;--ats-muted:#65708f;--ats-line:#e0e7f5;font-family:Manrope,sans-serif;color:var(--ats-navy);background:#f9fbff;border:1px solid var(--ats-line);border-radius:10px;padding:16px;min-width:0;overflow-wrap:anywhere;font-size:13px;line-height:1.45}
+.drive-ats-panel *{box-sizing:border-box}.drive-ats-panel h3,.drive-ats-panel h4,.drive-ats-panel h5,.drive-ats-panel p{margin:0}.drive-ats-panel h3{font-size:20px;line-height:1.3;font-weight:800}.drive-ats-panel h4{display:flex;align-items:center;gap:7px;font-size:14px;font-weight:800}.drive-ats-panel h4>svg{color:#6b3dff;flex-shrink:0}.drive-ats-panel h5{font-size:13px;font-weight:700}.drive-ats-panel p{color:var(--ats-muted)}
+.student-ats-header{display:flex;justify-content:space-between;align-items:center;gap:16px;margin-bottom:12px}.student-ats-header p{font-size:12px;margin-top:3px}.drive-ats-panel .button{font-family:inherit;font-size:12px;border-radius:6px;min-height:32px;padding:7px 11px;display:inline-flex;justify-content:center;align-items:center;gap:6px;white-space:normal;margin:0}.drive-ats-panel .button.primary{background:#713cff;color:white}.drive-ats-panel .button.secondary{background:white;border:1px solid #dce2f6;color:var(--ats-navy)}
+.student-ats-identity{display:flex;align-items:center;gap:12px;background:linear-gradient(110deg,#fff,#fafbff);border:1px solid var(--ats-line);border-radius:7px;padding:12px 14px;margin-bottom:12px;min-width:0}.student-ats-identity img,.student-ats-avatar{width:44px;height:44px;border-radius:50%;object-fit:cover;flex-shrink:0;background:#eeebfb;display:grid;place-items:center;font-weight:800}.student-ats-name{min-width:0}.student-ats-name>div{display:flex;align-items:center;gap:7px;flex-wrap:wrap}.student-ats-name b{font-size:14px}.student-ats-name p{font-size:11px;margin-top:4px}.student-ats-identity dl{display:flex;gap:0;margin:0 0 0 auto;flex-shrink:0}.student-ats-identity dl>div{padding:0 18px;border-left:1px solid var(--ats-line)}.student-ats-identity dt{font-size:10px;color:var(--ats-muted)}.student-ats-identity dd{font-size:12px;margin:3px 0 0;font-weight:700}.student-ats-badge{display:inline-block;border-radius:7px;padding:3px 8px;font-size:11px;font-weight:700;line-height:1.3}.student-ats-badge.completed{background:#d9f8ef;color:#06775c}.student-ats-badge.review{background:#fff0cd;color:#bc5b00}
+.student-ats-cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:10px}.student-ats-cards article{display:flex;align-items:flex-start;gap:12px;padding:14px;background:white;border:1px solid var(--ats-line);border-radius:7px;min-width:0;min-height:112px}.student-ats-cards article>div{min-width:0;flex:1}.student-ats-cards h4{font-size:13px;gap:5px;margin-bottom:5px}.student-ats-cards h4 svg{color:#8b97b5}.student-ats-cards p{font-size:11px;line-height:1.4;margin-top:6px}.student-ats-alignment{font-size:12px;color:#d86a00;font-weight:700}.student-ats-ring{height:76px;width:76px;border-radius:50%;display:grid;place-items:center;flex:0 0 76px!important}.student-ats-ring>span{height:60px;width:60px;border-radius:50%;background:white;display:flex;align-items:center;justify-content:center;flex-direction:column}.student-ats-ring b{font-size:24px;line-height:1.2}.student-ats-ring small{font-size:10px}.student-ats-card-icon{display:grid;place-items:center;height:46px;width:46px;border-radius:50%;flex-shrink:0}.student-ats-card-icon.readiness{color:#ffa100;background:#fff5e0}.student-ats-card-icon.evidence{color:#713cff;background:#f1ecff}.student-ats-coverage{font-size:20px;line-height:1.2}.student-ats-progress{height:7px;border-radius:20px;background:#e6edf7;overflow:hidden}.student-ats-progress>span{display:block;height:100%;background:#a182ff;border-radius:inherit}.student-ats-cards .student-ats-progress{margin-top:8px}
+.drive-ats-panel>.student-ats-info{display:flex;align-items:center;gap:8px;background:#eef4ff;border-radius:6px;padding:7px 10px;margin-bottom:10px;font-size:10px;line-height:1.4}.student-ats-info svg{flex-shrink:0;color:#2873ff}
+.student-ats-box{background:white;border:1px solid var(--ats-line);border-radius:7px;padding:12px;min-width:0}.student-ats-combined{margin-bottom:12px;padding:0}.student-ats-combined>summary{display:flex;justify-content:space-between;align-items:center;gap:8px;cursor:pointer;font-size:12px;font-weight:700;padding:9px 12px;list-style:none}.student-ats-combined>summary>span{display:flex;align-items:center;gap:7px}.student-ats-combined>summary svg{color:#713cff}.student-ats-combined[open]{padding:0 12px 12px}.student-ats-combined[open]>summary{padding-inline:0}.student-ats-combined[open]>summary>svg{transform:rotate(180deg)}.student-ats-metadata{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,180px),1fr));gap:12px;margin:12px 0}.student-ats-metadata>div{min-width:0}.student-ats-metadata dt{font-size:11px;color:var(--ats-muted)}.student-ats-metadata dd{margin:3px 0 0;font-size:12px;overflow-wrap:anywhere}.student-ats-jd{white-space:pre-wrap;margin-top:8px!important;font-size:13px}
+.student-ats-body{display:grid;grid-template-columns:minmax(0,1.75fr) minmax(0,1fr);gap:16px;align-items:start}.student-ats-left,.student-ats-right{display:flex;flex-direction:column;gap:12px;min-width:0}.student-ats-section-header{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap}.student-ats-section-header>span{font-size:11px;color:var(--ats-muted)}
+.student-ats-filters{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,.75fr);gap:10px;margin-bottom:10px}.student-ats-filters label{display:grid;gap:4px;min-width:0;font-size:10px;color:var(--ats-muted)}.student-ats-filters input,.student-ats-filters select{width:100%;min-width:0;border:1px solid var(--ats-line);border-radius:5px;background:white;color:var(--ats-navy);font:inherit;font-size:11px;min-height:30px;padding:5px 7px}.student-ats-table table{width:100%;table-layout:fixed;border-collapse:collapse;font-size:12px;line-height:1.4}.student-ats-table th{background:#eef4ff;text-align:left;font-size:11px;font-weight:700}.student-ats-table th,.student-ats-table td{padding:9px 5px;border-bottom:1px solid #edf1f8;vertical-align:middle;overflow-wrap:anywhere}.student-ats-table th:nth-child(1){width:5%}.student-ats-table th:nth-child(2){width:24%}.student-ats-table th:nth-child(3){width:14%}.student-ats-table th:nth-child(4){width:29%}.student-ats-table th:nth-child(5){width:28%}.student-ats-table .student-ats-group th{background:#f7f5ff;color:#5d4c94;font-size:10px;padding:5px}.student-ats-evidence-line{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#596785}.student-ats-priority{display:inline-block;padding:3px 5px;border-radius:5px;background:#f3f4f8;color:#53617c;font-size:10px}.student-ats-priority.mandatory,.student-ats-priority.core{background:#ffe5e9;color:#bc2140}.student-ats-priority.preferred{background:#e0edff;color:#2467b9}.student-ats-match-cell{display:flex;align-items:center;gap:6px;flex-wrap:wrap}.student-ats-match-cell>.student-ats-progress{flex:1;min-width:30px;max-width:70px;height:6px}.student-ats-match{font-size:10px}.student-ats-progress>span.FULL_MATCH,.student-ats-progress>span.RELATED_EVIDENCE{background:#17b591}.student-ats-progress>span.WEAK_OR_INFERRED{background:#ffb000}.student-ats-progress>span.NO_EVIDENCE{background:#ff2345}.student-ats-match.FULL_MATCH,.student-ats-match.RELATED_EVIDENCE{color:#078a6c}.student-ats-match.WEAK_OR_INFERRED{color:#b57c00}.student-ats-match.NO_EVIDENCE{color:#e51c40}
+.student-ats-resume details{border-top:1px solid #edf1f8}.student-ats-resume summary{display:flex;align-items:center;gap:8px;padding:8px 0;list-style:none;cursor:pointer;font-size:11px;min-width:0}.student-ats-resume summary>svg{color:#713cff;flex-shrink:0}.student-ats-resume summary>b{flex:0 0 88px;font-size:11px}.student-ats-resume summary>span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ats-muted);font-size:10px}.student-ats-resume details>p{font-size:12px;margin:6px 0;padding-left:23px}.student-ats-resume details[open] summary>svg:last-child{transform:rotate(180deg)}
+.student-ats-strengths,.student-ats-gaps{border-radius:6px;border:1px solid #d5f1e8;background:#f3fcf9;overflow:hidden;margin-top:10px}.student-ats-strengths h5,.student-ats-gaps h5{display:flex;align-items:center;gap:7px;padding:6px 8px;background:#ddf8ef;color:#08785f;font-size:12px}.student-ats-gaps{background:#fffcf3;border-color:#ffedc8}.student-ats-gaps h5{background:#fff0d3;color:#b96d00}.student-ats-strengths p,.student-ats-gaps p{padding:7px 9px 0;font-size:12px}.student-ats-strengths p:last-of-type,.student-ats-gaps p:last-of-type{padding-bottom:8px}.student-ats-strengths b,.student-ats-gaps b{font-size:12px;color:#22345c}.student-ats-insight-line{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:11px;color:var(--ats-muted)}.student-ats-show{display:block;background:transparent;color:#6535e9;border:0;font:inherit;font-size:11px;font-weight:700;padding:7px 9px;cursor:pointer;text-align:left}.student-ats-suggestions>p{margin-top:8px}.student-ats-suggestion{padding:9px 0;border-bottom:1px solid #edf1f8}.student-ats-suggestion>b{font-size:12px}.student-ats-suggestion>p{margin-top:4px}.student-ats-suggestion small{display:block;font-size:10px;color:#9d6500;margin-top:4px}.student-ats-suggestions h4{margin-bottom:8px}
+.student-ats-actions{display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;border-top:1px solid var(--ats-line);padding-top:12px;margin-top:16px}.drive-ats-chips{display:flex;flex-wrap:wrap;gap:8px}.drive-ats-chips label{display:flex;align-items:center;gap:6px;background:#fff5e1;border-radius:6px;padding:6px 9px;font-size:12px}.student-ats-studio-controls{padding-top:12px}.student-ats-studio-controls>p{margin:8px 0;font-size:12px}#add-skills{scroll-margin-top:90px}
+.student-ats-strengths:has(button[aria-expanded="true"]) .student-ats-insight-line,.student-ats-gaps:has(button[aria-expanded="true"]) .student-ats-insight-line,.student-ats-suggestions:has(button[aria-expanded="true"]) .student-ats-insight-line{white-space:normal;overflow:visible}
+/* Desktop assessment workspace: the entire frame stays in the viewport.
+   Only record-heavy cards scroll; no rows or expanded content are removed. */
+@media(min-width:1000px){
+ .student-ats-page>.drive-ats-panel{height:calc(100dvh - 152px);min-height:500px;display:grid;grid-template-rows:auto auto auto auto auto minmax(0,1fr) auto;gap:8px;padding:12px;overflow:hidden}
+ .student-ats-page>.drive-ats-panel>.student-ats-header,.student-ats-page>.drive-ats-panel>.student-ats-identity,.student-ats-page>.drive-ats-panel>.student-ats-cards,.student-ats-page>.drive-ats-panel>.student-ats-info,.student-ats-page>.drive-ats-panel>.student-ats-combined,.student-ats-page>.drive-ats-panel>.student-ats-actions{margin:0}
+ .student-ats-page .student-ats-header h3{font-size:19px}.student-ats-page .student-ats-header p{font-size:11px}.student-ats-page .student-ats-identity{padding:8px 12px}.student-ats-page .student-ats-identity img,.student-ats-page .student-ats-avatar{width:38px;height:38px}
+ .student-ats-page .student-ats-cards article{min-height:88px;padding:10px;gap:10px}.student-ats-page .student-ats-ring{height:64px;width:64px;flex-basis:64px!important}.student-ats-page .student-ats-ring>span{height:50px;width:50px}.student-ats-page .student-ats-ring b{font-size:21px}.student-ats-page .student-ats-cards p{font-size:10px;margin-top:4px}.student-ats-page .student-ats-card-icon{height:40px;width:40px}.student-ats-page .student-ats-cards h4{font-size:12px}
+ .student-ats-page .student-ats-info{padding:5px 8px}.student-ats-page .student-ats-combined>summary{padding:6px 10px}.student-ats-page .student-ats-combined[open]{max-height:150px;overflow:auto}
+ .student-ats-page .student-ats-body{min-height:0;gap:12px;overflow:hidden}.student-ats-page .student-ats-left{display:grid;grid-template-rows:minmax(0,1fr) auto;gap:8px;min-height:0;height:100%}.student-ats-page .student-ats-right{display:grid;grid-template-rows:minmax(0,1.25fr) minmax(0,1fr);gap:8px;min-height:0;height:100%}
+ .student-ats-page .student-ats-box{padding:8px}.student-ats-page .student-ats-combined{padding:0}.student-ats-page .student-ats-combined[open]{padding:0 10px 10px}
+ .student-ats-page .student-ats-requirements{display:flex;flex-direction:column;min-height:0}.student-ats-page .student-ats-section-header{margin-bottom:6px}.student-ats-page .student-ats-filters{margin-bottom:6px;gap:8px}.student-ats-page .student-ats-filters label>span{display:none}.student-ats-page .student-ats-filters input,.student-ats-page .student-ats-filters select{min-height:28px}
+ .student-ats-page .student-ats-table{min-height:0;overflow:auto;overscroll-behavior:contain;scrollbar-gutter:stable;flex:1}.student-ats-page .student-ats-table thead{position:sticky;top:0;z-index:1}.student-ats-page .student-ats-table td{padding:7px 4px}.student-ats-page .student-ats-table th{padding:6px 4px}
+ .student-ats-page .student-ats-resume{max-height:174px;overflow:auto;overscroll-behavior:contain}.student-ats-page .student-ats-resume summary{padding:5px 0}.student-ats-page .student-ats-resume .student-ats-section-header{margin-bottom:4px}.student-ats-page .student-ats-resume .button{min-height:26px;padding:4px 7px;font-size:10px}
+ .student-ats-page .student-ats-right>.student-ats-box{min-height:0;overflow:auto;overscroll-behavior:contain}.student-ats-page .student-ats-right h4{font-size:13px}.student-ats-page .student-ats-strengths,.student-ats-page .student-ats-gaps{margin-top:6px}.student-ats-page .student-ats-strengths p,.student-ats-page .student-ats-gaps p{padding-top:4px}.student-ats-page .student-ats-strengths h5,.student-ats-page .student-ats-gaps h5{padding:4px 7px}.student-ats-page .student-ats-show{padding:4px 8px}.student-ats-page .student-ats-suggestion{padding:5px 0}.student-ats-page .student-ats-suggestion small{font-size:9px}.student-ats-page .student-ats-actions{padding-top:7px}
+}
+@media(max-width:760px){.drive-ats-panel{padding:12px}.student-ats-body{grid-template-columns:1fr}.student-ats-identity{flex-wrap:wrap}.student-ats-identity dl{margin:4px 0 0;width:100%;flex-wrap:wrap;gap:12px}.student-ats-identity dl>div{padding:0 12px 0 0;border:0}.student-ats-cards{grid-template-columns:1fr}.student-ats-header{flex-wrap:wrap}.student-ats-filters{grid-template-columns:1fr 1fr}.student-ats-table table{font-size:11px}.student-ats-table td,.student-ats-table th{padding:7px 3px}.student-ats-match-cell>.student-ats-progress{display:none}.student-ats-table th:nth-child(1){width:7%}.student-ats-table th:nth-child(2){width:26%}.student-ats-table th:nth-child(3){width:19%}.student-ats-table th:nth-child(4){width:24%}.student-ats-table th:nth-child(5){width:24%}.student-ats-priority{padding:3px;font-size:9px}.student-ats-match{font-size:10px}.student-ats-resume summary>b{flex-basis:78px}.student-ats-actions{justify-content:flex-start}}
 
-#add-skills{scroll-margin-top:90px}
+/* ATS card tint only; the existing eligibility badge and grid remain unchanged. */
+.placement-ats-label{display:inline-flex;flex-wrap:wrap;align-items:center;gap:8px;font-size:12px;line-height:20px}
+
+/* Keep ATS next to eligibility, with the existing card actions below the content. */
+.drive-card-top .drive-status-badges{max-width:none;flex-shrink:0;justify-content:flex-end}
+.drive-card-top .placement-ats-label{font-size:14px;line-height:1.4;white-space:nowrap;padding:8px 10px;border:1px solid var(--border);border-radius:10px;background:var(--card);gap:6px;color:var(--muted)}
+.drive-card-top .placement-ats-label[data-ats-tone="red"]{background:#ffe4e6;border-color:#fda4af;color:#9f1239}
+.drive-card-top .placement-ats-label[data-ats-tone="green"]{background:#d1fae5;border-color:#6ee7b7;color:#065f46}
+.drive-card-top .placement-ats-label strong{font-weight:800;font-variant-numeric:tabular-nums}
+.placement-card-actions{display:grid;grid-template-columns:minmax(0,1fr);gap:8px;margin-top:auto;padding-top:12px}
+.placement-card-actions .button{min-width:0;min-height:36px;padding:8px;font-size:11px;font-weight:500;white-space:normal;text-align:center;line-height:1.4}
+.placement-card-actions .button svg{width:13px;flex-shrink:0}
+.placement-assessment-button{color:var(--primary)}
+@media(max-width:480px){.placement-card-actions{grid-template-columns:1fr}.drive-card-top{flex-wrap:wrap}.drive-card-top .drive-status-badges{margin-left:auto}}
+
+.placement-ats-entry{display:flex;align-items:center;gap:5px;min-width:0}
+.placement-ats-label{text-decoration:none;transition:box-shadow .15s,transform .15s}
+.placement-ats-label:hover{box-shadow:0 2px 8px #25223720;transform:translateY(-1px)}
+.placement-ats-label:focus-visible{outline:2px solid var(--primary);outline-offset:3px}
+.placement-group .drive-card-top .drive-status-badges{max-width:100%;flex-wrap:wrap}
+@media(max-width:480px){.placement-group .drive-card-top{flex-wrap:wrap}.placement-group .drive-card-top .drive-status-badges{flex-shrink:1}}
+
+/* Assessment sections grow with their evidence; scrolling belongs to the page. */
+.student-ats-page .drive-ats-panel,.student-ats-page .student-ats-body,.student-ats-page .student-ats-left,.student-ats-page .student-ats-right{height:auto;max-height:none;overflow:visible;grid-template-rows:none}
+.student-ats-page :is(.student-ats-table,.student-ats-resume,.student-ats-right>.student-ats-box,.student-ats-combined,.student-ats-jd){height:auto;max-height:none;overflow:visible;overscroll-behavior:auto}
+
+/* Preserve the original assessment columns; let real insight text fill the right side. */
+.student-ats-page .student-ats-body{display:grid;grid-template-columns:minmax(0,1.75fr) minmax(0,1fr);gap:16px;align-items:start}
+.student-ats-page .student-ats-left,.student-ats-page .student-ats-right{display:flex;flex-direction:column;gap:12px;min-width:0}
+.student-ats-page .student-ats-right>.student-ats-box{min-height:0}
+.student-ats-page .student-ats-insight-line{white-space:normal;overflow:visible;text-overflow:clip;line-height:1.6}
+.student-ats-page .student-ats-combined{border-color:#c9b6ff;background:#fff;box-shadow:0 2px 10px #713cff08}
+.student-ats-page .student-ats-combined>summary{padding:14px 16px;background:#f5f0ff;border-radius:7px;gap:14px}
+.student-ats-details-title{display:flex;align-items:center;gap:10px;min-width:0}
+.student-ats-details-title>span{display:grid;gap:4px}
+.student-ats-details-title b{font-size:14px;color:#352063}
+.student-ats-details-title small{font-size:11px;font-weight:400;color:#65708f;line-height:1.5}
+.student-ats-details-action{display:inline-flex;align-items:center;gap:8px;white-space:nowrap;color:#6535e9;font-size:12px}
+.student-ats-combined[open] .student-ats-details-action svg{transform:rotate(180deg)}
+.student-ats-page .student-ats-combined[open]{padding:0 0 16px}
+.student-ats-detail-groups{display:grid;align-items:start;grid-template-columns:1fr 1fr;gap:16px;padding:16px}
+.student-ats-detail-groups>section{padding:14px;border:1px solid #e0e7f5;border-radius:8px;background:#fbfcff;min-width:0}
+.student-ats-detail-groups h5,.student-ats-job-description h5{font-size:13px;color:#352063}
+.student-ats-detail-groups .student-ats-metadata{grid-template-columns:repeat(2,minmax(0,1fr));gap:0;margin:10px 0 0}
+.student-ats-detail-groups .student-ats-metadata>div{padding:10px 8px;border-top:1px solid #e8edf6}
+.student-ats-detail-groups .student-ats-metadata dt{font-size:11px}
+.student-ats-detail-groups .student-ats-metadata dd{font-size:12px;font-weight:500;line-height:1.6;margin-top:5px}
+.student-ats-job-description{margin:0 16px;padding:16px;border:1px solid #e0e7f5;border-radius:8px;background:#fff}
+.student-ats-page .student-ats-jd{font-size:13px;line-height:1.85;max-width:100%;white-space:pre-wrap;margin-top:12px!important}
+@media(max-width:760px){.student-ats-page .student-ats-body{grid-template-columns:1fr}.student-ats-detail-groups{grid-template-columns:1fr}}
+@media(max-width:600px){.student-ats-details-action{font-size:0;gap:0}.student-ats-detail-groups{padding:12px}.student-ats-detail-groups .student-ats-metadata{grid-template-columns:1fr}.student-ats-job-description{margin:0 12px;padding:12px}}
+
+.placement-drive-footer{margin-top:12px;padding-top:12px;border-top:1px solid #e4ddec}
+.placement-drive-footer-label{display:block;margin-bottom:7px;color:#65708f;font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase}
+.placement-drive-footer nav{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}
+.placement-drive-footer nav>a,.placement-drive-footer nav>span{display:flex;align-items:center;justify-content:space-between;gap:6px;min-width:0;min-height:40px;padding:8px;border:1px solid #e0e7f5;border-radius:7px;background:#fff;font-size:11px;line-height:1.5;text-decoration:none;color:#6535e9}
+.placement-drive-footer nav>a:hover{background:#f5f0ff;border-color:#c9b6ff}
+.placement-drive-footer nav>a:focus-visible{outline:2px solid #713cff;outline-offset:2px}
+.placement-drive-footer nav>span{background:#f7f8fc;color:#8490a7}
+.placement-drive-footer nav small{font-size:10px}
+.placement-drive-footer nav strong{font-size:12px;font-weight:800;white-space:nowrap}
+.placement-drive-footer nav svg{flex-shrink:0}
+@media(max-width:420px){.placement-drive-footer nav{grid-template-columns:1fr}}
+
+/* Compact drive summaries with the original full-width opportunity action. */
+.placement-group .drive-grid>.drive-card{padding:16px}
+.placement-group .drive-grid>.drive-card h2{min-height:0;margin-bottom:8px}
+.placement-group .drive-card .drive-card-top{margin-bottom:8px}
+.placement-group .drive-grid>.drive-card .drive-card-meta{margin-bottom:0}
+.placement-drive-footer{margin-top:10px;padding-top:10px}
+.placement-drive-footer nav{gap:6px}
+.placement-drive-footer nav>a,.placement-drive-footer nav>span{min-height:36px;padding:7px 8px;border-radius:6px}
+@media(max-width:420px){.placement-drive-footer nav{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+.placement-group .drive-card>.placement-opportunity-button{display:flex;width:100%;justify-content:center;gap:10px;margin-top:10px;min-height:36px}
+/* Colour belongs to the ATS badge, while the opportunity stays neutral. */
+.placement-group .drive-grid>.drive-card{background:var(--card,#fff)}
+.drive-card-top .placement-ats-entry{display:flex;align-items:center;gap:4px}
+.drive-card-top .placement-ats-label{white-space:nowrap;flex-wrap:nowrap}
+.drive-card-top .placement-ats-label strong{font-size:12px}
+.placement-drive-footer nav>a:last-child{grid-column:1/-1}
+.placement-ineligible-badge{background:#fff1f2;color:#be123c;border:1px solid #fecdd3}
+.drive-card .placement-eligibility-notice{display:block;padding:8px 10px;border-radius:7px;background:#fff7ed;color:#9a3412;font-size:12px;line-height:1.5}
+
+
+.drive-card .placement-skill-notice{display:grid;gap:3px;padding:9px 10px;border:1px solid #fed7aa;border-radius:8px;background:#fff7ed;color:#9a3412;font-size:11px;line-height:1.5}
+.placement-skill-notice strong{font-size:12px}
+.placement-skill-notice a{display:inline-flex;align-items:center;gap:4px;width:fit-content;color:inherit;font-weight:600}
+@media(max-width:480px){.drive-card-top{flex-wrap:wrap}.drive-card-top .drive-status-badges{flex-wrap:wrap;flex-shrink:1;max-width:100%}}
+
+/* Make the three placement features distinct, with readable availability. */
+.placement-drive-footer nav{gap:8px}
+.placement-drive-footer nav>.placement-feature{min-height:62px;padding:10px;gap:9px;border-radius:10px;justify-content:flex-start;line-height:1.3;transition:background .15s,border-color .15s}
+.placement-feature .placement-feature-icon{display:flex;align-items:center;justify-content:center;width:29px;height:29px;flex-shrink:0;border-radius:8px;background:#f0ebff;color:#7540dc}
+.placement-feature .placement-feature-copy{display:grid;gap:3px;min-width:0}
+.placement-feature .placement-feature-copy b{font-size:12px;font-weight:700;color:inherit}
+.placement-feature .placement-feature-copy small{font-size:10px;line-height:1.4;color:var(--muted)}
+.placement-feature>svg,.placement-feature>strong{margin-left:auto}
+.placement-drive-footer nav>.placement-feature-interview{background:#7437df;border-color:#7437df;color:white}
+.placement-feature-interview .placement-feature-icon{background:#ffffff26;color:white}
+.placement-feature-interview .placement-feature-copy small{color:#f0e6ff}
+.placement-drive-footer nav>.placement-feature-interview:hover{background:#6229c6;border-color:#6229c6}
+.placement-drive-footer nav>.placement-feature-unavailable{background:var(--card);color:var(--muted);border-color:var(--border)}
+.placement-feature-unavailable .placement-feature-icon{background:var(--soft);color:var(--muted)}
+.placement-drive-footer nav>.placement-feature-coach{grid-column:1/-1;background:#f7f3ff;border-color:#e4d7ff;color:#6531bd;min-height:58px}
+.placement-drive-footer nav>.placement-feature-coach:hover{background:#efe7ff;border-color:#ccb5f6}
+.placement-feature-score>strong{padding:4px 6px;background:#f0ebff;border-radius:6px;font-size:12px}
+@media(max-width:420px){.placement-drive-footer nav>.placement-feature{gap:6px;padding:9px 7px}.placement-feature .placement-feature-icon{width:25px;height:27px}.placement-feature .placement-feature-copy b{font-size:11px}.placement-feature-score>strong{padding:3px;font-size:11px}}
+
+.placement-eligibility-pending{background:var(--soft);color:var(--muted);border:1px solid var(--border)}

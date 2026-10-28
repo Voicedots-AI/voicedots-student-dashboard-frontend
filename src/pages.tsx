@@ -1,5 +1,4 @@
-import { DriveATSFit } from "./drive-ats-fit";
-import { PlacementResult } from "./report-result";
+import { PlacementResult, placementResult } from "./report-result";
 import { CareerProfile } from "./career-profile";
 import {displayName} from "./display";
 import { useEffect, useRef, useState, type FormEvent, type CSSProperties } from "react";
@@ -240,9 +239,9 @@ export function Overview() {
               <div className="section-heading"><div><span className="eyebrow">LATEST PLACEMENT DRIVES</span><h2>Explore your next opportunity</h2></div><Link to="/placements">View all <ArrowRight size={15}/></Link></div>
               <div className="overview-drive-grid">{recentDrives.map(drive => {
                 const available = !drive.is_locked && drive.interview_action !== "blocked" && drive.eligibility_status !== "ineligible";
-                const action = drive.interview_action === "resume" ? "Resume interview" : ["start", "retry_preparation"].includes(drive.interview_action || "") ? "Start AI Interview" : null;
+                const action = ["resume", "start", "retry_preparation"].includes(drive.interview_action || "") ? "Start Interview" : null;
                 return <article className="overview-drive" key={drive.id}>
-                  <div className="overview-drive-company"><span className="record-icon"><BriefcaseBusiness size={19}/></span><span>{drive.company_name}</span><span className="pill">{drive.is_locked ? "Locked" : "Active"}</span></div>
+                  <div className="overview-drive-company"><span className="record-icon"><BriefcaseBusiness size={19}/></span><span>{drive.company_name}</span><PlacementATSLabel driveId={drive.id}/><span className="pill">{drive.is_locked ? "Locked" : "Active"}</span></div>
                   <h3>{drive.role_title}</h3>
                   <p><MapPin size={14}/>{drive.location || "Location to be announced"}</p>
                   {drive.window_start_at && <p><CalendarDays size={14}/>{date(drive.window_start_at)}</p>}
@@ -386,10 +385,21 @@ function studentAttemptState(value: Drive | DriveContext): StudentAttemptState {
   return { maximum, used, completed, current, next, remaining: Math.max(0, maximum - used) };
 }
 
+function interviewWindowEnded(end?: string, now = Date.now()) {
+  const deadline = end ? Date.parse(end) : NaN;
+  return Number.isFinite(deadline) && now >= deadline;
+}
+
+function currentDriveState(drive: Drive, now: number): Drive {
+  const expired = drive.status === "expired" || drive.interview_status === "expired" || drive.interview_assignment_status === "expired";
+  if (!expired && drive.status !== "closed" && !interviewWindowEnded(drive.window_end_at, now)) return drive;
+  return {...drive, interview_status: expired ? "expired" : "closed", interview_action: "closed"};
+}
+
 function placementGroup(drive: Drive) {
   const status = drive.interview_status || (drive.status === "active" ? "open" : "upcoming");
   const action = drive.interview_action || "";
-  if (drive.is_locked || status === "closed" || status === "completed" || drive.status === "closed") return "closed";
+  if (drive.is_locked || ["closed", "expired"].includes(status) || status === "completed" || drive.status === "closed") return "closed";
   if (["resume", "start", "retry_preparation"].includes(action) && status !== "upcoming") return "active";
   if (["upcoming", "awaiting_assignment"].includes(status) || drive.status === "scheduled") return "upcoming";
   return "closed";
@@ -430,16 +440,140 @@ function placementPresentation(drive: Drive) {
   const rounds = drive.agent_selection?.length || drive.round_configuration?.length;
   const labels: Record<string, string> = {awaiting_assignment: "Awaiting assignment", open: "Open now", upcoming: "Scheduled", in_progress: "In progress", completed: "Completed", expired: "Expired", closed: "Closed"};
   return {
-    status: drive.is_locked ? "Locked" : labels[status] || (drive.interview_action === "blocked" ? "Action required" : "Closed"),
-    attempts: status === "closed" ? "Interview closed" : attemptSummaryText(studentAttemptState(drive)),
+    status: ["closed", "expired"].includes(status) ? labels[status] : drive.is_locked ? "Locked" : labels[status] || (drive.interview_action === "blocked" ? "Action required" : "Closed"),
+    attempts: ["closed", "expired"].includes(status) ? "Interview closed" : attemptSummaryText(studentAttemptState(drive)),
     window: drive.window_start_at ? `${date(drive.window_start_at)} – ${drive.window_end_at ? date(drive.window_end_at) : "To be announced"}` : date(drive.drive_date),
     interview: `${drive.interview_duration_minutes || "—"} minutes · ${drive.difficulty_tier === "dynamic" ? "Personalized" : humanize(drive.difficulty_tier || "Difficulty not set")} · ${rounds || "—"} ${rounds === 1 ? "round" : "rounds"}`,
     compensation: compensationLabel(drive),
   };
 }
 
+// Presentation only: 50 is the requested tint threshold, never an eligibility rule.
+type PlacementATSState = {scope:string;score:number|null;failed:boolean;missing:string[];status:string;checked:boolean};
+function usePlacementATS(driveId: string) {
+  const {identity} = useAuth();
+  const scope = `${identity?.student.id}:${identity?.student.current_resume_submission_id || ""}:${driveId}`;
+  const [state, setState] = useState<PlacementATSState>();
+  const [retry, setRetry] = useState(0);
+  useEffect(() => {
+    let active = true;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    setState(undefined);
+    const load = async () => {
+      try {
+        const result = await api<{ats_status:string; ats_fit_score:number|null; skills?:{skill?:string;requirement?:string;priority?:string;importance?:string;match_status?:string;match_score?:number}[]}>(`/api/student/drives/${encodeURIComponent(driveId)}/ats-fit`, {timeoutMs:120000});
+        if (!active) return;
+        const score = result.ats_status === "evaluated" && typeof result.ats_fit_score === "number" && Number.isFinite(result.ats_fit_score) && result.ats_fit_score >= 0 && result.ats_fit_score <= 100 ? result.ats_fit_score : null;
+        const missing=result.ats_status === "evaluated" ? (result.skills||[]).filter(row =>
+          ['mandatory','core'].includes((row.priority||row.importance||'').trim().toLowerCase()) &&
+          ['NO_EVIDENCE','NO_MATCH','MISSING'].includes((row.match_status||'').toUpperCase())
+        ).map(row=>row.skill||row.requirement||'').filter(Boolean) : [];
+        setState({scope, score, failed:false,missing,status:result.ats_status,checked:result.ats_status === "evaluated" && Array.isArray(result.skills)});
+        if (result.ats_status === "processing") timer = setTimeout(load, 10000);
+      } catch {
+        if (active) setState({scope, score:null, failed:true,missing:[],status:"failed",checked:false});
+      }
+    };
+    void load();
+    return () => {active = false; clearTimeout(timer);};
+  }, [driveId, scope, retry]);
+  const current = state?.scope === scope ? state : undefined;
+  const score = current?.score ?? null;
+  return {score,missing:current?.missing||[],failed:current?.failed||false,checked:current?.checked===true,pending:!current||current.status==="processing",retry:()=>setRetry(value=>value+1)};
+}
+function PlacementATSBadge({driveId,ats}: {driveId:string;ats:ReturnType<typeof usePlacementATS>}) {
+  const {score}=ats;
+  return <div className="placement-ats-entry"><Link className="placement-ats-label" to={`/ats-fit?drive=${encodeURIComponent(driveId)}`} title="Open Assessment Intelligence" data-ats-tone={score === null ? "neutral" : score >= 50 ? "green" : "red"}>
+    <FileText size={16} aria-hidden="true"/><strong>{score === null ? "ATS Fit Not assessed" : `ATS Fit ${score}%`}</strong></Link>
+    {ats.failed && <button type="button" className="text-button" aria-label="Retry ATS assessment" onClick={ats.retry}>Retry</button>}
+  </div>;
+}
+
+function PlacementATSLabel({driveId}: {driveId:string}) {
+  const ats=usePlacementATS(driveId);
+  return <PlacementATSBadge driveId={driveId} ats={ats}/>;
+}
+
+function PlacementDriveActions({drive,reports,eligibilityCheck}: {drive:Drive;reports:Report[];eligibilityCheck?:string}) {
+  const driveId=drive.id;
+
+    const report=reports.filter(row=>row.drive_id===driveId&&row.status==='released'&&(row as Report & {released_to_student_at?:string|null}).released_to_student_at!==null&&row.report?.status!=='awaiting_release'&&typeof row.report?.overall_score==='number').sort((a,b)=>Date.parse(b.completed_at||b.created_at)-Date.parse(a.completed_at||a.created_at))[0];
+    const interviewScore=report?.report?.overall_score;
+    const availableScore=typeof interviewScore==='number'&&Number.isFinite(interviewScore)&&interviewScore>=0&&interviewScore<=100;
+    const canInterview=!eligibilityCheck&&drive.eligibility_status!=='ineligible'&&!drive.is_locked&&drive.main_resume_available!==false&&!['closed','expired'].includes(drive.interview_status||'')&&['start','retry_preparation','resume'].includes(drive.interview_action||'');
+    const id=encodeURIComponent(driveId);
+    const interviewLabel='Start Interview';
+    const unavailableReason=['closed','expired'].includes(drive.interview_status||'') || drive.status==='closed' ? 'Interview closed'
+      : drive.eligibility_status==='ineligible' ? drive.eligibility_reason?.startsWith('Required JD skills') ? 'Required skills missing' : 'Not eligible for this drive'
+      : eligibilityCheck ? eligibilityCheck
+      : drive.is_locked ? 'Locked by placement team'
+      : drive.main_resume_available===false ? 'Main Resume required'
+      : drive.interview_status==='upcoming' || drive.status==='scheduled' ? 'Opens with interview window'
+      : drive.interview_status==='completed' || drive.interview_action==='completed' ? 'Attempts completed'
+      : drive.interview_action==='not_assigned' || drive.interview_status==='awaiting_assignment' ? 'Not assigned yet'
+      : 'Check opportunity details';
+    const interviewContent=<><span className="placement-feature-icon"><Mic size={17}/></span><span className="placement-feature-copy"><b>{interviewLabel}</b><small>{canInterview ? drive.interview_action==='resume'?'Continue your attempt':'Begin your assessment' : unavailableReason}</small></span>{canInterview&&<ArrowRight size={15}/>}</>;
+    return <footer className="placement-drive-footer"><nav aria-label={`Actions for ${drive.company_name} ${drive.role_title}`}>
+      {canInterview?<Link className="placement-feature placement-feature-interview" aria-label={interviewLabel} to={`/practice?drive=${id}`}>{interviewContent}</Link>:<span className="placement-feature placement-feature-unavailable" aria-disabled="true" title={drive.eligibility_reason||unavailableReason}>{interviewContent}</span>}
+      {report?.session_id&&availableScore?<Link className="placement-feature placement-feature-score" aria-label={`Score Card ${interviewScore}%`} to={`/reports/${encodeURIComponent(report.session_id)}`}><span className="placement-feature-icon"><FileText size={17}/></span><span className="placement-feature-copy"><b>Score Card</b><small>View your results</small></span><strong>{interviewScore}%</strong></Link>:<span className="placement-feature placement-feature-unavailable" aria-disabled="true"><span className="placement-feature-icon"><FileText size={17}/></span><span className="placement-feature-copy"><b>Score Card</b><small>{drive.interview_status==='completed'?'Awaiting result release':'After your interview'}</small></span></span>}
+      <Link className="placement-feature placement-feature-coach" aria-label="AI Coach Advice & Progress" to={`/coach?drive=${id}&view=progress`}><span className="placement-feature-icon"><Sparkles size={18}/></span><span className="placement-feature-copy"><b>AI Coach</b><small>Advice &amp; progress</small></span><ArrowRight size={16}/></Link>
+    </nav></footer>;
+
+}
+
+function PlacementDriveCard({drive,reports,select}: {drive:Drive;reports:Report[];select:(drive:Drive)=>Promise<void>}) {
+  const ats=usePlacementATS(drive.id);
+  const missingRequiredSkills=ats.missing.length>0;
+  const hasPlacementDecision=["success","rejected","hold"].includes(placementResult(drive.placement_decision).tone);
+  const eligibilityCheck=ats.checked ? undefined : ats.failed ? "Eligibility not verified" : ats.pending ? "Checking eligibility" : "Assessment pending";
+  const cardDrive:Drive=missingRequiredSkills && !hasPlacementDecision ? {...drive,eligibility_status:"ineligible",eligibility_reason:`Required JD skills not evidenced: ${ats.missing.join(', ')}`} : drive;
+  return (
+              <article className="panel drive-card" data-drive-id={drive.id}>
+                {(() => {
+                  const info = placementPresentation(drive);
+                  return <>
+                <div className="drive-card-top">
+                  <span className="company-avatar">
+                    {(drive.company_name || "C").slice(0, 2).toUpperCase()}
+                  </span>
+                  <span className="drive-company-name">{drive.company_name}</span>
+                  <div className="drive-status-badges"><PlacementATSBadge driveId={drive.id} ats={ats}/>{hasPlacementDecision ? <PlacementResult value={drive.placement_decision} compact/> : <span className={`pill ${cardDrive.eligibility_status === "ineligible" ? "placement-ineligible-badge" : drive.main_resume_available === false ? "placement-resume-required" : eligibilityCheck ? "placement-eligibility-pending" : "placement-eligible-badge"}`}>{cardDrive.eligibility_status === "ineligible" ? "Not eligible" : drive.main_resume_available === false ? "Main Resume required" : eligibilityCheck || "Eligible"}</span>}{drive.is_locked && <span className="pill placement-locked-badge">Locked</span>}</div>
+                </div>
+
+                <h2>{drive.role_title}</h2>
+                {cardDrive.eligibility_status === "ineligible" && !missingRequiredSkills && !hasPlacementDecision && <p className="placement-eligibility-notice">{cardDrive.eligibility_reason || "You do not meet this drive’s eligibility requirements."}</p>}
+                {ats.missing.length>0 && <div className="placement-skill-notice"><strong>{hasPlacementDecision ? "Resume skills to strengthen" : "Not eligible · Required skills missing"}</strong>{hasPlacementDecision && <span>Your placement team’s decision is recorded above. These resume gaps are guidance for improvement.</span>}<span>{ats.missing.slice(0,3).join(', ')}{ats.missing.length>3?` +${ats.missing.length-3} more`:''}</span><Link to={`/ats-fit?drive=${encodeURIComponent(drive.id)}`}>Review JD requirements <ArrowRight size={12}/></Link></div>}
+                <p>
+                  <MapPin size={15} />
+                  {drive.location || "Location to be announced"}
+                </p>
+                <p>
+                  <CalendarDays size={15} />
+                  {info.window}
+                </p>
+                <p className="drive-attempt-summary"><span className="drive-interview-status">{info.status}</span><span>{info.attempts}</span></p>
+                <p className="drive-interview-summary">{info.interview}</p>
+                {drive.placement_decision && !hasPlacementDecision && <PlacementResult value={drive.placement_decision} compact/>}
+                <div className="drive-card-meta"><span>{humanize(drive.job_type || "Job type not set")}</span><span>{info.compensation}</span></div>
+                {drive.main_resume_available === false && <p className="drive-resume-prompt">Upload your Main Resume in <Link to="/profile">My Profile</Link> before starting an interview.</p>}
+                <PlacementDriveActions drive={cardDrive} reports={reports} eligibilityCheck={eligibilityCheck}/>
+                <button type="button" className="button secondary small placement-opportunity-button" onClick={()=>void select(cardDrive)}>View opportunity <ArrowRight size={14}/></button>
+                  </>;
+                })()}
+              </article>
+  );
+}
+
 export function Placements() {
+  const [now, setNow] = useState(Date.now);
+  useEffect(() => {
+    const tick = () => setNow(Date.now());
+    const timer = window.setInterval(tick, 1000);
+    window.addEventListener("focus", tick);
+    return () => {window.clearInterval(timer); window.removeEventListener("focus", tick);};
+  }, []);
   const resource = useResource<Drive[]>("/api/student/drives");
+  const reports = useResource<{reports:Report[]}>("/api/student/reports");
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const openedDriveId = useRef("");
@@ -481,8 +615,7 @@ export function Placements() {
       void select(drive);
     }
   }, [resource.data, searchParams]);
-  const items = (resource.data || [])
-    .filter((drive) => drive.eligibility_status !== "ineligible")
+  const items = (resource.data || []).map(drive => currentDriveState(drive, now))
     .filter((drive) => {
       const matchesSearch = `${drive.company_name} ${drive.role_title}`
         .toLowerCase().includes(search.toLowerCase());
@@ -520,10 +653,12 @@ export function Placements() {
       : null,
     "Main Resume required",
   ].filter((item): item is string => Boolean(item)) : [];
-  const interviewWindow = context?.interview_window || "";
+  const deadlineEnded = interviewWindowEnded(context?.interview_window_end_at || selected?.window_end_at, now);
+  const assignmentExpired = context?.assignment_status === "expired" || selected?.interview_status === "expired" || selected?.interview_assignment_status === "expired";
+  const interviewWindow = deadlineEnded || assignmentExpired || selected?.status === "closed" || selected?.interview_status === "closed" ? "closed" : context?.interview_window || "";
   const mainResumeAvailable = context?.main_resume_available === true;
-  const canResume = Boolean(context && !context.is_locked && !selected?.is_locked && mainResumeAvailable && interviewWindow === "open" && (context.can_resume ?? context.action === "resume"));
-  const canStart = Boolean(context && !context.is_locked && !selected?.is_locked && mainResumeAvailable && interviewWindow === "open" && !context.coach_gate_locked && (
+  const canResume = Boolean(context && selected?.eligibility_status !== "ineligible" && context.eligibility?.status !== "ineligible" && !context.is_locked && !selected?.is_locked && mainResumeAvailable && interviewWindow === "open" && (context.can_resume ?? context.action === "resume"));
+  const canStart = Boolean(context && selected?.eligibility_status !== "ineligible" && context.eligibility?.status !== "ineligible" && !context.is_locked && !selected?.is_locked && mainResumeAvailable && interviewWindow === "open" && !context.coach_gate_locked && (
     context.can_start ?? (["start", "retry_preparation"].includes(context.action) || Boolean(context.can_start_next_attempt))
   ));
   const startInterview = () => context && navigate(`/practice?drive=${encodeURIComponent(context.drive_id)}`);
@@ -533,7 +668,7 @@ export function Placements() {
     else navigate(`/practice?drive=${encodeURIComponent(context.drive_id)}`);
   };
   const statusText = context
-    ? context.is_locked || selected?.is_locked ? "Locked" : canResume ? "In progress"
+    ? selected?.eligibility_status === "ineligible" || context.eligibility?.status === "ineligible" ? "Not eligible" : assignmentExpired ? "Expired" : interviewWindow === "closed" ? "Closed" : context.is_locked || selected?.is_locked ? "Locked" : canResume ? "In progress"
       : context.main_resume_available === false ? "Main Resume required"
       : interviewWindow === "closed" ? "Closed"
       : interviewWindow === "not_open" ? "Scheduled"
@@ -545,7 +680,9 @@ export function Placements() {
     : "Checking status";
   let nextStep = "Your placement interview details are being checked.";
   if (context && attemptState) {
-    if (context.is_locked || selected?.is_locked)
+    if (selected?.eligibility_status === "ineligible" || context.eligibility?.status === "ineligible")
+      nextStep = selected?.eligibility_reason || context.eligibility?.reason || "You do not meet this drive’s eligibility requirements.";
+    else if (context.is_locked || selected?.is_locked)
       nextStep = "This placement is locked. Contact your placement cell to reopen interview access.";
     else if (context.main_resume_available === false)
       nextStep = "Upload or select your Main Resume in My Profile before starting or resuming this placement interview.";
@@ -609,44 +746,10 @@ export function Placements() {
             <div className="placement-group-heading"><div><h2 id={`placement-group-${group.key}`}>{group.title}</h2><p>{group.description}</p></div><span>{group.drives.length}</span></div>
             {view === "table" ? <div className="placement-table-scroll" role="region" aria-label={`${group.title} opportunities`} tabIndex={0}><table className="placement-table"><caption className="sr-only">{group.title} placement opportunities</caption><thead><tr><th scope="col">Company & role</th><th scope="col">Location & window</th><th scope="col">Interview</th><th scope="col">Attempts</th><th scope="col">Compensation</th><th scope="col"><span className="sr-only">Actions</span></th></tr></thead><tbody>{group.drives.map(drive => {
               const info = placementPresentation(drive);
-              return <tr key={drive.id} data-drive-id={drive.id}><td><span className="placement-table-company">{drive.company_name}</span><strong>{drive.role_title}</strong><span className={`pill ${drive.main_resume_available === false ? "placement-resume-required" : "placement-eligible-badge"}`}>{drive.main_resume_available === false ? "Main Resume required" : "Eligible"}</span></td><td><span>{drive.location || "Location to be announced"}</span><small>{info.window}</small></td><td><span className={`pill ${info.status === "Locked" ? "placement-locked-badge" : ""}`}>{info.status}</span><small>{info.interview}</small>{drive.placement_decision && <PlacementResult value={drive.placement_decision} compact/>}</td><td><span>{info.attempts}</span></td><td><span>{info.compensation}</span><small>{humanize(drive.job_type || "Job type not set")}</small></td><td><button className="button secondary small" aria-label={`View opportunity at ${drive.company_name} for ${drive.role_title}`} onClick={() => void select(drive)}>View opportunity <ArrowRight size={14}/></button></td></tr>;
+              return <tr key={drive.id} data-drive-id={drive.id}><td><span className="placement-table-company">{drive.company_name}</span><strong>{drive.role_title}</strong><span className={`pill ${drive.eligibility_status === "ineligible" ? "placement-ineligible-badge" : drive.main_resume_available === false ? "placement-resume-required" : "placement-eligible-badge"}`}>{drive.eligibility_status === "ineligible" ? "Not eligible" : drive.main_resume_available === false ? "Main Resume required" : "Eligible"}</span></td><td><span>{drive.location || "Location to be announced"}</span><small>{info.window}</small></td><td><span className={`pill ${info.status === "Locked" ? "placement-locked-badge" : ""}`}>{info.status}</span><small>{info.interview}</small>{drive.placement_decision && <PlacementResult value={drive.placement_decision} compact/>}</td><td><span>{info.attempts}</span></td><td><span>{info.compensation}</span><small>{humanize(drive.job_type || "Job type not set")}</small></td><td><button className="button secondary small" aria-label={`View opportunity at ${drive.company_name} for ${drive.role_title}`} onClick={() => void select(drive)}>View opportunity <ArrowRight size={14}/></button><Link className="button secondary small" to={`/ats-fit?drive=${encodeURIComponent(drive.id)}`}>Assessment Intelligence</Link></td></tr>;
             })}</tbody></table></div> : <div className="drive-grid">
             {group.drives.map((drive) => (
-              <article className="panel drive-card" key={drive.id} data-drive-id={drive.id}>
-                {(() => {
-                  const info = placementPresentation(drive);
-                  return <>
-                <div className="drive-card-top">
-                  <span className="company-avatar">
-                    {(drive.company_name || "C").slice(0, 2).toUpperCase()}
-                  </span>
-                  <span className="drive-company-name">{drive.company_name}</span>
-                  <div className="drive-status-badges"><span className={`pill ${drive.main_resume_available === false ? "placement-resume-required" : "placement-eligible-badge"}`}>{drive.main_resume_available === false ? "Main Resume required" : "Eligible"}</span>{drive.is_locked && <span className="pill placement-locked-badge">Locked</span>}</div>
-                </div>
-
-                <h2>{drive.role_title}</h2>
-                <p>
-                  <MapPin size={15} />
-                  {drive.location || "Location to be announced"}
-                </p>
-                <p>
-                  <CalendarDays size={15} />
-                  {info.window}
-                </p>
-                <p className="drive-attempt-summary"><span className="drive-interview-status">{info.status}</span><span>{info.attempts}</span></p>
-                <p className="drive-interview-summary">{info.interview}</p>
-                {drive.placement_decision && <PlacementResult value={drive.placement_decision} compact/>}
-                <div className="drive-card-meta"><span>{humanize(drive.job_type || "Job type not set")}</span><span>{info.compensation}</span></div>
-                {drive.main_resume_available === false && <p className="drive-resume-prompt">Upload your Main Resume in <Link to="/profile">My Profile</Link> before starting an interview.</p>}
-                <button
-                  className="button secondary"
-                  onClick={() => void select(drive)}
-                >
-                  View opportunity <ArrowRight size={16} />
-                </button>
-                  </>;
-                })()}
-              </article>
+              <PlacementDriveCard key={drive.id} drive={drive} reports={reports.data?.reports||[]} select={select}/>
             ))}
             </div>}
           </section>)}
@@ -671,12 +774,12 @@ export function Placements() {
             <div className="opportunity-identity">
               <span className="company-avatar" aria-hidden="true">{(selected.company_name || "C").slice(0, 2).toUpperCase()}</span>
               <div className="opportunity-title"><span className="eyebrow">PLACEMENT OPPORTUNITY</span><h2 id="drive-title">{selected.company_name}</h2><p>{selected.role_title}</p>
-                <div className="opportunity-badges"><span className="pill placement-eligible-badge">Eligible</span><span className="pill">{statusText}</span></div>
+                <div className="opportunity-badges"><span className={`pill ${selected.eligibility_status === "ineligible" ? "placement-ineligible-badge" : "placement-eligible-badge"}`}>{selected.eligibility_status === "ineligible" ? "Not eligible" : "Eligible"}</span><span className="pill">{statusText}</span></div>
               </div>
             </div>
             <div className="opportunity-header-actions">
-              {canResume && <button className="button primary" onClick={resumeInterview}>Resume interview <ArrowRight size={16}/></button>}
-              {canStart && <button className="button primary" onClick={startInterview}>{attemptState?.completed ? `Start Attempt ${attemptState.next}` : "Start interview"} <ArrowRight size={16}/></button>}
+              {canResume && <button className="button primary" onClick={resumeInterview}>Start Interview <ArrowRight size={16}/></button>}
+              {canStart && <button className="button primary" onClick={startInterview}>Start Interview <ArrowRight size={16}/></button>}
               {context && context.main_resume_available === false && <Link className="button primary" to="/profile">Upload Main Resume <ArrowRight size={16}/></Link>}
               <button className="opportunity-close" aria-label="Close opportunity details" onClick={closeOpportunity}><X size={19}/></button>
             </div>
@@ -717,18 +820,17 @@ export function Placements() {
                     const resultReady = Boolean(attempt.completed_at && attempt.submission_id && attempt.result_available);
                     return <li key={`attempt-${number}`} className="attempt-timeline-item completed"><div className="attempt-timeline-number">{number}</div><div className="attempt-timeline-content"><strong>Attempt {number}</strong><span>{attempt.completed_at ? `Completed${attempt.completed_at ? ` · ${dateTime(attempt.completed_at)}` : ""}` : "Completed"}</span>{attempt.completed_at && !resultReady && <small>{attempt.evaluation_status === "held_for_review" ? "Result under review" : "Result processing"}</small>}</div>{resultReady && <Link className="button secondary" to={`/reports?submission=${encodeURIComponent(attempt.submission_id!)}`}>View result</Link>}</li>;
                   })}
-                  {attemptState?.current != null && !(context.attempt_history || []).some((attempt) => Number(attempt.attempt_number) === attemptState.current) && <li className="attempt-timeline-item current"><div className="attempt-timeline-number">{attemptState.current}</div><div className="attempt-timeline-content"><strong>Attempt {attemptState.current}</strong><span>In progress</span></div>{canResume && <button className="button secondary" onClick={resumeInterview}>Resume interview</button>}</li>}
-                  {attemptState?.next != null && attemptState.remaining > 0 && <li className="attempt-timeline-item next"><div className="attempt-timeline-number">{attemptState.next}</div><div className="attempt-timeline-content"><strong>Attempt {attemptState.next}</strong><span>{canStart ? "Ready to start" : context.coach_gate_locked ? "Locked · preparation required" : interviewWindow === "not_open" ? "Scheduled" : context.action === "not_assigned" ? "Awaiting assignment" : "Not available yet"}</span></div></li>}
+                  {attemptState?.current != null && !(context.attempt_history || []).some((attempt) => Number(attempt.attempt_number) === attemptState.current) && <li className="attempt-timeline-item current"><div className="attempt-timeline-number">{attemptState.current}</div><div className="attempt-timeline-content"><strong>Attempt {attemptState.current}</strong><span>{interviewWindow === "closed" ? "Interview closed" : "In progress"}</span></div>{canResume && <button className="button secondary" onClick={resumeInterview}>Start Interview</button>}</li>}
+                  {attemptState?.next != null && attemptState.remaining > 0 && <li className="attempt-timeline-item next"><div className="attempt-timeline-number">{attemptState.next}</div><div className="attempt-timeline-content"><strong>Attempt {attemptState.next}</strong><span>{interviewWindow === "closed" ? "Interview closed" : canStart ? "Ready to start" : context.coach_gate_locked ? "Locked · preparation required" : interviewWindow === "not_open" ? "Scheduled" : context.action === "not_assigned" ? "Awaiting assignment" : "Not available yet"}</span></div></li>}
                   {attemptState?.next != null && attemptState.maximum > attemptState.next && <li className="attempt-timeline-item locked"><div className="attempt-timeline-number">···</div><div className="attempt-timeline-content"><strong>{attemptState.maximum - attemptState.next} more attempt{attemptState.maximum - attemptState.next === 1 ? "" : "s"}</strong><span>Unlock one at a time after the preceding attempt.</span></div></li>}
                   {!attemptState?.current && attemptState?.remaining === 0 && (context.attempt_history || []).length === 0 && <li className="attempt-timeline-item completed"><div className="attempt-timeline-number">✓</div><div className="attempt-timeline-content"><strong>No attempts remaining</strong><span>This assignment has reached its attempt limit.</span></div></li>}
                 </ol>}
                 {context.coach_gate_locked && <div className="opportunity-coach-gate"><strong>Complete the required AI Coach preparation</strong><p>Your next attempt unlocks when the required preparation and validation are complete.</p><Link className="button secondary" to={`/coach?drive=${encodeURIComponent(context.drive_id)}`}>Continue with AI Coach <ArrowRight size={16}/></Link></div>}
                 <div className="opportunity-next-step"><span className="eyebrow">YOUR NEXT STEP</span><p>{nextStep}</p></div>
               </section>}
-              <DriveATSFit driveId={selected.id}/>
             </main>
             <aside className="opportunity-snapshot" aria-label="Opportunity snapshot"><span className="eyebrow">OPPORTUNITY SNAPSHOT</span><h3>{selected.role_title}</h3><dl>
-              <div><dt>Company</dt><dd>{selected.company_name}</dd></div><div><dt>Role</dt><dd>{selected.role_title}</dd></div><div><dt>Location</dt><dd>{context?.location || selected.location || "Not specified"}</dd></div><div><dt>Job type</dt><dd>{humanize(selected.job_type || "Not specified")}</dd></div><div><dt>Compensation</dt><dd>{compensationLabel(selected)}</dd></div><div><dt>Interview window</dt><dd>{selected.window_start_at ? `${dateTime(selected.window_start_at)}${selected.window_end_at ? ` – ${dateTime(selected.window_end_at)}` : ""}` : date(selected.drive_date)}</dd></div><div><dt>Status</dt><dd>{statusText}</dd></div><div><dt>Eligibility</dt><dd>{context?.eligibility?.status === "eligible" || selected.eligibility_status === "eligible" ? "Eligible" : humanize(context?.eligibility?.status || "Eligible")}</dd></div>
+              <div><dt>Company</dt><dd>{selected.company_name}</dd></div><div><dt>Role</dt><dd>{selected.role_title}</dd></div><div><dt>Location</dt><dd>{context?.location || selected.location || "Not specified"}</dd></div><div><dt>Job type</dt><dd>{humanize(selected.job_type || "Not specified")}</dd></div><div><dt>Compensation</dt><dd>{compensationLabel(selected)}</dd></div><div><dt>Interview window</dt><dd>{selected.window_start_at ? `${dateTime(selected.window_start_at)}${selected.window_end_at ? ` – ${dateTime(selected.window_end_at)}` : ""}` : date(selected.drive_date)}</dd></div><div><dt>Status</dt><dd>{statusText}</dd></div><div><dt>Eligibility</dt><dd>{selected.eligibility_status === "ineligible" || context?.eligibility?.status === "ineligible" ? "Not eligible" : context?.eligibility?.status === "eligible" || selected.eligibility_status === "eligible" ? "Eligible" : humanize(context?.eligibility?.status || "Eligibility pending")}</dd></div>
             </dl>{selected.application_deadline && <p className="opportunity-deadline"><strong>Application deadline</strong><span>{dateTime(selected.application_deadline)}</span></p>}</aside>
           </div>
           <footer className="opportunity-footer"><span>Your placement information is provided by your placement cell.</span><button className="button secondary" onClick={closeOpportunity}>Close details</button></footer>

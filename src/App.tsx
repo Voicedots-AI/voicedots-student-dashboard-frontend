@@ -51,6 +51,7 @@ import { PhotoVerification } from "./PhotoVerification";
 import { CoachSession } from "./coach-session";
 import { CareerCoach } from "./career-coach";
 import { ResumeStudio } from "./resume-studio";
+import { ATSFitPage } from "./ats-fit-page";
 import { ProfileSetupPrompt } from "./profile-setup";
 import { FeatureShowcase } from "./auth-showcase";
 import { ProductTour, START_TOUR_EVENT } from "./product-tour";
@@ -548,6 +549,7 @@ export function App() {
               element={<Practice key={location.search} />}
             />
             <Route path="/placements" element={<Placements />} />
+            <Route path="/ats-fit" element={<ATSFitPage />} />
             <Route path="/calendar" element={<Calendar />} />
             <Route path="/reports" element={<Reports />} />
             <Route path="/reports/:sessionId" element={<InterviewReport />} />

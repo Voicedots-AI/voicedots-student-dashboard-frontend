@@ -69,7 +69,8 @@ export type Drive = {
   application_deadline?: string;
   application_deadline_at?: string;
   status: string;
-  eligibility_status?: "eligible" | "ineligible";
+  eligibility_status?: "eligible" | "ineligible" | "resume_required";
+  eligibility_reason?: string;
   criteria_min_cgpa?: number | null;
   criteria_department_codes?: string[];
   criteria_graduation_years?: number[];
