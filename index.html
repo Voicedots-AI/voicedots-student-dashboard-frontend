@@ -4,6 +4,20 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#7c3aed" />
+    <script>
+      // Restore the saved theme before the first paint, rather than after React mounts.
+      try { document.documentElement.classList.toggle("dark", localStorage.getItem("theme") === "dark"); } catch {}
+    </script>
+    <style>
+      /* Match the dashboard while its application stylesheet is loading. */
+      :root { color-scheme: light; color: #252237; background: #f8f7fc; --primary: #7c3aed; --background: #f8f7fc; --text: #252237; --muted: #807b90; }
+      :root.dark { color-scheme: dark; color: #eeeaf8; background: #0d0c13; --primary: #a78bfa; --background: #0d0c13; --text: #eeeaf8; --muted: #a59db6; }
+      body { margin: 0; background: var(--background); color: var(--text); }
+    </style>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&amp;family=Poppins:wght@400;500;600;700&amp;display=swap" media="print" onload="this.media='all'" />
+    <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&amp;family=Poppins:wght@400;500;600;700&amp;display=swap" /></noscript>
     <meta
       name="description"
       content="Your VoiceDots student dashboard. Prepare, practice, and grow with personalized AI interviews."
