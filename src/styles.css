@@ -977,6 +977,11 @@ legend {
   display: flex;
   justify-content: center;
   align-items: center;
+  flex-shrink: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  line-height: 1;
+  font-weight: 700;
   background: var(--soft);
   color: var(--primary);
   border-radius: 12px;
