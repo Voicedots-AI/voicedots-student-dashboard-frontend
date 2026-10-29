@@ -1,3 +1,5 @@
+import {usePlacementATS} from "./placement-ats";
+import {evaluatedPlacementScore,meetsPlacementATSThreshold,hasAppliedPlacementEvidence} from "./placement-eligibility";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import {
   ArrowRight,
@@ -40,6 +42,8 @@ export function Practice() {
   const [mode, setMode] = useState<"practice" | "placement">(requestedDriveId ? "placement" : "practice");
   const [selectedDriveId, setSelectedDriveId] = useState(requestedDriveId || "");
   const driveId = mode === "placement" ? selectedDriveId : null;
+  const placementATS = usePlacementATS(driveId);
+  const atsQualified = placementATS.eligible;
   const coachCycleId = params.get("coach_cycle");
   const drives = useResource<Drive[]>("/api/student/drives");
   const availableDrives = (drives.data || []).filter((drive) => {
@@ -272,6 +276,26 @@ export function Practice() {
     setFile(next);
   }
 
+  async function verifyPlacementATS() {
+    if (!driveId) return true;
+    try {
+      const result = await api<{ats_status:string;ats_fit_score:unknown;skills?:Parameters<typeof hasAppliedPlacementEvidence>[0]}>(`/api/student/drives/${encodeURIComponent(driveId)}/ats-fit`,{timeoutMs:8000});
+      if (meetsPlacementATSThreshold(evaluatedPlacementScore(result.ats_status,result.ats_fit_score)) && hasAppliedPlacementEvidence(result.skills)) return true;
+      setError("ATS Fit must be at least 50%, supported by relevant project or work evidence.");
+    } catch {
+      setError("Unable to verify ATS Fit. Please retry before starting the interview.");
+    }
+    placementATS.retry();
+    return false;
+  }
+  async function enterInterview(submissionId:string,sessionId?:string) {
+    if (driveId && (!atsQualified || !context || context.is_locked || context.main_resume_available !== true || context.interview_window !== "open")) {
+      setError("An ATS Fit of at least 50% and an open placement interview are required.");
+      return;
+    }
+    if (await verifyPlacementATS()) openInterview(submissionId,sessionId);
+  }
+
   async function start(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
@@ -280,7 +304,7 @@ export function Practice() {
       setError("Add your Main Resume in My Profile before starting an interview.");
       return;
     }
-    if (driveId && (!context?.can_start || context.main_resume_available !== true || context.interview_window !== "open")) {
+    if (driveId && (!atsQualified || !context?.can_start || context.main_resume_available !== true || context.interview_window !== "open")) {
       setError("This placement interview is not available to start right now. Refresh the placement details and try again.");
       return;
     }
@@ -288,7 +312,9 @@ export function Practice() {
       setError("Enter a target role before starting practice.");
       return;
     }
+    if (busy) return;
     setBusy(true);
+    if (driveId && !await verifyPlacementATS()) { setBusy(false); return; }
     const body = new FormData();
     body.set("resume", file);
     body.set("target_role", driveId ? context!.role_title : role.trim());
@@ -421,17 +447,17 @@ export function Practice() {
   const needsClarification = preparation?.status === "needs_clarification";
   const ready =
     preparation?.status === "ready" && preparation.submission_id && !pending;
-  const driveCanStart = Boolean(context && context.can_start && context.main_resume_available === true
+  const driveCanStart = Boolean(atsQualified && context && context.can_start && context.main_resume_available === true
     && context.interview_window === "open" && !context.coach_gate_locked);
   // An attempt can be continued once its resume preparation exists, even
   // before the interview session is created; the interview room creates it.
-  const driveCanResume = Boolean(!context?.is_locked && context?.can_resume && context.submission_id);
+  const driveCanResume = Boolean(atsQualified && !context?.is_locked && context?.can_resume && context.submission_id);
   const releasedAttempt = context?.attempt_history?.slice().reverse().find((attempt) =>
     attempt.result_available && attempt.submission_id,
   ) || (context?.publication_status === "released" && context.submission_id
     ? { submission_id: context.submission_id }
     : null);
-  const placementActionLabel = driveCanResume
+  const placementActionLabel = !atsQualified ? placementATS.pending ? "Checking ATS Fit…" : placementATS.score === null ? "ATS assessment required" : placementATS.score < 50 ? "ATS Fit below 50%" : "Project/work evidence required" : driveCanResume
     ? "Continue interview"
     : driveCanStart
       ? context?.action === "retry_preparation" ? "Retry placement interview" : context?.can_start_next_attempt ? `Start attempt ${context.next_attempt_number || context.attempt_number}` : "Start placement interview"
@@ -465,6 +491,7 @@ export function Practice() {
       <PageHeading eyebrow="A SAFE SPACE TO FIND YOUR VOICE" title="Let’s get you interview-ready">
         Choose a practice conversation or continue an available placement interview.
       </PageHeading>
+      {driveId && !atsQualified && <div className="placement-assignment-pending" role="status">{placementATS.pending ? "Checking ATS Fit…" : placementATS.score === null ? "An assessed ATS Fit of at least 50% is required to take this interview." : `ATS Fit ${placementATS.score}% · At least 50% with relevant project/work evidence is required to take this interview.`} <Link to={`/ats-fit?drive=${encodeURIComponent(driveId)}`}>View ATS assessment</Link>{placementATS.failed && <button type="button" className="text-button" onClick={placementATS.retry}>Retry</button>}</div>}
       <div className="interview-mode-switch" role="tablist" aria-label="Interview mode">
         <button type="button" role="tab" aria-selected={mode === "practice"} className={mode === "practice" ? "selected" : ""} onClick={() => { setMode("practice"); setError(""); }}>
           Practice Interview
@@ -495,7 +522,7 @@ export function Practice() {
             <span className="prep-ready-burst" aria-hidden="true"><Check size={30} /></span>
             <h2>Your panel is ready.</h2>
             <p>Next, we’ll check your camera, microphone, and screen sharing before the interview begins.</p>
-            <button className="button primary" onClick={() => openInterview(preparation.submission_id!, preparation.session_id)}>
+            <button className="button primary" disabled={Boolean(driveId && !atsQualified)} onClick={() => void enterInterview(preparation.submission_id!, preparation.session_id)}>
               Continue to device check <ArrowRight size={17} />
             </button>
             <button className="text-button" onClick={reset}>{mode === "placement" ? "Choose another placement" : "Start a different practice"}</button>
@@ -577,7 +604,7 @@ export function Practice() {
                       </dl>
                       <details className="placement-jd-details"><summary>View role details</summary><p>{context.job_description || "No job description was provided for this placement."}</p></details>
                       <div className="placement-primary-action">
-                        {driveCanResume ? <button type="button" className="button primary" onClick={() => openInterview(context.submission_id!, context.session_id || undefined)}>Continue interview <ArrowRight size={17}/></button>
+                        {driveCanResume ? <button type="button" className="button primary" onClick={() => void enterInterview(context.submission_id!, context.session_id || undefined)}>Continue interview <ArrowRight size={17}/></button>
                           : driveCanStart && activeResume && file ? <button type="submit" className="button primary" disabled={busy || resumeBusy}>{busy ? <><LoaderCircle className="spin" size={17}/> Preparing placement interview…</> : <>{placementActionLabel} <ArrowRight size={17}/></>}</button>
                             : releasedAttempt?.submission_id ? <Link className="button primary" to={`/reports?submission=${encodeURIComponent(releasedAttempt.submission_id)}`}>View result <ArrowRight size={17}/></Link>
                               : <button type="button" className="button primary" disabled>{!activeResume ? "Add Main Resume to start" : placementActionLabel}</button>}
@@ -615,7 +642,7 @@ export function Practice() {
           : attempts.error ? <ErrorMessage message={attempts.error}/>
             : practiceAttempts.length ? <div className="interview-session-list">{practiceAttempts.map((attempt) => <div className="interview-session-row" key={attempt.submission_id}><span className="record-icon"><Mic size={18}/></span><div><strong>{attempt.target_role || "Practice interview"}</strong><span>Practice Interview{attempt.submitted_at ? ` · Started ${formatDateTime(attempt.submitted_at)}` : ""}{attempt.duration_minutes ? ` · ${attempt.duration_minutes} minutes` : ""}</span></div><button className="button secondary small" onClick={() => attempt.session_id && openInterview(attempt.submission_id, attempt.session_id)}>Continue <ArrowRight size={15}/></button></div>)}</div>
               : <p className="muted">No interrupted practice interviews. You’re ready for a fresh start.</p>
-          : context && driveCanResume ? <div className="interview-session-row"><span className="record-icon"><Mic size={18}/></span><div><strong>{context.company_name} · {context.role_title}</strong><span>Placement Interview · Attempt {attemptNumber} · Interview in progress</span></div><button className="button secondary small" onClick={() => openInterview(context.submission_id!, context.session_id || undefined)}>Continue interview <ArrowRight size={15}/></button></div>
+          : context && driveCanResume ? <div className="interview-session-row"><span className="record-icon"><Mic size={18}/></span><div><strong>{context.company_name} · {context.role_title}</strong><span>Placement Interview · Attempt {attemptNumber} · Interview in progress</span></div><button className="button secondary small" onClick={() => void enterInterview(context.submission_id!, context.session_id || undefined)}>Continue interview <ArrowRight size={15}/></button></div>
             : <p className="muted">{selectedDrive ? "There is no interrupted interview for this placement." : "When you select a placement with an interview in progress, it will appear here."}</p>}
       </section>
       {resumePreview && <ResumePreview file={resumePreview} onClose={() => setResumePreview(null)}/>}

@@ -296,7 +296,7 @@ const PRESENCE_INTERVAL_MS = 60000;
 const PRESENCE_ACTIVE_FOR_MS = 30 * 60000;
 
 const nav = [
-  { to: "/", label: "Overview", icon: House },
+  { to: "/", label: "Dashboard", icon: House },
   { to: "/placements", label: "Placements", icon: BriefcaseBusiness },
   { to: "/calendar", label: "Calendar", icon: CalendarDays },
   { to: "/practice", label: "Interview practice", icon: Mic },
@@ -571,7 +571,7 @@ export function App() {
                 <div className="empty">
                   <h1>Page not found</h1>
                   <NavLink to="/" className="button primary">
-                    Back to overview
+                    Back to dashboard
                   </NavLink>
                 </div>
               }

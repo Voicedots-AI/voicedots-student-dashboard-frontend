@@ -17,10 +17,11 @@ import {
   TrendingUp,
   TriangleAlert,
 } from "lucide-react";
-import { apiUrl, type InterviewReportView, type QuestionReview, type Report } from "./api";
+import { apiUrl, type Drive, type InterviewReportView, type QuestionReview, type Report } from "./api";
 import { useAuth } from "./auth";
-import { Empty, ResourceState, date, useResource } from "./ui";
+import { Empty, ErrorMessage, ResourceState, date, useResource } from "./ui";
 import { PerformanceSharing } from "./performance-sharing";
+import { PlacementDriveHistoryItem } from "./pages";
 import "./performance-reference.css";
 
 type DashboardQuestion = QuestionReview & {
@@ -142,6 +143,7 @@ export function Performance() {
   const evaluation = useResource<DashboardReportView>(latest ? `/api/interview/${encodeURIComponent(latest.session_id)}/evaluation` : null);
   const latestView = evaluation.data?.status === "awaiting_release" ? null : evaluation.data;
   const recording = useResource<Recording>(latest?.drive_id && latestView ? `/api/student/interview/${encodeURIComponent(latest.session_id)}/recording` : null);
+  const drives = useResource<Drive[]>("/api/student/drives");
   const student = identity?.student;
   const degree = [student?.program, student?.department_code].filter(Boolean).join(" · ");
 
@@ -202,6 +204,18 @@ export function Performance() {
       <section className="spi-card spi-panel"><h2><ListChecks size={17}/> Assessment Context</h2><dl className="spi-facts"><div><dt><Clock3 size={15}/> Interview duration</dt><dd>{numeric(duration) ? `${duration} minutes` : "—"}</dd></div><div><dt><CheckCircle2 size={15}/> Questions answered</dt><dd>{questions.length ? answered : "—"}</dd></div><div><dt><ChartNoAxesColumnIncreasing size={15}/> Competencies assessed</dt><dd>{competencies.length ? assessedCount : "—"}</dd></div>{latestView.ai_assessment === true && <div><dt><Sparkles size={15}/> Assessment method</dt><dd>AI assessment</dd></div>}</dl></section>
       <section className="spi-card spi-panel"><h2><Share2 size={17}/> Sharing &amp; Employer Access</h2><p className="spi-privacy"><LockKeyhole size={19}/> Private until you share</p><p>Create an expiring link and revoke access at any time. Your recording and answers stay private.</p><PerformanceSharing sessionId={latest.session_id}/></section>
     </div>
+
+    {drives.loading ? <section className="panel spi-empty-state"><p role="status">Loading your placement drives…</p></section>
+    : drives.error ? <section className="panel spi-empty-state"><ErrorMessage message={drives.error} retry={drives.reload}/></section>
+    : (drives.data?.length || 0) > 0 ? <section className="panel placement-history">
+      <div className="section-heading"><div><span className="eyebrow">PLACEMENT DRIVE HISTORY</span><h2>Your placement drives</h2><p>Drives you have participated in or opted for.</p></div></div>
+      <div className="placement-history-list">
+        {[...(drives.data || [])].sort((a,b)=>(Date.parse(b.window_start_at||b.drive_date||"")||0)-(Date.parse(a.window_start_at||a.drive_date||"")||0)).map(drive=> (
+          <PlacementDriveHistoryItem key={drive.id} drive={drive} />
+        ))}
+      </div>
+    </section>
+    : <section className="panel spi-empty-state"><Empty title="No placement drives yet" action>Placement drives from your placement cell will appear here.</Empty></section>}
 
     <footer className="spi-note">Scores describe this released assessment and support human review. They do not guarantee placement or selection.</footer>
   </div>;
