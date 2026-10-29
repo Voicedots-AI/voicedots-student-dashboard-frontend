@@ -536,7 +536,7 @@ function PlacementDriveCard({drive,reports,select}: {drive:Drive;reports:Report[
                   <span className="company-avatar">
                     {(drive.company_name || "C").slice(0, 2).toUpperCase()}
                   </span>
-                  <span className="drive-company-name">{drive.company_name}</span>
+                  <span className="drive-company-name" title={drive.company_name}>{drive.company_name}</span>
                   <div className="drive-status-badges"><PlacementATSBadge driveId={drive.id} ats={ats}/>{hasPlacementDecision ? <PlacementResult value={drive.placement_decision} compact/> : <span className={`pill ${cardDrive.eligibility_status === "ineligible" ? "placement-ineligible-badge" : drive.main_resume_available === false ? "placement-resume-required" : eligibilityCheck ? "placement-eligibility-pending" : "placement-eligible-badge"}`}>{cardDrive.eligibility_status === "ineligible" ? "Not eligible" : drive.main_resume_available === false ? "Main Resume required" : eligibilityCheck || "Eligible"}</span>}{drive.is_locked && <span className="pill placement-locked-badge">Locked</span>}</div>
                 </div>
 

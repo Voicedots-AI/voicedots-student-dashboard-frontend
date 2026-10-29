@@ -138,3 +138,83 @@
 @media(max-width:420px){.placement-drive-footer nav>.placement-feature{gap:6px;padding:9px 7px}.placement-feature .placement-feature-icon{width:25px;height:27px}.placement-feature .placement-feature-copy b{font-size:11px}.placement-feature-score>strong{padding:3px;font-size:11px}}
 
 .placement-eligibility-pending{background:var(--soft);color:var(--muted);border:1px solid var(--border)}
+
+/* FIX 2026-10-29: Placements card header alignment on resize.
+   Root cause: .drive-card-top was a single non-wrapping flex row, badges
+   were flex-shrink:0 + white-space:nowrap, and company name used
+   overflow-wrap:anywhere with min-width:0. On a ~340-380px card the badges
+   (e.g. "ATS Fit Not assessed" + "Assessment pending") took more width
+   than the card, so the company name was squeezed to ~1 character wide and
+   broke vertically ("R a z o r p a y"), and the third card spilled off-screen.
+   Fix: allow the header to wrap, give the company name a real minimum width
+   and ellipsis truncation (never vertical letter breaking), let badges shrink
+   and wrap to a second line, and let the grid choose its column count from
+   a minimum card width instead of a fixed 3 columns. Colours, fonts, ATS
+   values, eligibility logic and all other card content are unchanged. */
+.placement-group .drive-grid{
+  grid-template-columns:repeat(auto-fill,minmax(300px,1fr));
+  align-items:stretch;
+  min-width:0;
+}
+.placement-group .drive-card{
+  min-width:0;
+  overflow:hidden;
+}
+.placement-group .drive-card-top{
+  flex-wrap:wrap;
+  align-items:center;
+  row-gap:8px;
+}
+.placement-group .drive-card-top .company-avatar{
+  flex-shrink:0;
+}
+.placement-group .drive-card-top .drive-company-name{
+  flex:1 1 120px;
+  min-width:120px;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  overflow-wrap:normal;
+}
+.placement-group .drive-card-top .drive-status-badges{
+  flex:1 1 auto;
+  min-width:0;
+  max-width:100%;
+  flex-shrink:1;
+  flex-wrap:wrap;
+  justify-content:flex-end;
+}
+.placement-group .drive-card-top .placement-ats-entry{
+  min-width:0;
+  flex-shrink:1;
+}
+.placement-group .drive-card-top .placement-ats-label{
+  white-space:normal;
+  flex-wrap:wrap;
+  flex-shrink:1;
+  min-width:0;
+}
+.placement-group .drive-card-top .placement-ats-label strong{
+  white-space:nowrap;
+}
+.placement-group .drive-card-top .pill{
+  white-space:nowrap;
+  flex-shrink:0;
+}
+@media(max-width:700px){
+  .placement-group .drive-grid{
+    grid-template-columns:repeat(auto-fill,minmax(260px,1fr));
+  }
+}
+@media(max-width:480px){
+  .placement-group .drive-grid{
+    grid-template-columns:minmax(0,1fr);
+  }
+  .placement-group .drive-card-top .drive-company-name{
+    flex-basis:100%;
+    min-width:0;
+  }
+  .placement-group .drive-card-top .drive-status-badges{
+    justify-content:flex-start;
+  }
+}
