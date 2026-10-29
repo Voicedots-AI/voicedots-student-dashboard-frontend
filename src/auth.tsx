@@ -8,6 +8,8 @@ import {
 } from "react";
 import { api, ApiError, json, type Identity } from "./api";
 
+import {studentDataCache} from "./student-data-cache";
+
 const AuthContext = createContext<{
   identity: Identity | null;
   loading: boolean;
@@ -18,6 +20,8 @@ const AuthContext = createContext<{
 } | null>(null);
 
 function clearStudentData() {
+  studentDataCache.session("");
+  studentDataCache.clear();
   // Only this portal's hints are cleared; authorization stays in HttpOnly cookies.
   for (const key of Object.keys(sessionStorage)) {
     if (
@@ -49,6 +53,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         throw new Error(
           "This account does not have a student profile. Contact your placement cell.",
         );
+      studentDataCache.session(`${result.student.id}:${result.student.current_resume_submission_id||"none"}`);
       setIdentity(result);
       setExpired(false);
       // The retained live voice runtime consumes these display hints, never as credentials.

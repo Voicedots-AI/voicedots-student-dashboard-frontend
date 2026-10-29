@@ -1,3 +1,4 @@
+import {studentDataCache} from "./student-data-cache";
 export const API_BASE = (import.meta.env.VITE_API_URL || "").replace(/\/+$/, "");
 export const apiUrl = (path: string) => `${API_BASE}${path}`;
 let csrfToken = "";
@@ -289,6 +290,8 @@ export async function request(
     }
     throw new ApiError(errorMessage(body), response.status, body);
   }
+  // Real changes invalidate reads; presence pings must not reset visible pages.
+  if (!["GET", "HEAD", "OPTIONS"].includes((options.method || "GET").toUpperCase()) && path !== "/api/auth/student-presence") studentDataCache.clear();
   return response;
 }
 

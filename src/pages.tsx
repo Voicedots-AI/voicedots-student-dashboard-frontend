@@ -1,3 +1,4 @@
+import {studentDataCache} from "./student-data-cache";
 import {usePlacementATS,usePlacementATSPrefetch} from "./placement-ats";
 import {meetsPlacementATSThreshold} from "./placement-eligibility";
 import { PlacementResult, placementResult } from "./report-result";
@@ -468,19 +469,18 @@ function PlacementATSLabel({driveId}: {driveId:string}) {
   return <PlacementATSBadge driveId={driveId} ats={ats}/>;
 }
 
-function PlacementDriveActions({drive,reports,eligibilityCheck,atsScore,evidenceQualified}: {drive:Drive;reports:Report[];eligibilityCheck?:string;atsScore?:number|null;evidenceQualified:boolean}) {
+function PlacementDriveActions({drive,reports,eligibilityCheck,atsScore}: {drive:Drive;reports:Report[];eligibilityCheck?:string;atsScore?:number|null}) {
   const driveId=drive.id;
 
     const report=reports.filter(row=>row.drive_id===driveId&&row.status==='released'&&(row as Report & {released_to_student_at?:string|null}).released_to_student_at!==null&&row.report?.status!=='awaiting_release'&&typeof row.report?.overall_score==='number').sort((a,b)=>Date.parse(b.completed_at||b.created_at)-Date.parse(a.completed_at||a.created_at))[0];
     const interviewScore=report?.report?.overall_score;
     const availableScore=typeof interviewScore==='number'&&Number.isFinite(interviewScore)&&interviewScore>=0&&interviewScore<=100;
-    const canInterview=evidenceQualified&&meetsPlacementATSThreshold(atsScore)&&!eligibilityCheck&&drive.eligibility_status!=='ineligible'&&!drive.is_locked&&drive.status!=='closed'&&drive.main_resume_available===true&&!['closed','expired'].includes(drive.interview_status||'')&&['start','retry_preparation','resume'].includes(drive.interview_action||'');
+    const canInterview=meetsPlacementATSThreshold(atsScore)&&!eligibilityCheck&&drive.eligibility_status!=='ineligible'&&!drive.is_locked&&drive.status!=='closed'&&drive.main_resume_available===true&&!['closed','expired'].includes(drive.interview_status||'')&&['start','retry_preparation','resume'].includes(drive.interview_action||'');
     const eligibleForStart = canInterview && meetsPlacementATSThreshold(atsScore);
     const id=encodeURIComponent(driveId);
     const interviewLabel='Start Interview';
     const unavailableReason=['closed','expired'].includes(drive.interview_status||'') || drive.status==='closed' ? 'Interview closed'
       : !meetsPlacementATSThreshold(atsScore) ? atsScore == null ? 'ATS assessment required' : 'ATS Fit below 50%'
-      : !evidenceQualified ? "Project/work evidence required"
       : drive.eligibility_status==='ineligible' ? 'Not eligible for this drive'
       : eligibilityCheck ? eligibilityCheck
       : drive.is_locked ? 'Locked by placement team'
@@ -500,7 +500,7 @@ function PlacementDriveActions({drive,reports,eligibilityCheck,atsScore,evidence
 
 // ATS eligibility uses the total evaluated score; individual skill gaps remain guidance.
 function placementDriveEligibility(drive:Drive,ats:ReturnType<typeof usePlacementATS>):Drive {
-  if (ats.score !== null && !ats.eligible) return {...drive,eligibility_status:"ineligible",eligibility_reason:ats.score<50?"ATS Fit below 50%":"Project/work evidence required"};
+  if (ats.score !== null && !ats.eligible) return {...drive,eligibility_status:"ineligible",eligibility_reason:"ATS Fit below 50%"};
   return drive;
 }
 
@@ -512,7 +512,7 @@ function PlacementEligibilitySummary({drive,ats,compact=false}:{drive:Drive;ats:
   const ineligible = placementDriveEligibility(drive,ats).eligibility_status === "ineligible";
   const qualified = ats.eligible && !ineligible;
   const label = ineligible ? "Not eligible" : qualified ? "Eligible" : ats.pending ? "Checking…" : "Not assessed";
-  const reason = ats.missing.length ? ineligible ? "Required skills missing" : "Some skill evidence is missing" : ineligible && ats.score !== null && ats.score < 50 ? "ATS Fit below 50%" : ineligible && ats.score !== null && !ats.evidenceQualified ? "Project/work evidence required" : "";
+  const reason = ats.missing.length ? ineligible ? "Required skills missing" : "Some skill evidence is missing" : ineligible && ats.score !== null && ats.score < 50 ? "ATS Fit below 50%" : "";
   return <div className={`placement-eligibility-summary${compact?" compact":""}`}><PlacementATSBadge driveId={drive.id} ats={ats}/><div className="placement-eligibility-line"><span className={`pill ${ineligible?"placement-ineligible-badge":qualified?"placement-summary-eligible":"placement-eligibility-pending"}`}>{label}</span>{reason&&<span className={`placement-eligibility-reason${ineligible?" is-ineligible":""}`}>– {reason}</span>}</div>{ats.missing.length>0&&<div className="placement-missing-skills"><strong>Missing skills:</strong><ul>{ats.missing.slice(0,3).map(skill=><li key={skill}>{skill}</li>)}</ul>{ats.missing.length>3&&<Link to={`/ats-fit?drive=${encodeURIComponent(drive.id)}`}>+{ats.missing.length-3} more · View assessment <ArrowRight size={12}/></Link>}</div>}{drive.is_locked&&<span className="pill placement-locked-badge">Locked</span>}</div>;
 }
 
@@ -577,7 +577,7 @@ export function PlacementDriveCard({drive,reports=[],select}: {drive:Drive;repor
                 {drive.placement_decision && !hasPlacementDecision && <PlacementResult value={drive.placement_decision} compact/>}
                 <div className="drive-card-meta"><span>{humanize(drive.job_type || "Job type not set")}</span><span>{info.compensation}</span></div>
                 {drive.main_resume_available === false && <p className="drive-resume-prompt">Upload your Main Resume in <Link to="/profile">My Profile</Link> before starting an interview.</p>}
-                <PlacementDriveActions drive={cardDrive} reports={reports} eligibilityCheck={eligibilityCheck} atsScore={ats.score} evidenceQualified={ats.evidenceQualified} />
+                <PlacementDriveActions drive={cardDrive} reports={reports} eligibilityCheck={eligibilityCheck} atsScore={ats.score} />
                 <button type="button" className="button secondary small placement-opportunity-button" onClick={()=>void onSelect(drive)}>View opportunity <ArrowRight size={14}/></button>
                   </>;
                 })()}
@@ -738,7 +738,7 @@ export function Placements() {
         eyebrow="YOUR NEXT OPPORTUNITY"
         title="Campus placements"
         action={
-          <button className="button secondary" onClick={resource.reload}>
+          <button className="button secondary" onClick={()=>{studentDataCache.clear();resource.reload();reports.reload()}}>
             <RefreshCw size={16} />
             Refresh
           </button>

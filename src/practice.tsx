@@ -1,5 +1,5 @@
 import {usePlacementATS} from "./placement-ats";
-import {evaluatedPlacementScore,meetsPlacementATSThreshold,hasAppliedPlacementEvidence} from "./placement-eligibility";
+import {evaluatedPlacementScore,meetsPlacementATSThreshold} from "./placement-eligibility";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import {
   ArrowRight,
@@ -279,9 +279,9 @@ export function Practice() {
   async function verifyPlacementATS() {
     if (!driveId) return true;
     try {
-      const result = await api<{ats_status:string;ats_fit_score:unknown;skills?:Parameters<typeof hasAppliedPlacementEvidence>[0]}>(`/api/student/drives/${encodeURIComponent(driveId)}/ats-fit`,{timeoutMs:8000});
-      if (meetsPlacementATSThreshold(evaluatedPlacementScore(result.ats_status,result.ats_fit_score)) && hasAppliedPlacementEvidence(result.skills)) return true;
-      setError("ATS Fit must be at least 50%, supported by relevant project or work evidence.");
+      const result = await api<{ats_status:string;ats_fit_score:unknown}>(`/api/student/drives/${encodeURIComponent(driveId)}/ats-fit`,{timeoutMs:8000});
+      if (meetsPlacementATSThreshold(evaluatedPlacementScore(result.ats_status,result.ats_fit_score))) return true;
+      setError("ATS Fit must be at least 50% to take this interview.");
     } catch {
       setError("Unable to verify ATS Fit. Please retry before starting the interview.");
     }
@@ -457,7 +457,7 @@ export function Practice() {
   ) || (context?.publication_status === "released" && context.submission_id
     ? { submission_id: context.submission_id }
     : null);
-  const placementActionLabel = !atsQualified ? placementATS.pending ? "Checking ATS Fit…" : placementATS.score === null ? "ATS assessment required" : placementATS.score < 50 ? "ATS Fit below 50%" : "Project/work evidence required" : driveCanResume
+  const placementActionLabel = !atsQualified ? placementATS.pending ? "Checking ATS Fit…" : placementATS.score === null ? "ATS assessment required" : placementATS.score < 50 ? "ATS Fit below 50%" : "ATS assessment required" : driveCanResume
     ? "Continue interview"
     : driveCanStart
       ? context?.action === "retry_preparation" ? "Retry placement interview" : context?.can_start_next_attempt ? `Start attempt ${context.next_attempt_number || context.attempt_number}` : "Start placement interview"
@@ -491,7 +491,7 @@ export function Practice() {
       <PageHeading eyebrow="A SAFE SPACE TO FIND YOUR VOICE" title="Let’s get you interview-ready">
         Choose a practice conversation or continue an available placement interview.
       </PageHeading>
-      {driveId && !atsQualified && <div className="placement-assignment-pending" role="status">{placementATS.pending ? "Checking ATS Fit…" : placementATS.score === null ? "An assessed ATS Fit of at least 50% is required to take this interview." : `ATS Fit ${placementATS.score}% · At least 50% with relevant project/work evidence is required to take this interview.`} <Link to={`/ats-fit?drive=${encodeURIComponent(driveId)}`}>View ATS assessment</Link>{placementATS.failed && <button type="button" className="text-button" onClick={placementATS.retry}>Retry</button>}</div>}
+      {driveId && !atsQualified && <div className="placement-assignment-pending" role="status">{placementATS.pending ? "Checking ATS Fit…" : placementATS.score === null ? "An assessed ATS Fit of at least 50% is required to take this interview." : `ATS Fit ${placementATS.score}% · At least 50% is required to take this interview.`} <Link to={`/ats-fit?drive=${encodeURIComponent(driveId)}`}>View ATS assessment</Link>{placementATS.failed && <button type="button" className="text-button" onClick={placementATS.retry}>Retry</button>}</div>}
       <div className="interview-mode-switch" role="tablist" aria-label="Interview mode">
         <button type="button" role="tab" aria-selected={mode === "practice"} className={mode === "practice" ? "selected" : ""} onClick={() => { setMode("practice"); setError(""); }}>
           Practice Interview

@@ -8,13 +8,14 @@ import {
 import { AlertCircle, ArrowRight, LoaderCircle, Sparkles } from "lucide-react";
 import { Link } from "react-router-dom";
 import { api } from "./api";
+import {cachedStudentResource,studentDataCache} from "./student-data-cache";
 
 export function useResource<T>(path: string | null) {
-  const [data, setData] = useState<T | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [data, setData] = useState<T | null>(()=>path&&cachedStudentResource(path)?studentDataCache.peek<T>(path)??null:null);
+  const [loading, setLoading] = useState(()=>!path||!cachedStudentResource(path)||studentDataCache.peek(path)===undefined);
   const [error, setError] = useState("");
   const [version, setVersion] = useState(0);
-  const reload = useCallback(() => setVersion((v) => v + 1), []);
+  const reload = useCallback(() => {if(path)studentDataCache.invalidate(path);setVersion((v) => v + 1)}, [path]);
   useEffect(() => {
     if (!path) {
       setData(null);
@@ -23,19 +24,15 @@ export function useResource<T>(path: string | null) {
       return;
     }
     const controller = new AbortController();
-    setLoading(true);
+    const cached = cachedStudentResource(path);
+    const saved = cached ? studentDataCache.peek<T>(path) : undefined;
+    setLoading(saved === undefined);
     setError("");
-    setData(null);
-    api<T>(path, { signal: controller.signal })
-      .then((result) => {
-        if (!controller.signal.aborted) setData(result);
-      })
-      .catch((e) => {
-        if (!controller.signal.aborted) setError(e.message);
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setLoading(false);
-      });
+    setData(saved ?? null);
+    const pending = cached ? studentDataCache.get<T>(path,()=>api<T>(path)) : api<T>(path,{signal:controller.signal});
+    void pending.then(result=>{if(!controller.signal.aborted)setData(result)})
+      .catch(e=>{if(!controller.signal.aborted)setError(e.message)})
+      .finally(()=>{if(!controller.signal.aborted)setLoading(false)});
     return () => controller.abort();
   }, [path, version]);
   return { data, loading, error, reload };

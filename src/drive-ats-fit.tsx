@@ -1,8 +1,9 @@
-import {evaluatedPlacementScore,meetsPlacementATSThreshold,hasAppliedPlacementEvidence} from "./placement-eligibility";
+import {evaluatedPlacementScore,meetsPlacementATSThreshold} from "./placement-eligibility";
 import {Fragment,useEffect,useRef,useState} from "react";
 import {Link} from "react-router-dom";
 import {api,apiUrl,type Drive,type DriveContext} from "./api";
 import {useAuth} from "./auth";
+import {studentDataCache} from "./student-data-cache";
 import {BarChart3,FileText,Info,Star,AlertTriangle,GraduationCap,Code2,BriefcaseBusiness,FolderKanban,Award,ChevronDown,Download} from "lucide-react";
 import "./drive-ats-fit.css";
 
@@ -25,7 +26,7 @@ export function DriveATSFit({driveId,studio=false,onAdd,busy=false,onJob,driveRe
  const {identity}=useAuth();
  const student=identity?.student;
  const [drive,setDrive]=useState<Drive|null>(null),[context,setContext]=useState<DriveContext|null>(null);
- useEffect(()=>{if(driveRecord?.id===driveId){setDrive(driveRecord);setContext(driveContext?.drive_id===driveId?driveContext:null);return}let active=true;setDrive(null);setContext(null);void Promise.allSettled([api<Drive[]>("/api/student/drives",{timeoutMs:120000}),api<DriveContext>(`/api/student/drives/${encodeURIComponent(driveId)}/interview-context`,{timeoutMs:120000})]).then(([drives,details])=>{if(!active)return;if(drives.status==="fulfilled")setDrive(drives.value.find(row=>row.id===driveId)||null);if(details.status==="fulfilled"&&details.value.drive_id===driveId)setContext(details.value)});return()=>{active=false}},[driveId,driveRecord,driveContext]);
+ useEffect(()=>{if(driveRecord?.id===driveId){setDrive(driveRecord);setContext(driveContext?.drive_id===driveId?driveContext:null);return}let active=true;setDrive(null);setContext(null);void Promise.allSettled([studentDataCache.get<Drive[]>("/api/student/drives",()=>api<Drive[]>("/api/student/drives",{timeoutMs:120000})),api<DriveContext>(`/api/student/drives/${encodeURIComponent(driveId)}/interview-context`,{timeoutMs:120000})]).then(([drives,details])=>{if(!active)return;if(drives.status==="fulfilled")setDrive(drives.value.find(row=>row.id===driveId)||null);if(details.status==="fulfilled"&&details.value.drive_id===driveId)setContext(details.value)});return()=>{active=false}},[driveId,driveRecord,driveContext]);
  const [assessmentView,setAssessmentView]=useState("requirements");
  const [requirementPage,setRequirementPage]=useState(0),[insightPage,setInsightPage]=useState(0),[suggestionPage,setSuggestionPage]=useState(0);
  const [search,setSearch]=useState(""),[importanceFilter,setImportanceFilter]=useState("all");
@@ -40,7 +41,9 @@ export function DriveATSFit({driveId,studio=false,onAdd,busy=false,onJob,driveRe
   .sort((a,b)=>{const rank=(s:Skill)=>{const n=importanceOrder.indexOf(importance(s));return n<0?3:n};return rank(a.skill)-rank(b.skill)||a.index-b.index});
  const panelRef=useRef<HTMLElement>(null),focused=useRef(false);
  const[data,setData]=useState<Match|null>(null),[error,setError]=useState(""),[selected,setSelected]=useState<string[]>([]),[retry,setRetry]=useState(0);
- useEffect(()=>{let alive=true;let timer:ReturnType<typeof setTimeout>;setData(null);setSelected([]);setError("");const load=async()=>{try{const result=await api<Match>(`/api/student/drives/${encodeURIComponent(driveId)}/ats-fit`,{timeoutMs:120000});if(!alive)return;setData(result);setError("");if(result.ats_status==='processing')timer=setTimeout(load,10000)}catch(e){if(alive)setError((e as Error).message)}};void load();return()=>{alive=false;clearTimeout(timer)}},[driveId,retry]);
+ const assessmentPath=`/api/student/drives/${encodeURIComponent(driveId)}/ats-fit`;
+ const refreshAssessment=()=>{studentDataCache.invalidate(assessmentPath);studentDataCache.invalidate(`${student?.id}:${student?.current_resume_submission_id||"none"}:${driveId}`);setRetry(v=>v+1)};
+ useEffect(()=>{let alive=true;let timer:ReturnType<typeof setTimeout>;setData(studentDataCache.peek<Match>(assessmentPath)||null);setSelected([]);setError("");const load=async()=>{try{if(document.visibilityState==="hidden"){timer=setTimeout(load,10000);return}const result=await studentDataCache.get<Match>(assessmentPath,()=>api<Match>(assessmentPath,{timeoutMs:120000}));if(!alive)return;setData(result);setError("");if(result.ats_status==='processing')timer=setTimeout(()=>{studentDataCache.invalidate(assessmentPath);void load()},10000)}catch(e){if(alive)setError((e as Error).message)}};void load();return()=>{alive=false;clearTimeout(timer)}},[assessmentPath,retry]);
  useEffect(()=>{if(data?.job_description)onJob?.(data.job_description)},[data?.job_description,onJob]);
  useEffect(()=>{if(!studio||!onAdd||busy||!data||focused.current||new URLSearchParams(window.location.search).get("action")!=="add-skills")return;const timer=setTimeout(()=>{focused.current=true;panelRef.current?.scrollIntoView({block:"start",behavior:"smooth"});panelRef.current?.querySelector<HTMLInputElement>('input[type="checkbox"]')?.focus({preventScroll:true})},100);return()=>clearTimeout(timer)},[studio,onAdd,busy,data]);
  const matching=(data?.skills||[]).filter(s=>['FULL_MATCH','RELATED_EVIDENCE'].includes(s.match_status||''));
@@ -55,14 +58,14 @@ export function DriveATSFit({driveId,studio=false,onAdd,busy=false,onJob,driveRe
  const compensation=drive?.salary_min_amount!=null||drive?.salary_max_amount!=null?[drive.salary_currency,[drive.salary_min_amount,drive.salary_max_amount].filter(value=>value!=null).join(" – "),drive.salary_period].filter(Boolean).join(" "):drive?.package_min_lpa!=null||drive?.package_max_lpa!=null?[drive.package_currency,[drive.package_min_lpa,drive.package_max_lpa].filter(value=>value!=null).join(" – "),"LPA"].filter(Boolean).join(" "):"Unavailable";
  const atsScore=evaluatedPlacementScore(data?.ats_status||"",data?.ats_fit_score);
  const evaluated=atsScore!==null;
- const atsEligible=meetsPlacementATSThreshold(atsScore)&&hasAppliedPlacementEvidence(data?.skills);
+ const atsEligible=meetsPlacementATSThreshold(atsScore);
  const download=()=>{if(!data)return;const url=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:"application/json"}));const a=document.createElement('a');a.href=url;a.download=`${driveId}-ats-assessment.json`;a.click();URL.revokeObjectURL(url)};
  return <section ref={panelRef} id={studio?"add-skills":undefined} className="drive-ats-panel" data-ats-eligibility={evaluated?atsEligible?"eligible":"ineligible":"pending"} aria-label="ATS Fit Assessment">
-  <header className="student-ats-header"><div><h3>ATS Fit Assessment</h3><p>{data?.company_name || drive?.company_name || context?.company_name || "Placement opportunity"}{(data?.role_title || drive?.role_title || context?.role_title) ? ` · ${data?.role_title || drive?.role_title || context?.role_title}` : ""} · Resume evidence &amp; role alignment</p></div><button className="button secondary small" onClick={()=>setRetry(v=>v+1)}>Refresh assessment</button></header>
-  {error?<div role="alert">{error}<button className="button secondary small" onClick={()=>setRetry(v=>v+1)}>Retry</button></div>:!data?<p role="status">Loading resume match…</p>:<>
+  <header className="student-ats-header"><div><h3>ATS Fit Assessment</h3><p>{data?.company_name || drive?.company_name || context?.company_name || "Placement opportunity"}{(data?.role_title || drive?.role_title || context?.role_title) ? ` · ${data?.role_title || drive?.role_title || context?.role_title}` : ""} · Resume evidence &amp; role alignment</p></div><button className="button secondary small" onClick={refreshAssessment}>Refresh assessment</button></header>
+  {error?<div role="alert">{error}<button className="button secondary small" onClick={refreshAssessment}>Retry</button></div>:!data?<p role="status">Loading resume match…</p>:<>
   <div className="student-ats-identity">
    {student?.photo_url?<img src={apiUrl(student.photo_url)} alt={`${student.full_name} profile`}/>:<span className="student-ats-avatar" aria-label="Photo unavailable">{student?.full_name?.slice(0,1)||"—"}</span>}
-   <div className="student-ats-name"><div><b>{student?.full_name||"Your resume"}</b>{(context?.assignment_status||drive?.interview_assignment_status)&&<span className="student-ats-badge completed">{(context?.assignment_status||drive?.interview_assignment_status)?.replaceAll("_"," ")}</span>}<span className={`student-ats-badge ${evaluated?atsEligible?"ats-qualified":"ats-unqualified":"review"}`}>{evaluated?atsEligible?"Eligible · ATS ≥ 50%":atsScore!<50?"Not eligible · ATS < 50%":"Project/work evidence required":data.ats_status.replaceAll("_"," ")}</span></div><p>{student?.email||"Email unavailable"}</p></div>
+   <div className="student-ats-name"><div><b>{student?.full_name||"Your resume"}</b>{(context?.assignment_status||drive?.interview_assignment_status)&&<span className="student-ats-badge completed">{(context?.assignment_status||drive?.interview_assignment_status)?.replaceAll("_"," ")}</span>}<span className={`student-ats-badge ${evaluated?atsEligible?"ats-qualified":"ats-unqualified":"review"}`}>{evaluated?atsEligible?"Eligible · ATS ≥ 50%":"Not eligible · ATS < 50%":data.ats_status.replaceAll("_"," ")}</span></div><p>{student?.email||"Email unavailable"}</p></div>
    <dl>{[["Program",[student?.department_code,student?.program].filter(Boolean).join(" / ")||"—"],["CGPA",student?.cgpa??"—"],["Graduation",student?.graduation_year??"—"]].map(([title,value])=><div key={title}><dt>{title}</dt><dd>{value}</dd></div>)}</dl>
   </div>
   <div className="student-ats-cards">
