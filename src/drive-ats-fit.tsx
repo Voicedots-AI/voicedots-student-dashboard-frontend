@@ -3,6 +3,7 @@ import {Fragment,useEffect,useRef,useState} from "react";
 import {Link} from "react-router-dom";
 import {api,apiUrl,type Drive,type DriveContext} from "./api";
 import {useAuth} from "./auth";
+import {SharedATSFit} from "./shared-assessment/ATSFit";
 import {studentDataCache} from "./student-data-cache";
 import {BarChart3,FileText,Info,Star,AlertTriangle,GraduationCap,Code2,BriefcaseBusiness,FolderKanban,Award,ChevronDown,Download} from "lucide-react";
 import "./drive-ats-fit.css";
@@ -60,6 +61,7 @@ export function DriveATSFit({driveId,studio=false,onAdd,busy=false,onJob,driveRe
  const evaluated=atsScore!==null;
  const atsEligible=meetsPlacementATSThreshold(atsScore);
  const download=()=>{if(!data)return;const url=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:"application/json"}));const a=document.createElement('a');a.href=url;a.download=`${driveId}-ats-assessment.json`;a.click();URL.revokeObjectURL(url)};
+ if(!studio)return <section className="shared-student-assessment"><header className="student-ats-header"><div><h3>ATS Fit Assessment</h3><p>Job requirements matched against resume evidence</p></div><button className="button secondary small" onClick={refreshAssessment}>Refresh assessment</button></header>{error?<div role="alert">{error}<button onClick={refreshAssessment}>Retry</button></div>:!data?<p role="status">Loading resume match…</p>:<SharedATSFit key={driveId} data={{...data,company_name:data.company_name||drive?.company_name,role_title:data.role_title||drive?.role_title}} student={student||{}} actions={<><button onClick={download}><Download size={16}/>Download assessment</button><Link to={`/resume-studio?drive=${encodeURIComponent(driveId)}`}>Open in Resume Studio</Link><Link to={`/coach?drive=${encodeURIComponent(driveId)}`}>AI Coach</Link></>}/>}</section>;
  return <section ref={panelRef} id={studio?"add-skills":undefined} className="drive-ats-panel" data-ats-eligibility={evaluated?atsEligible?"eligible":"ineligible":"pending"} aria-label="ATS Fit Assessment">
   <header className="student-ats-header"><div><h3>ATS Fit Assessment</h3><p>{data?.company_name || drive?.company_name || context?.company_name || "Placement opportunity"}{(data?.role_title || drive?.role_title || context?.role_title) ? ` · ${data?.role_title || drive?.role_title || context?.role_title}` : ""} · Resume evidence &amp; role alignment</p></div><button className="button secondary small" onClick={refreshAssessment}>Refresh assessment</button></header>
   {error?<div role="alert">{error}<button className="button secondary small" onClick={refreshAssessment}>Retry</button></div>:!data?<p role="status">Loading resume match…</p>:<>
