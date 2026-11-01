@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef } from "react";
 import { Download, X } from "lucide-react";
 
-export function ResumePreview({ file, onClose }: { file: File; onClose: () => void }) {
+export function ResumePreview({ file, onClose, contextLabel="ACTIVE RESUME" }: { file: File; onClose: () => void;contextLabel?:string }) {
   const closeButton = useRef<HTMLButtonElement>(null);
   const objectUrl = useMemo(() => URL.createObjectURL(file), [file]);
   const isPdf = file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
@@ -21,7 +21,7 @@ export function ResumePreview({ file, onClose }: { file: File; onClose: () => vo
     <div className="resume-preview-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) onClose(); }}>
       <section className="resume-preview-dialog" role="dialog" aria-modal="true" aria-labelledby="resume-preview-title">
         <header className="resume-preview-header">
-          <div><span className="eyebrow">ACTIVE RESUME</span><h2 id="resume-preview-title">{file.name}</h2></div>
+          <div><span className="eyebrow">{contextLabel}</span><h2 id="resume-preview-title">{file.name}</h2></div>
           <button ref={closeButton} type="button" className="icon-button" aria-label="Close resume preview" onClick={onClose}><X size={19}/></button>
         </header>
         {isPdf ? <iframe title={`Resume preview: ${file.name}`} src={objectUrl}/> : <div className="resume-preview-docx">

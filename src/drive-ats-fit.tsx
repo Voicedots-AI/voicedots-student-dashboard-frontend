@@ -1,11 +1,12 @@
+import {ResumePreview} from './resume-preview';
 import {evaluatedPlacementScore,meetsPlacementATSThreshold} from "./placement-eligibility";
-import {Fragment,useEffect,useRef,useState} from "react";
+import {Fragment,useCallback,useEffect,useRef,useState} from "react";
 import {Link} from "react-router-dom";
-import {api,apiUrl,type Drive,type DriveContext} from "./api";
+import {api,apiUrl,request,type Resume,type Drive,type DriveContext} from "./api";
 import {useAuth} from "./auth";
 import {SharedATSFit} from "./shared-assessment/ATSFit";
 import {studentDataCache} from "./student-data-cache";
-import {BarChart3,FileText,Info,Star,AlertTriangle,GraduationCap,Code2,BriefcaseBusiness,FolderKanban,Award,ChevronDown,Download} from "lucide-react";
+import {BarChart3,FileText,Info,Star,AlertTriangle,GraduationCap,Code2,BriefcaseBusiness,FolderKanban,Award,ChevronDown,Download,Eye} from "lucide-react";
 import "./drive-ats-fit.css";
 
 type Skill={evidence_level?:string;evidence_source?:string;skill?:string;requirement?:string;priority?:string;match_status?:string;evidence_text?:string;reason?:string;match_strength?:number;confidence?:number};
@@ -42,6 +43,21 @@ export function DriveATSFit({driveId,studio=false,onAdd,busy=false,onJob,driveRe
   .sort((a,b)=>{const rank=(s:Skill)=>{const n=importanceOrder.indexOf(importance(s));return n<0?3:n};return rank(a.skill)-rank(b.skill)||a.index-b.index});
  const panelRef=useRef<HTMLElement>(null),focused=useRef(false);
  const[data,setData]=useState<Match|null>(null),[error,setError]=useState(""),[selected,setSelected]=useState<string[]>([]),[retry,setRetry]=useState(0);
+ const [previewFile,setPreviewFile]=useState<File|null>(null),[previewBusy,setPreviewBusy]=useState(false),[previewError,setPreviewError]=useState('');
+ const previewRequest=useRef<AbortController|null>(null);
+ const closePreview=useCallback(()=>setPreviewFile(null),[]);
+ useEffect(()=>{setPreviewFile(null);setPreviewError('');setPreviewBusy(false);return()=>previewRequest.current?.abort()},[driveId,data?.resume_version]);
+ async function previewResume(){
+  previewRequest.current?.abort();const controller=new AbortController();previewRequest.current=controller;setPreviewBusy(true);setPreviewError('');
+  try{
+   const library=await api<{resumes:Resume[]}>('/api/student/resume-library',{signal:controller.signal,timeoutMs:20000});
+   const version=data?.resume_version||student?.current_resume_submission_id;
+   const resume=version?library.resumes.find(item=>item.submission_id===version):library.resumes.find(item=>item.is_primary);
+   if(!resume)throw new Error(version?'The resume used for this assessment is no longer available. Refresh the assessment and try again.':'No saved resume is available to preview.');
+   const response=await request(`/api/student/resume-library/${encodeURIComponent(resume.resume_id)}/file`,{signal:controller.signal,timeoutMs:20000});
+   const blob=await response.blob();if(!controller.signal.aborted)setPreviewFile(new File([blob],resume.original_filename,{type:blob.type}));
+  }catch(reason){if(!controller.signal.aborted)setPreviewError(reason instanceof Error?reason.message:'The resume could not be opened. Please retry.')}finally{if(!controller.signal.aborted)setPreviewBusy(false)}
+ }
  const assessmentPath=`/api/student/drives/${encodeURIComponent(driveId)}/ats-fit`;
  const refreshAssessment=()=>{studentDataCache.invalidate(assessmentPath);studentDataCache.invalidate(`${student?.id}:${student?.current_resume_submission_id||"none"}:${driveId}`);setRetry(v=>v+1)};
  useEffect(()=>{let alive=true;let timer:ReturnType<typeof setTimeout>;setData(studentDataCache.peek<Match>(assessmentPath)||null);setSelected([]);setError("");const load=async()=>{try{if(document.visibilityState==="hidden"){timer=setTimeout(load,10000);return}const result=await studentDataCache.get<Match>(assessmentPath,()=>api<Match>(assessmentPath,{timeoutMs:120000}));if(!alive)return;setData(result);setError("");if(result.ats_status==='processing')timer=setTimeout(()=>{studentDataCache.invalidate(assessmentPath);void load()},10000)}catch(e){if(alive)setError((e as Error).message)}};void load();return()=>{alive=false;clearTimeout(timer)}},[assessmentPath,retry]);
@@ -61,7 +77,7 @@ export function DriveATSFit({driveId,studio=false,onAdd,busy=false,onJob,driveRe
  const evaluated=atsScore!==null;
  const atsEligible=meetsPlacementATSThreshold(atsScore);
  const download=()=>{if(!data)return;const url=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:"application/json"}));const a=document.createElement('a');a.href=url;a.download=`${driveId}-ats-assessment.json`;a.click();URL.revokeObjectURL(url)};
- if(!studio)return <section className="shared-student-assessment"><header className="student-ats-header"><div><h3>ATS Fit Assessment</h3><p>Job requirements matched against resume evidence</p></div><button className="button secondary small" onClick={refreshAssessment}>Refresh assessment</button></header>{error?<div role="alert">{error}<button onClick={refreshAssessment}>Retry</button></div>:!data?<p role="status">Loading resume match…</p>:<SharedATSFit key={driveId} data={{...data,company_name:data.company_name||drive?.company_name,role_title:data.role_title||drive?.role_title}} student={student||{}} actions={<><button onClick={download}><Download size={16}/>Download assessment</button><Link to={`/resume-studio?drive=${encodeURIComponent(driveId)}`}>Open in Resume Studio</Link><Link to={`/coach?drive=${encodeURIComponent(driveId)}`}>AI Coach</Link></>}/>}</section>;
+ if(!studio)return <section className="shared-student-assessment"><header className="student-ats-header"><div><h3>ATS Fit Assessment</h3><p>Job requirements matched against resume evidence</p></div><button className="button secondary small" onClick={refreshAssessment}>Refresh assessment</button></header>{error?<div role="alert">{error}<button onClick={refreshAssessment}>Retry</button></div>:!data?<p role="status">Loading resume match…</p>:<SharedATSFit key={driveId} data={{...data,company_name:data.company_name||drive?.company_name,role_title:data.role_title||drive?.role_title}} student={student||{}} actions={<><button disabled={previewBusy} onClick={()=>void previewResume()}><Eye size={16}/>{previewBusy?"Opening resume…":"Preview resume"}</button><button onClick={download}><Download size={16}/>Download assessment</button><Link to={`/resume-studio?drive=${encodeURIComponent(driveId)}`}>Open in Resume Studio</Link><Link to={`/coach?drive=${encodeURIComponent(driveId)}`}>AI Coach</Link></>}/>}{previewError&&<p className="student-resume-preview-error" role="alert">{previewError}</p>}{previewFile&&<ResumePreview file={previewFile} onClose={closePreview} contextLabel="ASSESSMENT RESUME"/>}</section>;
  return <section ref={panelRef} id={studio?"add-skills":undefined} className="drive-ats-panel" data-ats-eligibility={evaluated?atsEligible?"eligible":"ineligible":"pending"} aria-label="ATS Fit Assessment">
   <header className="student-ats-header"><div><h3>ATS Fit Assessment</h3><p>{data?.company_name || drive?.company_name || context?.company_name || "Placement opportunity"}{(data?.role_title || drive?.role_title || context?.role_title) ? ` · ${data?.role_title || drive?.role_title || context?.role_title}` : ""} · Resume evidence &amp; role alignment</p></div><button className="button secondary small" onClick={refreshAssessment}>Refresh assessment</button></header>
   {error?<div role="alert">{error}<button className="button secondary small" onClick={refreshAssessment}>Retry</button></div>:!data?<p role="status">Loading resume match…</p>:<>

@@ -279,9 +279,9 @@ export function Practice() {
   async function verifyPlacementATS() {
     if (!driveId) return true;
     try {
-      const result = await api<{ats_status:string;ats_fit_score:unknown}>(`/api/student/drives/${encodeURIComponent(driveId)}/ats-fit`,{timeoutMs:8000});
-      if (meetsPlacementATSThreshold(evaluatedPlacementScore(result.ats_status,result.ats_fit_score))) return true;
-      setError("ATS Fit must be at least 50% to take this interview.");
+      const result = await api<{criteria_ats_fit?:number|null;ats_status:string;ats_fit_score:unknown}>(`/api/student/drives/${encodeURIComponent(driveId)}/ats-fit`,{timeoutMs:8000});
+      if (meetsPlacementATSThreshold(evaluatedPlacementScore(result.ats_status,result.ats_fit_score),result.criteria_ats_fit??50)) return true;
+      setError(`ATS Fit must be at least ${result.criteria_ats_fit??50}% to take this interview.`);
     } catch {
       setError("Unable to verify ATS Fit. Please retry before starting the interview.");
     }
@@ -290,7 +290,7 @@ export function Practice() {
   }
   async function enterInterview(submissionId:string,sessionId?:string) {
     if (driveId && (!atsQualified || !context || context.is_locked || context.main_resume_available !== true || context.interview_window !== "open")) {
-      setError("An ATS Fit of at least 50% and an open placement interview are required.");
+      setError(`An ATS Fit of at least ${placementATS.minimum}% and an open placement interview are required.`);
       return;
     }
     if (await verifyPlacementATS()) openInterview(submissionId,sessionId);
@@ -457,7 +457,7 @@ export function Practice() {
   ) || (context?.publication_status === "released" && context.submission_id
     ? { submission_id: context.submission_id }
     : null);
-  const placementActionLabel = !atsQualified ? placementATS.pending ? "Checking ATS Fit…" : placementATS.score === null ? "ATS assessment required" : placementATS.score < 50 ? "ATS Fit below 50%" : "ATS assessment required" : driveCanResume
+  const placementActionLabel = !atsQualified ? placementATS.pending ? "Checking ATS Fit…" : placementATS.score === null ? "ATS assessment required" : placementATS.score < placementATS.minimum ? `ATS Fit below ${placementATS.minimum}%` : "ATS assessment required" : driveCanResume
     ? "Continue interview"
     : driveCanStart
       ? context?.action === "retry_preparation" ? "Retry placement interview" : context?.can_start_next_attempt ? `Start attempt ${context.next_attempt_number || context.attempt_number}` : "Start placement interview"
@@ -491,7 +491,7 @@ export function Practice() {
       <PageHeading eyebrow="A SAFE SPACE TO FIND YOUR VOICE" title="Let’s get you interview-ready">
         Choose a practice conversation or continue an available placement interview.
       </PageHeading>
-      {driveId && !atsQualified && <div className="placement-assignment-pending" role="status">{placementATS.pending ? "Checking ATS Fit…" : placementATS.score === null ? "An assessed ATS Fit of at least 50% is required to take this interview." : `ATS Fit ${placementATS.score}% · At least 50% is required to take this interview.`} <Link to={`/ats-fit?drive=${encodeURIComponent(driveId)}`}>View ATS assessment</Link>{placementATS.failed && <button type="button" className="text-button" onClick={placementATS.retry}>Retry</button>}</div>}
+      {driveId && !atsQualified && <div className="placement-assignment-pending" role="status">{placementATS.pending ? "Checking ATS Fit…" : placementATS.score === null ? `An assessed ATS Fit of at least ${placementATS.minimum}% is required to take this interview.` : `ATS Fit ${placementATS.score}% · At least ${placementATS.minimum}% is required to take this interview.`} <Link to={`/ats-fit?drive=${encodeURIComponent(driveId)}`}>View ATS assessment</Link>{placementATS.failed && <button type="button" className="text-button" onClick={placementATS.retry}>Retry</button>}</div>}
       <div className="interview-mode-switch" role="tablist" aria-label="Interview mode">
         <button type="button" role="tab" aria-selected={mode === "practice"} className={mode === "practice" ? "selected" : ""} onClick={() => { setMode("practice"); setError(""); }}>
           Practice Interview

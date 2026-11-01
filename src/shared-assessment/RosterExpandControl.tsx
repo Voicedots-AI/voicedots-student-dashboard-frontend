@@ -1,0 +1,1 @@
+export function RosterExpandControl({expanded,onChange,disabled=false}:{expanded:boolean;onChange:(expanded:boolean)=>void;disabled?:boolean}){return <button type="button" className="roster-expand-control" aria-pressed={expanded} disabled={disabled} onClick={()=>onChange(!expanded)}>{expanded?'Collapse All':'Expand All'}</button>;}

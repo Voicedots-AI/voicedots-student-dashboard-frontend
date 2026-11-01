@@ -1,0 +1,592 @@
+/* Scoped utility snapshot for the restored scorecard. Generated from ReferenceScorecard.tsx. */
+.vd-reference-scorecard{font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.4;color:#0b2b59;width:100%;min-width:0}.vd-reference-scorecard *,.vd-reference-scorecard *:before,.vd-reference-scorecard *:after{box-sizing:border-box;border-width:0;border-style:solid;--tw-shadow:0 0 #0000;--tw-shadow-colored:0 0 #0000;--tw-ring-offset-shadow:0 0 #0000;--tw-ring-shadow:0 0 #0000}.vd-reference-scorecard :is(h1,h2,h3,p,dl,dd,ul,ol){margin:0}.vd-reference-scorecard :is(ul,ol){padding:0;list-style:none}.vd-reference-scorecard table{border-collapse:collapse;border-spacing:0;width:100%}.vd-reference-scorecard button{font:inherit;background:transparent;cursor:pointer}.vd-reference-scorecard button:disabled{cursor:default}.vd-reference-scorecard img{display:block;max-width:100%}.vd-reference-scorecard svg{display:block;vertical-align:middle;flex-shrink:0}.vd-reference-scorecard button:focus-visible{outline:2px solid #176ad1;outline-offset:3px}
+.vd-reference-scorecard .mb-2 {
+    margin-bottom: 0.5rem
+}
+.vd-reference-scorecard .mt-1 {
+    margin-top: 0.25rem
+}
+.vd-reference-scorecard .mt-1\.5 {
+    margin-top: 0.375rem
+}
+.vd-reference-scorecard .mt-2 {
+    margin-top: 0.5rem
+}
+.vd-reference-scorecard .mt-2\.5 {
+    margin-top: 0.625rem
+}
+.vd-reference-scorecard .mt-3 {
+    margin-top: 0.75rem
+}
+.vd-reference-scorecard .mt-4 {
+    margin-top: 1rem
+}
+.vd-reference-scorecard .mt-auto {
+    margin-top: auto
+}
+.vd-reference-scorecard .line-clamp-2 {
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2
+}
+.vd-reference-scorecard .inline {
+    display: inline
+}
+.vd-reference-scorecard .flex {
+    display: flex
+}
+.vd-reference-scorecard .table {
+    display: table
+}
+.vd-reference-scorecard .grid {
+    display: grid
+}
+.vd-reference-scorecard .h-10 {
+    height: 2.5rem
+}
+.vd-reference-scorecard .h-12 {
+    height: 3rem
+}
+.vd-reference-scorecard .h-2 {
+    height: 0.5rem
+}
+.vd-reference-scorecard .h-2\.5 {
+    height: 0.625rem
+}
+.vd-reference-scorecard .h-5 {
+    height: 1.25rem
+}
+.vd-reference-scorecard .h-7 {
+    height: 1.75rem
+}
+.vd-reference-scorecard .h-8 {
+    height: 2rem
+}
+.vd-reference-scorecard .h-\[118px\] {
+    height: 118px
+}
+.vd-reference-scorecard .h-full {
+    height: 100%
+}
+.vd-reference-scorecard .min-h-\[152px\] {
+    min-height: 152px
+}
+.vd-reference-scorecard .w-10 {
+    width: 2.5rem
+}
+.vd-reference-scorecard .w-12 {
+    width: 3rem
+}
+.vd-reference-scorecard .w-14 {
+    width: 3.5rem
+}
+.vd-reference-scorecard .w-2 {
+    width: 0.5rem
+}
+.vd-reference-scorecard .w-2\.5 {
+    width: 0.625rem
+}
+.vd-reference-scorecard .w-7 {
+    width: 1.75rem
+}
+.vd-reference-scorecard .w-\[104px\] {
+    width: 104px
+}
+.vd-reference-scorecard .w-full {
+    width: 100%
+}
+.vd-reference-scorecard .min-w-0 {
+    min-width: 0px
+}
+.vd-reference-scorecard .min-w-24 {
+    min-width: 6rem
+}
+.vd-reference-scorecard .min-w-\[500px\] {
+    min-width: 500px
+}
+.vd-reference-scorecard .min-w-\[720px\] {
+    min-width: 720px
+}
+.vd-reference-scorecard .max-w-\[28rem\] {
+    max-width: 28rem
+}
+.vd-reference-scorecard .flex-1 {
+    flex: 1 1 0%
+}
+.vd-reference-scorecard .shrink-0 {
+    flex-shrink: 0
+}
+.vd-reference-scorecard .scroll-mt-4 {
+    scroll-margin-top: 1rem
+}
+.vd-reference-scorecard .flex-col {
+    flex-direction: column
+}
+.vd-reference-scorecard .flex-wrap {
+    flex-wrap: wrap
+}
+.vd-reference-scorecard .place-items-center {
+    place-items: center
+}
+.vd-reference-scorecard .items-start {
+    align-items: flex-start
+}
+.vd-reference-scorecard .items-end {
+    align-items: flex-end
+}
+.vd-reference-scorecard .items-center {
+    align-items: center
+}
+.vd-reference-scorecard .items-baseline {
+    align-items: baseline
+}
+.vd-reference-scorecard .items-stretch {
+    align-items: stretch
+}
+.vd-reference-scorecard .justify-between {
+    justify-content: space-between
+}
+.vd-reference-scorecard .gap-1 {
+    gap: 0.25rem
+}
+.vd-reference-scorecard .gap-2 {
+    gap: 0.5rem
+}
+.vd-reference-scorecard .gap-2\.5 {
+    gap: 0.625rem
+}
+.vd-reference-scorecard .gap-3 {
+    gap: 0.75rem
+}
+.vd-reference-scorecard .gap-4 {
+    gap: 1rem
+}
+.vd-reference-scorecard :is(.space-y-0\.5 > :not([hidden]) ~ :not([hidden])) {
+    --tw-space-y-reverse: 0;
+    margin-top: calc(0.125rem * calc(1 - var(--tw-space-y-reverse)));
+    margin-bottom: calc(0.125rem * var(--tw-space-y-reverse))
+}
+.vd-reference-scorecard :is(.space-y-1\.5 > :not([hidden]) ~ :not([hidden])) {
+    --tw-space-y-reverse: 0;
+    margin-top: calc(0.375rem * calc(1 - var(--tw-space-y-reverse)));
+    margin-bottom: calc(0.375rem * var(--tw-space-y-reverse))
+}
+.vd-reference-scorecard :is(.space-y-3 > :not([hidden]) ~ :not([hidden])) {
+    --tw-space-y-reverse: 0;
+    margin-top: calc(0.75rem * calc(1 - var(--tw-space-y-reverse)));
+    margin-bottom: calc(0.75rem * var(--tw-space-y-reverse))
+}
+.vd-reference-scorecard :is(.space-y-3\.5 > :not([hidden]) ~ :not([hidden])) {
+    --tw-space-y-reverse: 0;
+    margin-top: calc(0.875rem * calc(1 - var(--tw-space-y-reverse)));
+    margin-bottom: calc(0.875rem * var(--tw-space-y-reverse))
+}
+.vd-reference-scorecard .self-start {
+    align-self: flex-start
+}
+.vd-reference-scorecard .overflow-hidden {
+    overflow: hidden
+}
+.vd-reference-scorecard .overflow-x-auto {
+    overflow-x: auto
+}
+.vd-reference-scorecard .whitespace-nowrap {
+    white-space: nowrap
+}
+.vd-reference-scorecard .break-all {
+    word-break: break-all
+}
+.vd-reference-scorecard .rounded-2xl {
+    border-radius: 1rem
+}
+.vd-reference-scorecard .rounded-\[1\.75rem\] {
+    border-radius: 1.75rem
+}
+.vd-reference-scorecard .rounded-full {
+    border-radius: 9999px
+}
+.vd-reference-scorecard .rounded-sm {
+    border-radius: 0.125rem
+}
+.vd-reference-scorecard .rounded-xl {
+    border-radius: 0.75rem
+}
+.vd-reference-scorecard .border {
+    border-width: 1px
+}
+.vd-reference-scorecard .border-l {
+    border-left-width: 1px
+}
+.vd-reference-scorecard .border-t {
+    border-top-width: 1px
+}
+.vd-reference-scorecard .border-amber-100 {
+    --tw-border-opacity: 1;
+    border-color: rgb(254 243 199 / var(--tw-border-opacity, 1))
+}
+.vd-reference-scorecard .border-sky-100 {
+    --tw-border-opacity: 1;
+    border-color: rgb(224 242 254 / var(--tw-border-opacity, 1))
+}
+.vd-reference-scorecard .border-sky-300 {
+    --tw-border-opacity: 1;
+    border-color: rgb(125 211 252 / var(--tw-border-opacity, 1))
+}
+.vd-reference-scorecard .border-slate-100 {
+    --tw-border-opacity: 1;
+    border-color: rgb(241 245 249 / var(--tw-border-opacity, 1))
+}
+.vd-reference-scorecard .border-teal-100 {
+    --tw-border-opacity: 1;
+    border-color: rgb(204 251 241 / var(--tw-border-opacity, 1))
+}
+.vd-reference-scorecard .bg-\[\#123765\] {
+    --tw-bg-opacity: 1;
+    background-color: rgb(18 55 101 / var(--tw-bg-opacity, 1))
+}
+.vd-reference-scorecard .bg-\[\#147fdf\] {
+    --tw-bg-opacity: 1;
+    background-color: rgb(20 127 223 / var(--tw-bg-opacity, 1))
+}
+.vd-reference-scorecard .bg-\[\#1e7be6\] {
+    --tw-bg-opacity: 1;
+    background-color: rgb(30 123 230 / var(--tw-bg-opacity, 1))
+}
+.vd-reference-scorecard .bg-\[\#e7f4fc\] {
+    --tw-bg-opacity: 1;
+    background-color: rgb(231 244 252 / var(--tw-bg-opacity, 1))
+}
+.vd-reference-scorecard .bg-\[\#eaf6fd\] {
+    --tw-bg-opacity: 1;
+    background-color: rgb(234 246 253 / var(--tw-bg-opacity, 1))
+}
+.vd-reference-scorecard .bg-\[\#eafaf6\] {
+    --tw-bg-opacity: 1;
+    background-color: rgb(234 250 246 / var(--tw-bg-opacity, 1))
+}
+.vd-reference-scorecard .bg-\[\#eafaf8\] {
+    --tw-bg-opacity: 1;
+    background-color: rgb(234 250 248 / var(--tw-bg-opacity, 1))
+}
+.vd-reference-scorecard .bg-\[\#eef8ff\] {
+    --tw-bg-opacity: 1;
+    background-color: rgb(238 248 255 / var(--tw-bg-opacity, 1))
+}
+.vd-reference-scorecard .bg-\[\#fff8e8\] {
+    --tw-bg-opacity: 1;
+    background-color: rgb(255 248 232 / var(--tw-bg-opacity, 1))
+}
+.vd-reference-scorecard .bg-amber-100 {
+    --tw-bg-opacity: 1;
+    background-color: rgb(254 243 199 / var(--tw-bg-opacity, 1))
+}
+.vd-reference-scorecard .bg-amber-200\/80 {
+    background-color: rgb(253 230 138 / 0.8)
+}
+.vd-reference-scorecard .bg-amber-400 {
+    --tw-bg-opacity: 1;
+    background-color: rgb(251 191 36 / var(--tw-bg-opacity, 1))
+}
+.vd-reference-scorecard .bg-amber-500 {
+    --tw-bg-opacity: 1;
+    background-color: rgb(245 158 11 / var(--tw-bg-opacity, 1))
+}
+.vd-reference-scorecard .bg-sky-200\/70 {
+    background-color: rgb(186 230 253 / 0.7)
+}
+.vd-reference-scorecard .bg-slate-200 {
+    --tw-bg-opacity: 1;
+    background-color: rgb(226 232 240 / var(--tw-bg-opacity, 1))
+}
+.vd-reference-scorecard .bg-teal-100 {
+    --tw-bg-opacity: 1;
+    background-color: rgb(204 251 241 / var(--tw-bg-opacity, 1))
+}
+.vd-reference-scorecard .bg-teal-300 {
+    --tw-bg-opacity: 1;
+    background-color: rgb(94 234 212 / var(--tw-bg-opacity, 1))
+}
+.vd-reference-scorecard .bg-teal-400 {
+    --tw-bg-opacity: 1;
+    background-color: rgb(45 212 191 / var(--tw-bg-opacity, 1))
+}
+.vd-reference-scorecard .bg-teal-600 {
+    --tw-bg-opacity: 1;
+    background-color: rgb(13 148 136 / var(--tw-bg-opacity, 1))
+}
+.vd-reference-scorecard .bg-white {
+    --tw-bg-opacity: 1;
+    background-color: rgb(255 255 255 / var(--tw-bg-opacity, 1))
+}
+.vd-reference-scorecard .object-cover {
+    object-fit: cover
+}
+.vd-reference-scorecard .object-top {
+    object-position: top
+}
+.vd-reference-scorecard .p-4 {
+    padding: 1rem
+}
+.vd-reference-scorecard .px-2\.5 {
+    padding-left: 0.625rem;
+    padding-right: 0.625rem
+}
+.vd-reference-scorecard .px-3 {
+    padding-left: 0.75rem;
+    padding-right: 0.75rem
+}
+.vd-reference-scorecard .px-4 {
+    padding-left: 1rem;
+    padding-right: 1rem
+}
+.vd-reference-scorecard .py-0\.5 {
+    padding-top: 0.125rem;
+    padding-bottom: 0.125rem
+}
+.vd-reference-scorecard .py-2 {
+    padding-top: 0.5rem;
+    padding-bottom: 0.5rem
+}
+.vd-reference-scorecard .py-2\.5 {
+    padding-top: 0.625rem;
+    padding-bottom: 0.625rem
+}
+.vd-reference-scorecard .py-3 {
+    padding-top: 0.75rem;
+    padding-bottom: 0.75rem
+}
+.vd-reference-scorecard .py-6 {
+    padding-top: 1.5rem;
+    padding-bottom: 1.5rem
+}
+.vd-reference-scorecard .pl-4 {
+    padding-left: 1rem
+}
+.vd-reference-scorecard .pt-3 {
+    padding-top: 0.75rem
+}
+.vd-reference-scorecard .pt-4 {
+    padding-top: 1rem
+}
+.vd-reference-scorecard .text-left {
+    text-align: left
+}
+.vd-reference-scorecard .text-center {
+    text-align: center
+}
+.vd-reference-scorecard .text-2xl {
+    font-size: 1.5rem;
+    line-height: 2rem
+}
+.vd-reference-scorecard .text-\[1\.75rem\] {
+    font-size: 1.75rem
+}
+.vd-reference-scorecard .text-\[13px\] {
+    font-size: 13px
+}
+.vd-reference-scorecard .text-\[20px\] {
+    font-size: 20px
+}
+.vd-reference-scorecard .text-\[32px\] {
+    font-size: 32px
+}
+.vd-reference-scorecard .text-\[7px\] {
+    font-size: 7px
+}
+.vd-reference-scorecard .text-lg {
+    font-size: 1.125rem;
+    line-height: 1.75rem
+}
+.vd-reference-scorecard .text-sm {
+    font-size: 0.875rem;
+    line-height: 1.25rem
+}
+.vd-reference-scorecard .text-xs {
+    font-size: 0.75rem;
+    line-height: 1rem
+}
+.vd-reference-scorecard .font-bold {
+    font-weight: 700
+}
+.vd-reference-scorecard .font-extrabold {
+    font-weight: 800
+}
+.vd-reference-scorecard .font-medium {
+    font-weight: 500
+}
+.vd-reference-scorecard .font-semibold {
+    font-weight: 600
+}
+.vd-reference-scorecard .tabular-nums {
+    --tw-numeric-spacing: tabular-nums;
+    font-variant-numeric: var(--tw-ordinal) var(--tw-slashed-zero) var(--tw-numeric-figure) var(--tw-numeric-spacing) var(--tw-numeric-fraction)
+}
+.vd-reference-scorecard .leading-4 {
+    line-height: 1rem
+}
+.vd-reference-scorecard .leading-5 {
+    line-height: 1.25rem
+}
+.vd-reference-scorecard .leading-6 {
+    line-height: 1.5rem
+}
+.vd-reference-scorecard .leading-\[1\.15rem\] {
+    line-height: 1.15rem
+}
+.vd-reference-scorecard .leading-none {
+    line-height: 1
+}
+.vd-reference-scorecard .leading-tight {
+    line-height: 1.25
+}
+.vd-reference-scorecard .tracking-\[-0\.035em\] {
+    letter-spacing: -0.035em
+}
+.vd-reference-scorecard .tracking-wide {
+    letter-spacing: 0.025em
+}
+.vd-reference-scorecard .text-\[\#092653\] {
+    --tw-text-opacity: 1;
+    color: rgb(9 38 83 / var(--tw-text-opacity, 1))
+}
+.vd-reference-scorecard .text-\[\#0b2b59\] {
+    --tw-text-opacity: 1;
+    color: rgb(11 43 89 / var(--tw-text-opacity, 1))
+}
+.vd-reference-scorecard .text-\[\#0b4d86\] {
+    --tw-text-opacity: 1;
+    color: rgb(11 77 134 / var(--tw-text-opacity, 1))
+}
+.vd-reference-scorecard .text-amber-500 {
+    --tw-text-opacity: 1;
+    color: rgb(245 158 11 / var(--tw-text-opacity, 1))
+}
+.vd-reference-scorecard .text-amber-800 {
+    --tw-text-opacity: 1;
+    color: rgb(146 64 14 / var(--tw-text-opacity, 1))
+}
+.vd-reference-scorecard .text-blue-600 {
+    --tw-text-opacity: 1;
+    color: rgb(37 99 235 / var(--tw-text-opacity, 1))
+}
+.vd-reference-scorecard .text-blue-700 {
+    --tw-text-opacity: 1;
+    color: rgb(29 78 216 / var(--tw-text-opacity, 1))
+}
+.vd-reference-scorecard .text-rose-600 {
+    --tw-text-opacity: 1;
+    color: rgb(225 29 72 / var(--tw-text-opacity, 1))
+}
+.vd-reference-scorecard .text-rose-700 {
+    --tw-text-opacity: 1;
+    color: rgb(190 18 60 / var(--tw-text-opacity, 1))
+}
+.vd-reference-scorecard .text-sky-600 {
+    --tw-text-opacity: 1;
+    color: rgb(2 132 199 / var(--tw-text-opacity, 1))
+}
+.vd-reference-scorecard .text-slate-500 {
+    --tw-text-opacity: 1;
+    color: rgb(100 116 139 / var(--tw-text-opacity, 1))
+}
+.vd-reference-scorecard .text-slate-600 {
+    --tw-text-opacity: 1;
+    color: rgb(71 85 105 / var(--tw-text-opacity, 1))
+}
+.vd-reference-scorecard .text-slate-700 {
+    --tw-text-opacity: 1;
+    color: rgb(51 65 85 / var(--tw-text-opacity, 1))
+}
+.vd-reference-scorecard .text-teal-600 {
+    --tw-text-opacity: 1;
+    color: rgb(13 148 136 / var(--tw-text-opacity, 1))
+}
+.vd-reference-scorecard .text-teal-700 {
+    --tw-text-opacity: 1;
+    color: rgb(15 118 110 / var(--tw-text-opacity, 1))
+}
+.vd-reference-scorecard .text-white {
+    --tw-text-opacity: 1;
+    color: rgb(255 255 255 / var(--tw-text-opacity, 1))
+}
+.vd-reference-scorecard .underline {
+    text-decoration-line: underline
+}
+.vd-reference-scorecard .decoration-blue-200 {
+    text-decoration-color: #bfdbfe
+}
+.vd-reference-scorecard .underline-offset-2 {
+    text-underline-offset: 2px
+}
+.vd-reference-scorecard .shadow-\[0_18px_55px_rgba\(15\2c 42\2c 82\2c 0\.08\)\] {
+    --tw-shadow: 0 18px 55px rgba(15,42,82,0.08);
+    --tw-shadow-colored: 0 18px 55px var(--tw-shadow-color);
+    box-shadow: var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow)
+}
+.vd-reference-scorecard .shadow-sm {
+    --tw-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+    --tw-shadow-colored: 0 1px 2px 0 var(--tw-shadow-color);
+    box-shadow: var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow)
+}
+.vd-reference-scorecard .filter {
+    filter: var(--tw-blur) var(--tw-brightness) var(--tw-contrast) var(--tw-grayscale) var(--tw-hue-rotate) var(--tw-invert) var(--tw-saturate) var(--tw-sepia) var(--tw-drop-shadow)
+}
+.vd-reference-scorecard .hover\:decoration-blue-700:hover {
+    text-decoration-color: #1d4ed8
+}
+.vd-reference-scorecard .disabled\:cursor-not-allowed:disabled {
+    cursor: not-allowed
+}
+.vd-reference-scorecard .disabled\:text-slate-400:disabled {
+    --tw-text-opacity: 1;
+    color: rgb(148 163 184 / var(--tw-text-opacity, 1))
+}
+@media (min-width: 640px) {
+    .vd-reference-scorecard .sm\:p-5 {
+        padding: 1.25rem
+    }
+}
+@media (min-width: 768px) {
+    .vd-reference-scorecard .md\:grid-cols-2 {
+        grid-template-columns: repeat(2, minmax(0, 1fr))
+    }
+}
+@media (min-width: 1024px) {
+    .vd-reference-scorecard .lg\:grid-cols-2 {
+        grid-template-columns: repeat(2, minmax(0, 1fr))
+    }
+}
+@media (min-width: 1280px) {
+    .vd-reference-scorecard .xl\:grid-cols-\[minmax\(30rem\2c 2\.7fr\)_repeat\(3\2c minmax\(9rem\2c 1fr\)\)\] {
+        grid-template-columns: minmax(30rem,2.7fr) repeat(3,minmax(9rem,1fr))
+    }
+}
+
+        @media (min-width: 1280px) {
+          .vd-reference-scorecard { gap: 0; }
+          .vd-reference-scorecard #glance { padding: 14px; }
+          .vd-reference-scorecard #glance { scroll-margin-top: 76px; }
+          .vd-reference-scorecard #glance > * + * { margin-top: 8px; }
+          .vd-reference-scorecard #glance > article { padding: 8px 14px; }
+          .vd-reference-scorecard #glance .report-candidate-header > article { padding: 12px; min-height: 144px; }
+          .vd-reference-scorecard #glance .report-candidate-header h1 { font-size: 26px; }
+          .vd-reference-scorecard #glance .report-candidate-header dl { margin-top: 6px; line-height: 16px; }
+          .vd-reference-scorecard #glance .report-candidate-header dl > * + * { margin-top: 0; }
+          .vd-reference-scorecard #glance .report-candidate-header img, .vd-reference-scorecard #glance .report-candidate-header [aria-label$="initials"] { height: 112px; width: 88px; }
+          .vd-reference-scorecard #glance h2 { font-size: 19px; line-height: 24px; font-weight: 800; }
+          .vd-reference-scorecard #glance table { table-layout: fixed; }
+          .vd-reference-scorecard #glance th, .vd-reference-scorecard #glance td { padding: 5px 12px; font-size: 13px; line-height: 20px; }
+          .vd-reference-scorecard #glance > section table th:nth-child(1) { width: 24%; }
+          .vd-reference-scorecard #glance > section table th:nth-child(2) { width: 27%; }
+          .vd-reference-scorecard #glance > section table th:nth-child(3) { width: 13%; }
+          .vd-reference-scorecard #glance > div > article, .vd-reference-scorecard #glance > div > section { padding: 8px 12px; }
+          .vd-reference-scorecard #glance > div > article > div > span { width: 26px; height: 26px; }
+          .vd-reference-scorecard #glance > div > article ul { margin-top: 4px; }
+          .vd-reference-scorecard #glance > div > article ul > * + * { margin-top: 0; }
+          .vd-reference-scorecard #glance > div > section > div { margin-top: 8px; }
+          .vd-reference-scorecard #glance > div > section table { min-width: 0; }
+          .vd-reference-scorecard #glance > div > section table th, .vd-reference-scorecard #glance > div > section table td { padding-top: 3px; padding-bottom: 3px; }
+          .vd-reference-scorecard #glance > div > section table th:first-child { width: 22%; }
+          .vd-reference-scorecard #glance > div > section table th:last-child { width: 16%; }
+        }

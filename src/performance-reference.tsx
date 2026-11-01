@@ -1,3 +1,5 @@
+import {useState} from 'react';
+import {RosterExpandControl} from './shared-assessment/RosterExpandControl';
 import { Link } from "react-router-dom";
 import {
   Award,
@@ -136,6 +138,7 @@ function CompactTrend({ points }: { points: TrendPoint[] }) {
 }
 
 export function Performance() {
+  const [historyExpanded,setHistoryExpanded]=useState(true);
   const { identity } = useAuth();
   const reports = useResource<{ reports: ReleasedReport[] }>("/api/student/reports");
   const released = (reports.data?.reports || []).filter(isReleased).sort((a, b) => Date.parse(reportTime(b)) - Date.parse(reportTime(a)));
@@ -208,10 +211,10 @@ export function Performance() {
     {drives.loading ? <section className="panel spi-empty-state"><p role="status">Loading your placement drives…</p></section>
     : drives.error ? <section className="panel spi-empty-state"><ErrorMessage message={drives.error} retry={drives.reload}/></section>
     : (drives.data?.length || 0) > 0 ? <section className="panel placement-history">
-      <div className="section-heading"><div><span className="eyebrow">PLACEMENT DRIVE HISTORY</span><h2>Your placement drives</h2><p>Drives you have participated in or opted for.</p></div></div>
+      <div className="section-heading"><div><span className="eyebrow">PLACEMENT DRIVE HISTORY</span><h2>Your placement drives</h2><p>Drives you have participated in or opted for.</p></div><RosterExpandControl expanded={historyExpanded} onChange={setHistoryExpanded}/></div>
       <div className="placement-history-list">
         {[...(drives.data || [])].sort((a,b)=>(Date.parse(b.window_start_at||b.drive_date||"")||0)-(Date.parse(a.window_start_at||a.drive_date||"")||0)).map(drive=> (
-          <PlacementDriveHistoryItem key={drive.id} drive={drive} />
+          <PlacementDriveHistoryItem key={drive.id} drive={drive} reports={released} expanded={historyExpanded} />
         ))}
       </div>
     </section>

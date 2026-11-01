@@ -73,6 +73,7 @@ export type Drive = {
   eligibility_status?: "eligible" | "ineligible" | "resume_required";
   eligibility_reason?: string;
   criteria_min_cgpa?: number | null;
+  criteria_ats_fit?:number|null;criteria_interview_score?:number|null;
   criteria_department_codes?: string[];
   criteria_graduation_years?: number[];
   criteria_required_skills?: string[];

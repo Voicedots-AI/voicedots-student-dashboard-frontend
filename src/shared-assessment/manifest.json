@@ -1,6 +1,9 @@
 {
-  "ATSFit.tsx": "af631c854d39a32054d5c5183b4d6c86ef116a936e52b8c0b7e582b06e278bd3",
-  "assessment.css": "e43ffa79fec0ff34d6fb0da9bc49f9d5659ce5b1df95e5c5da54cf8464b91a31",
-  "Scorecard.tsx": "17361529f6272ce4f9935bf6385ffb37fffc81293153abf92d1d5c818af511f7",
-  "scorecard.css": "508e0064be11b5f0ca8ea64794b958f107038ddf7be596d1aeef64d6c27bc54c"
+  "ATSFit.tsx": "2a2a2b097e70f485f994c5fdc3de569cba75a99019ca25b720b17aa7f4b2ec89",
+  "assessment.css": "27a54ff54b0880944d16b5ec7c78d265d0f94d908faea52c359c61a28c2fb4d8",
+  "Scorecard.tsx": "b368767553045ef093df61f16ebe665983e982b55845a59fb7af62c1d37c3a90",
+  "scorecard.css": "57714c2b6a731da822a81f70078d3b69106f31dd5e4000f465a6272bf4bd1baf",
+  "RosterExpandControl.tsx": "eae06c6e91ad893c3497fcca75a0a209a632b7036de70c1f836739dcbdbb6e3c",
+  "ReferenceScorecard.tsx": "7703a8c50a6a9f53a6d282551ac1d2f866dd194bc48151d39f2e7cc4ba3a7c16",
+  "reference-scorecard.css": "c5179cb49ca6a8896638986593be0b8b2ca35067f265d9fd85d8e7cdc5cbfdda"
 }
