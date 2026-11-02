@@ -32,7 +32,6 @@ import {
   ChevronDown,
   ChevronRight,
   Download,
-  ChevronLeft,
 } from "lucide-react";
 import { api, json, request } from "./api";
 import { useAuth } from "./auth";
@@ -120,6 +119,13 @@ export type Reattempt = {
   date: string | null;
   can_schedule: boolean;
   can_reschedule: boolean;
+};
+
+export type Competency = {
+  name: string;
+  score: number;
+  max: number;
+  color?: string;
 };
 
 export type SavedInterviewContext = {
@@ -836,7 +842,6 @@ function ImprovementJourneyScreens() {
   const [scheduleTasks, setScheduleTasks] = useState<any[]>([]);
   const [updatingTaskId, setUpdatingTaskId] = useState<string | null>(null);
   const [taskNotice, setTaskNotice] = useState<string | null>(null);
-  const [currentWeekIndex, setCurrentWeekIndex] = useState<number>(0);
 
   const handleTaskAction = async (task: any) => {
     const nextStatus = task.status === "Completed" ? "Pending" : "Completed";
@@ -3279,25 +3284,9 @@ function ImprovementJourneyScreens() {
 
               <div className="s5-plan-controls">
                 <div className="s5-date-stepper">
-                  <button
-                    type="button"
-                    className="s5-step-arrow"
-                    onClick={() => setCurrentWeekIndex((w) => w - 1)}
-                    aria-label="Previous week"
-                  >
-                    <ChevronLeft size={16} />
-                  </button>
                   <span className="s5-date-range">
                     {scheduleTasks.length ? "Saved learning schedule" : "No schedule saved"}
                   </span>
-                  <button
-                    type="button"
-                    className="s5-step-arrow"
-                    onClick={() => setCurrentWeekIndex((w) => w + 1)}
-                    aria-label="Next week"
-                  >
-                    <ChevronRight size={16} />
-                  </button>
                 </div>
 
                 <div className="s5-dropdown-wrapper">

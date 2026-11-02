@@ -3,6 +3,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import { Mic, MicOff, PhoneCall, PhoneOff, Send, Volume2, VolumeX } from "lucide-react";
 import { api, json, type Drive, type Report } from "./api";
 import { requestCoachSpeech } from './coach-voice-audio';
+import { cancelSpeechRecognition, type RecognitionLike as Recognition } from './speech-recognition';
 import { PlacementOfficerAvatar } from "./placement-officer-avatar";
 import { canAccessPlacementCoach } from "./placement-coach-access";
 import { useAuth } from "./auth";
@@ -10,15 +11,6 @@ import { CoachTopNav } from "./coach-top-nav";
 import "./placement-officer-call.css";
 
 type Message = { speaker: "officer" | "student"; text: string };
-type Recognition = {
-  lang: string; continuous: boolean; interimResults: boolean;
-  onresult: ((event: { results: ArrayLike<{ isFinal: boolean; 0: { transcript: string } }>; resultIndex: number }) => void) | null;
-  onerror: ((event: { error: string }) => void) | null;
-  onend: (() => void) | null;
-  start: () => void; abort: () => void;
-};
-type VoiceWindow = Window & { SpeechRecognition?: new () => Recognition; webkitSpeechRecognition?: new () => Recognition };
-
 export function LivePlacementOfficerCall() {
   const [params] = useSearchParams();
   const { identity } = useAuth();
@@ -76,7 +68,7 @@ export function LivePlacementOfficerCall() {
       recognition.current.onend = null;
       recognition.current.onresult = null;
       recognition.current.onerror = null;
-      recognition.current.abort();
+      cancelSpeechRecognition(recognition.current);
     }
     recognition.current = null;
     setListening(false);
@@ -98,7 +90,7 @@ export function LivePlacementOfficerCall() {
         recognition.current.onend = null;
         recognition.current.onerror = null;
         recognition.current.onresult = null;
-        recognition.current.abort();
+        cancelSpeechRecognition(recognition.current);
       }
       stopVoice();
       void audioContext.current?.close().catch(() => {});
@@ -220,7 +212,7 @@ export function LivePlacementOfficerCall() {
   }
   function listen() {
     if (listening) { stopListening(); return; }
-    const Constructor = (window as VoiceWindow).SpeechRecognition || (window as VoiceWindow).webkitSpeechRecognition;
+    const Constructor = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!Constructor) { setNotice("Voice input is unavailable in this browser. Type your message below."); return; }
     stopVoice();
     setSpeaking(false);
@@ -231,8 +223,11 @@ export function LivePlacementOfficerCall() {
     instance.onresult = event => {
       for (let index = event.resultIndex; index < event.results.length; index++) {
         const result = event.results[index];
-        if (result.isFinal) { reply(result[0].transcript); break; }
-        setInterim(result[0].transcript);
+        if (!result) continue;
+        const transcript = result[0]?.transcript?.trim();
+        if (!transcript) continue;
+        if (result.isFinal) { void reply(transcript); break; }
+        setInterim(transcript);
       }
     };
     instance.onerror = event => { if (mounted.current) setNotice(event.error === "not-allowed" ? "Microphone permission was denied. You can type instead." : "Voice input stopped. Try again or type your message."); };

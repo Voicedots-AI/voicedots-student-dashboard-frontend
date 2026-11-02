@@ -1,0 +1,3 @@
+# Shared assessment fingerprints use LF regardless of checkout platform.
+/src/shared-assessment/** text eol=lf
+/scripts/check-shared-assessment.mjs text eol=lf

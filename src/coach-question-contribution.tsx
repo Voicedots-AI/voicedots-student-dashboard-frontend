@@ -1,13 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { api, json } from './api';
 import { Dialog } from './ui';
+import type { RecognitionLike } from './speech-recognition';
 
 type Candidate={question_text:string;round_type:string;canonical_skill?:string|null;difficulty?:string|null};
-type RecognitionResult={isFinal?:boolean;[index:number]:{transcript?:string}};
-type RecognitionEvent={resultIndex:number;results:ArrayLike<RecognitionResult>};
-type RecognitionLike={continuous:boolean;interimResults:boolean;lang:string;onresult:((event:RecognitionEvent)=>void)|null;onerror:((event:{error?:string})=>void)|null;onend:(()=>void)|null;start:()=>void;stop:()=>void};
-type RecognitionCtor=new()=>RecognitionLike;
-declare global { interface Window { SpeechRecognition?:RecognitionCtor; webkitSpeechRecognition?:RecognitionCtor } }
 
 export function CoachQuestionContribution({driveId,company,role}:{driveId:string;company:string;role:string}){
  const recognitionRef=useRef<RecognitionLike|null>(null);useEffect(()=>()=>{if(recognitionRef.current){recognitionRef.current.onend=null;recognitionRef.current.stop()}},[]);
