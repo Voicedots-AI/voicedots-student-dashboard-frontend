@@ -1,8 +1,9 @@
-.practice-form label.placement-permission-consent{display:flex;align-items:flex-start;gap:11px;padding:14px 16px;margin:18px 0 14px;border:1px solid #d8e7fb;border-radius:12px;background:#f5f9ff;color:#456080;font-size:12px;font-weight:500;line-height:1.7;cursor:pointer}
-.practice-form .placement-permission-consent input[type=checkbox]{appearance:auto;flex:0 0 auto;width:17px;height:17px;min-height:0;margin:2px 0 0;padding:0;accent-color:#1769dd;cursor:pointer}
-.placement-permission-consent input:focus-visible{outline:3px solid #a5c8ff;outline-offset:3px}
 .practice-form .placement-primary-action .placement-start-interview{display:inline-flex;align-items:center;justify-content:center;gap:10px;min-height:46px;padding:12px 22px;background:#0969da;border:1px solid #0969da;border-radius:12px;color:#fff;font-size:13px;font-weight:650;box-shadow:0 4px 12px #0969da20}
 .practice-form .placement-primary-action .placement-start-interview:hover:not(:disabled){background:#0759bc;border-color:#0759bc}
 .placement-permission-toast{position:fixed;right:24px;bottom:24px;z-index:1200;display:flex;align-items:center;gap:10px;max-width:calc(100vw - 40px);box-sizing:border-box;padding:14px 18px;border:1px solid #bdd6fa;border-radius:12px;background:#fff;color:#254c79;font-size:13px;line-height:1.5;box-shadow:0 8px 32px #1e4c8b20}
 .placement-permission-toast svg{color:#1769dd;flex-shrink:0}
+.placement-permission-actions{display:flex;align-items:center;flex-wrap:wrap;gap:10px;margin:0 0 18px}
+.placement-permission-actions .button{display:inline-flex;align-items:center;gap:7px;min-height:38px;padding:9px 13px;background:#edf5ff;color:#2163bb;border:1px solid #cbdffa;border-radius:9px;font-size:12px}
+.placement-permission-actions>span{font-size:11px;color:#72849c}
+.placement-interview-frame{position:fixed;inset:0;z-index:1500;width:100%;height:100dvh;border:0;background:#0969da;display:block}
 @media(max-width:600px){.placement-permission-toast{left:20px;right:20px;bottom:20px}.practice-form .placement-primary-action .placement-start-interview{width:100%}}

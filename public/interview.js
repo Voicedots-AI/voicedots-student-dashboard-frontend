@@ -597,15 +597,108 @@ async function runPriyaFaceVerificationFlow() {
   if (questionTextEl) questionTextEl.textContent = "Starting first round...";
 }
 
-async function startInterviewBackgroundFlow() {
-  if (prejoinScreen) prejoinScreen.style.display = "none";
-  if (callScreen) callScreen.style.display = "block";
-  if (liveChip) liveChip.style.display = "inline-flex";
-  if (rndStatus) rndStatus.textContent = "Connecting to camera & microphone...";
+async function startupResponse(response, fallback) {
+  const data = await response.json().catch(() => null);
+  if (!response.ok) {
+    const detail = data?.detail;
+    throw new Error(typeof detail === 'string' ? detail : detail?.message || fallback);
+  }
+  return data || {};
+}
 
+function failPanelStartup(message) {
+  if (callTimerInterval) { clearInterval(callTimerInterval); callTimerInterval = null; }
+  if (liveChip) liveChip.style.display = 'none';
+  showFatalError(message);
+  const text = document.getElementById('error-toast-text');
+  if (text) text.textContent = `Your interview has not started. ${message}`;
+  if (rndStatus) rndStatus.textContent = 'Interview not started';
+  const action = document.getElementById('error-toast-end');
+  if (action) {
+    action.textContent = 'Back to interview setup';
+    action.onclick = () => {
+      const drive = new URLSearchParams(window.location.search).get('drive');
+      window.location.assign(`/practice${drive ? `?${new URLSearchParams({drive})}` : ''}`);
+    };
+  }
+}
+
+function parentPlacementMedia() {
+  if (window.parent === window) return null;
+  try {
+    const media = window.parent.__placementPanelMedia;
+    const drive = new URLSearchParams(window.location.search).get('drive');
+    return media?.driveId === drive && media.studentId === getStudentSession()?.id ? media : null;
+  } catch { return null; }
+}
+
+function fullscreenDocument() {
+  return parentPlacementMedia() ? window.parent.document : document;
+}
+
+async function requestPanelScreenAccess() {
+  const handoff = parentPlacementMedia();
+  if (handoff) {
+    const track = handoff.screen.getVideoTracks().find(item => item.readyState === 'live');
+    if (!track || track.getSettings().displaySurface !== 'monitor') {
+      throw new Error('Screen sharing stopped. Allow it again on your placement interview card.');
+    }
+    if (window.parent.document.fullscreenEnabled && !window.parent.document.fullscreenElement) {
+      throw new Error('Fullscreen is required. Return to your placement interview card and click Start or Continue.');
+    }
+    screenStream = handoff.screen;
+    isScreenSharing = true;
+    bindScreenShareEnded(track);
+    fullscreenStartConfirmed = true;
+    return;
+  }
+  // Browser screen-sharing and fullscreen permissions require a fresh click.
+  // Keep that action inside the panel instead of reintroducing a setup page.
+  const host = document.getElementById('current-question-text')?.parentElement || callScreen;
+  if (!host) throw new Error('Interview panel could not be displayed. Refresh this page.');
+  const box = document.createElement('div');
+  const label = document.createElement('p');
+  label.textContent = 'Allow entire-screen sharing and fullscreen to begin.';
+  label.setAttribute('role', 'status');
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'pj-btn pj-btn-primary';
+  button.textContent = 'Allow screen sharing & fullscreen';
+  box.append(label, button);
+  host.append(box);
+  await new Promise((resolve, reject) => {
+    const cancel = () => { box.remove(); reject(new Error('Interview startup cancelled.')); };
+    window.addEventListener('pagehide', cancel, {once:true});
+    button.onclick = async () => {
+      button.disabled = true;
+      try {
+        const shared = screenStream?.getVideoTracks().some(track => track.readyState === 'live' && track.getSettings().displaySurface === 'monitor');
+        if (!shared) await prepareScreenShare();
+        if (fullscreenSupported() && !await requestInterviewFullscreen()) {
+          label.textContent = 'Screen sharing is ready. Click again to allow fullscreen.';
+          button.textContent = 'Enter fullscreen & begin';
+          return;
+        }
+        fullscreenStartConfirmed = true;
+        window.removeEventListener('pagehide', cancel);
+        box.remove();
+        resolve();
+      } catch (cause) {
+        label.textContent = cause instanceof Error ? cause.message : 'Screen sharing was not allowed. Please try again.';
+      } finally { button.disabled = false; }
+    };
+  });
+}
+
+async function startInterviewBackgroundFlow() {
+  if (prejoinScreen) prejoinScreen.style.display = 'none';
+  if (callScreen) callScreen.style.display = 'block';
+  if (liveChip) liveChip.style.display = 'none';
+  if (rndStatus) rndStatus.textContent = 'Connecting to camera & microphone…';
+  try {
   // 1. Automatically acquire camera and microphone and attach to candidate tile
   try {
-    const stream = await navigator.mediaDevices.getUserMedia({
+    const stream = parentPlacementMedia()?.camera || await navigator.mediaDevices.getUserMedia({
       video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: "user" },
       audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: { ideal: 1 } },
     });
@@ -636,76 +729,41 @@ async function startInterviewBackgroundFlow() {
     }
   }
 
-  // 2. Start real-time camera face landmark analysis
-  void startCameraAnalysis();
 
-  // 3. Auto-consent for evaluation recording
-  if (recordingConsentEl) recordingConsentEl.checked = true;
-  sessionStorage.setItem("vd_interview_recording_consent_auto", "true");
-
-  // 4. Preflight token creation in background
-  try {
-    if (rndStatus) rndStatus.textContent = "Connecting to AI Panel...";
-    const pfRes = await studentFetch(`${_HTTP_BASE}/api/resume/${currentSubmissionId}/preflight`, {
-      method: "POST", signal: AbortSignal.timeout(15000)
-    });
-    const pfData = await pfRes.json();
-    if (pfRes.ok && pfData.preflight_id) {
-      preflightId = pfData.preflight_id;
+    if (!hasLiveTrack('video') || !hasLiveTrack('audio')) {
+      throw new Error('Allow a working camera and microphone, then refresh this panel to retry.');
     }
-  } catch (pfErr) {
-    console.warn("Background preflight warning:", pfErr);
+    await waitForPreflight(() => candidateVideoEl?.readyState >= 2 && candidateVideoEl.videoWidth > 0,
+      'Your camera preview is not ready. Check camera permissions and retry.');
+    void startCameraAnalysis();
+    await requestPanelScreenAccess();
+    if (recordingConsentEl) recordingConsentEl.checked = true;
+    if (rndStatus) rndStatus.textContent = 'Preparing your secure interview session…';
+    const preflight = await startupResponse(await studentFetch(`${_HTTP_BASE}/api/resume/${currentSubmissionId}/preflight`, {
+      method:'POST',signal:AbortSignal.timeout(15000),
+    }), 'Could not prepare your interview. Refresh this panel to retry.');
+    if (!preflight.preflight_id) throw new Error('The server did not return an interview preparation token.');
+    preflightId = preflight.preflight_id;
+    await runPriyaFaceVerificationFlow();
+    await verifyPreflightIdentity();
+    await checkReadiness();
+    const screenTrack = screenStream?.getVideoTracks().find(track => track.readyState === 'live');
+    const session = await startupResponse(await studentFetch(`${_HTTP_BASE}/api/resume/${currentSubmissionId}/interview`, {
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({preflight_id:preflightId,camera:hasLiveTrack('video'),microphone:hasLiveTrack('audio'),
+        display_surface:screenTrack?.getSettings().displaySurface || null}),signal:AbortSignal.timeout(30000),
+    }), 'The interview could not start. Return to your placement drive and retry this attempt.');
+    if (!session.session_id) throw new Error('The server did not create an interview session.');
+    currentSessionId = session.session_id;
+    sessionStorage.setItem('current_session_id',currentSessionId);
+    sessionStorage.setItem('current_submission_id',currentSubmissionId);
+    sessionStorage.setItem(`vd_interview_recording_consent_${currentSessionId}`,'true');
+    await photoVerifier.load(currentSessionId);
+    await startInterview(currentSubmissionId);
+  } catch (cause) {
+    failPanelStartup(cause instanceof Error ? cause.message : 'Interview startup failed. Please retry from your placement drive.');
   }
-
-  // 5. Session acquisition & interview creation
-  try {
-    const intRes = await studentFetch(`${_HTTP_BASE}/api/resume/${currentSubmissionId}/interview`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        preflight_id: preflightId || "bg_preflight_auto",
-        camera: true,
-        microphone: true,
-        display_surface: "monitor"
-      }),
-      signal: AbortSignal.timeout(30000)
-    });
-    const intData = await intRes.json();
-    if (intRes.ok && intData.session_id) {
-      currentSessionId = intData.session_id;
-      sessionStorage.setItem("current_session_id", currentSessionId);
-      sessionStorage.setItem("current_submission_id", currentSubmissionId);
-      sessionStorage.setItem(`vd_interview_recording_consent_${currentSessionId}`, "true");
-    } else if (!currentSessionId) {
-      const getRes = await studentFetch(`${_HTTP_BASE}/api/resume/${currentSubmissionId}/interview`);
-      if (getRes.ok) {
-        const getData = await getRes.json();
-        if (getData?.session_id) {
-          currentSessionId = getData.session_id;
-          sessionStorage.setItem("current_session_id", currentSessionId);
-        }
-      }
-    }
-  } catch (intErr) {
-    console.warn("Interview session startup error:", intErr);
-  }
-
-  if (currentSessionId) {
-    void photoVerifier.load(currentSessionId).catch(() => {});
-  }
-
-  // 6. Start call timer
-  startCallTimer();
-
-  // 7. First panel person (Priya Sharma) guides face verification (left, right, center)
-  if (rndStatus) rndStatus.textContent = "Face Verification Step";
-  await runPriyaFaceVerificationFlow();
-
-  // 8. If face verified, start live interview questions flow!
-  if (rndStatus) rndStatus.textContent = "Connected (Live)";
-  await startInterview(currentSubmissionId);
 }
-
 async function awaitPlacementPreparation(operationId, driveId) {
   const until = Date.now() + 180000;
   while (Date.now() < until) {
@@ -754,10 +812,11 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // Fullscreen button wiring
   document.getElementById("fullscreen-btn")?.addEventListener("click", () => {
-    if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen().catch(() => {});
+    const root = fullscreenDocument();
+    if (!root.fullscreenElement) {
+      root.documentElement.requestFullscreen().catch(() => {});
     } else {
-      document.exitFullscreen().catch(() => {});
+      root.exitFullscreen().catch(() => {});
     }
   });
 
@@ -772,6 +831,10 @@ document.addEventListener("DOMContentLoaded", async () => {
     const ownsEntry = preparationId ? placementConsent?.operationId === preparationId
       : placementConsent?.submissionId === urlParams.get('id');
     if (placementConsent?.version !== 1 || placementConsent.accepted !== true || age < 0 || age > 7200000 || !ownsEntry) {
+      window.location.replace(`/practice?${new URLSearchParams({drive:consentDriveId})}`);
+      return;
+    }
+    if (!parentPlacementMedia()) {
       window.location.replace(`/practice?${new URLSearchParams({drive:consentDriveId})}`);
       return;
     }
@@ -821,21 +884,10 @@ document.addEventListener("DOMContentLoaded", async () => {
   // Immediately display the Call Screen and run background preparation
   if (prejoinScreen) prejoinScreen.style.display = "none";
   if (callScreen) callScreen.style.display = "block";
-  if (liveChip) liveChip.style.display = "inline-flex";
-
   void startInterviewBackgroundFlow();
 });
 
 async function tryResumeCompletedSessionOnLoad() {
-  if (!currentSessionId && currentSubmissionId) {
-    try {
-      const sessRes = await studentFetch(`${_HTTP_BASE}/api/resume/${currentSubmissionId}/interview`);
-      if (sessRes.ok) {
-        const sessData = await sessRes.json();
-        if (sessData?.session_id) currentSessionId = sessData.session_id;
-      }
-    } catch (_) {}
-  }
   if (!currentSessionId) return false;
   try {
     const response = await studentFetch(`${_HTTP_BASE}/api/interview/${currentSessionId}`);
@@ -987,10 +1039,11 @@ function stopPanelBlinkLoop(controller) {
 }
 
 async function requestInterviewFullscreen() {
-  if (document.fullscreenElement) return true;
+  const root = fullscreenDocument();
+  if (root.fullscreenElement) return true;
   if (navigator.userActivation && !navigator.userActivation.isActive) return false;
   try {
-    await document.documentElement.requestFullscreen();
+    await root.documentElement.requestFullscreen();
     return true;
   } catch {
     return false;
@@ -2983,7 +3036,7 @@ function setupIntegrityMonitoring() {
   // and display scaling do not look like a panel. Review evidence only.
   let layoutSamples = 0, layoutObstructed = false;
   setInterval(() => {
-    if (!proctoringActive || !_isCallScreenActive() || !document.fullscreenElement || sessionCompletedCleanly) {
+    if (!proctoringActive || !_isCallScreenActive() || !fullscreenDocument().fullscreenElement || sessionCompletedCleanly) {
       layoutSamples = 0; return;
     }
     const screenRatio = window.screen.width / window.screen.height;
@@ -3003,8 +3056,8 @@ function setupIntegrityMonitoring() {
 
   const fullscreenReturn = document.getElementById("fullscreen-return");
   fullscreenReturn?.addEventListener("click", () => void requestInterviewFullscreen());
-  document.addEventListener("fullscreenchange", () => {
-    const outside = !document.fullscreenElement && _isCallScreenActive() && !sessionCompletedCleanly;
+  fullscreenDocument().addEventListener("fullscreenchange", () => {
+    const outside = !fullscreenDocument().fullscreenElement && _isCallScreenActive() && !sessionCompletedCleanly;
     // Leaving full screen is still recorded; the student also gets a direct
     // way back instead of having to find a browser shortcut.
     if (fullscreenReturn) fullscreenReturn.hidden = !outside;
@@ -3737,6 +3790,8 @@ function handleControlMessage(payload) {
     // never send this. Only from here on does a flag actually count, and
     // only from here on do queued pending events get flushed.
     case "interview_started":
+      if (liveChip) liveChip.style.display = 'inline-flex';
+      if (!callTimerInterval) startCallTimer();
       interviewRecordingEnabled = payload.recording_enabled !== false;
       if (Array.isArray(payload.agents) && payload.agents.length) {
         const animations = new Map(panelAnimations);

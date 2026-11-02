@@ -15,6 +15,7 @@ import {
   ApiError,
   json,
   openInterview,
+  interviewPanelUrl,
   request,
   type Attempt,
   type ConfiguredInterviewAgent,
@@ -34,6 +35,7 @@ import {
 } from "./ui";
 import { PreparationJourney } from "./preparation-journey";
 import './placement-interview-consent.css';
+import { releasePlacementPanelMedia } from './placement-panel-media';
 import { ResumeClarificationSteps, type ClarificationAnswer } from "./resume-clarification";
 
 export function Practice() {
@@ -76,18 +78,25 @@ export function Practice() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
-  const [permissionsAccepted, setPermissionsAccepted] = useState(false);
+  const [screenReady, setScreenReady] = useState(false);
+  const [permissionBusy, setPermissionBusy] = useState(false);
+  const [panelUrl, setPanelUrl] = useState('');
+  const launchRequested = useRef(false);
   const [permissionToast, setPermissionToast] = useState('');
   const permissionTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
-    setPermissionsAccepted(false);
     setPermissionToast('');
-    return () => { if (permissionTimer.current) clearTimeout(permissionTimer.current); };
+    setScreenReady(false);
+    launchRequested.current = false;
+    return () => {
+      if (permissionTimer.current) clearTimeout(permissionTimer.current);
+      releasePlacementPanelMedia();
+    };
   }, [driveId, identity?.student.id]);
 
   function requirePermissions() {
-    if (!driveId || permissionsAccepted) return true;
-    setPermissionToast('Please accept the interview permissions to continue.');
+    if (!driveId || screenReady) return true;
+    setPermissionToast('Please allow screen sharing to continue.');
     if (permissionTimer.current) clearTimeout(permissionTimer.current);
     permissionTimer.current = setTimeout(() => setPermissionToast(''), 4000);
     return false;
@@ -98,6 +107,54 @@ export function Practice() {
     sessionStorage.setItem(`vd_placement_consent_${identity!.student.id}_${driveId}`, JSON.stringify({
       version: 1, accepted: true, acceptedAt: Date.now(), submissionId, operationId,
     }));
+  }
+
+  async function allowScreenSharing() {
+    if (!driveId || permissionBusy) return;
+    setPermissionBusy(true);
+    try {
+      const screen = await navigator.mediaDevices.getDisplayMedia({video:{displaySurface:'monitor'},audio:false});
+      const track = screen.getVideoTracks()[0];
+      if (track?.getSettings().displaySurface !== 'monitor') {
+        screen.getTracks().forEach(item => item.stop());
+        throw new Error('Choose your entire screen to continue.');
+      }
+      releasePlacementPanelMedia();
+      window.__placementPanelMedia = {studentId:identity!.student.id,driveId,screen,camera:null};
+      setScreenReady(true);
+      setPermissionToast('');
+      track.addEventListener('ended', () => setScreenReady(false), {once:true});
+    } catch (cause) {
+      setPermissionToast(cause instanceof Error && cause.name !== 'NotAllowedError' ? cause.message : 'Allow entire-screen sharing before starting.');
+    } finally { setPermissionBusy(false); }
+  }
+
+  async function preparePlacementPermissions() {
+    if (!driveId) return true;
+    const media = window.__placementPanelMedia;
+    if (!media || media.studentId !== identity!.student.id || media.driveId !== driveId || !media.screen.getVideoTracks().some(track => track.readyState === 'live')) {
+      setPermissionToast('Please allow entire-screen sharing before starting.');
+      return false;
+    }
+    setPermissionBusy(true);
+    try {
+      // This runs directly from Start/Continue, before any network awaits.
+      if (document.fullscreenEnabled && !document.fullscreenElement) await document.documentElement.requestFullscreen();
+      if (!media.camera?.getVideoTracks().some(track => track.readyState === 'live') || !media.camera?.getAudioTracks().some(track => track.readyState === 'live')) {
+        media.camera?.getTracks().forEach(track => track.stop());
+        media.camera = await navigator.mediaDevices.getUserMedia({video:true,audio:true});
+      }
+      return true;
+    } catch {
+      setPermissionToast('Allow fullscreen, camera and microphone access to continue.');
+      return false;
+    } finally { setPermissionBusy(false); }
+  }
+
+  function openPlacementPanel(submissionId?: string, sessionId?: string, operationId?: string) {
+    if (!driveId) { openInterview(submissionId,sessionId,operationId); return; }
+    savePermissionConsent(submissionId,operationId);
+    setPanelUrl(interviewPanelUrl(submissionId,sessionId,operationId,driveId));
   }
   const [stageKey, setStageKey] = useState<string | undefined>(undefined);
   const [preparation, setPreparation] = useState<Preparation | null>(() => {
@@ -233,9 +290,8 @@ export function Practice() {
     sessionStorage.removeItem(`${draftKey}:jd`);
     sessionStorage.setItem(key, JSON.stringify(result));
     setPreparation(result);
-    if (driveId && permissionsAccepted && ['in_progress','ready'].includes(result.status) && (result.submission_id || result.operation_id)) {
-      savePermissionConsent(result.submission_id, result.operation_id);
-      openInterview(result.submission_id, result.session_id, result.operation_id, driveId);
+    if (driveId && screenReady && launchRequested.current && ['in_progress','ready'].includes(result.status) && (result.submission_id || result.operation_id)) {
+      openPlacementPanel(result.submission_id, result.session_id, result.operation_id);
     }
   }
   function reset() {
@@ -252,7 +308,7 @@ export function Practice() {
 
   // Resume a durable preparation operation after refresh, without another upload.
   useEffect(() => {
-    if (preparation?.status !== "in_progress" || !preparation.operation_id)
+    if (panelUrl || preparation?.status !== "in_progress" || !preparation.operation_id)
       return;
     const controller = new AbortController();
     let timer: ReturnType<typeof setTimeout>;
@@ -288,7 +344,7 @@ export function Practice() {
     };
     // Operation identity drives polling; stage updates must not restart it.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [preparation?.operation_id, preparation?.status, pollVersion, key]);
+  }, [preparation?.operation_id, preparation?.status, pollVersion, key, panelUrl]);
 
   function chooseFile(next?: File) {
     setError("");
@@ -318,15 +374,15 @@ export function Practice() {
     return false;
   }
   async function enterInterview(submissionId?:string,sessionId?:string,operationId?:string) {
+    if (permissionBusy || busy) return;
     if (!requirePermissions()) return;
     if (driveId && (!atsQualified || !context || context.is_locked || context.main_resume_available !== true || context.interview_window !== "open")) {
       setError(`An ATS Fit of at least ${placementATS.minimum}% and an open placement interview are required.`);
       return;
     }
-    if (await verifyPlacementATS()) {
-      savePermissionConsent(submissionId, operationId);
-      openInterview(submissionId,sessionId,operationId,driveId || undefined);
-    }
+    if (!await preparePlacementPermissions()) return;
+    launchRequested.current = true;
+    if (await verifyPlacementATS()) openPlacementPanel(submissionId,sessionId,operationId);
   }
 
   async function start(event?: FormEvent<HTMLFormElement>) {
@@ -346,7 +402,9 @@ export function Practice() {
       setError("Enter a target role before starting practice.");
       return;
     }
-    if (busy) return;
+    if (busy || permissionBusy) return;
+    if (!await preparePlacementPermissions()) return;
+    launchRequested.current = true;
     setBusy(true);
     if (driveId && !await verifyPlacementATS()) { setBusy(false); return; }
     const body = new FormData();
@@ -520,6 +578,18 @@ export function Practice() {
   const attemptsRemaining = Math.min(attemptMaximum, Math.max(0, Number(context?.attempts_remaining) || 0));
   const practiceAttempts = attempts.data?.attempts || [];
 
+  if (panelUrl) return <iframe className="placement-interview-frame" title="AI interview panel" src={panelUrl}
+    allow="camera; microphone; display-capture; fullscreen; autoplay" allowFullScreen
+    onLoad={event => {
+      try {
+        const destination = new URL(event.currentTarget.contentWindow!.location.href);
+        if (destination.origin === window.location.origin && destination.pathname !== '/interview.html') {
+          releasePlacementPanelMedia();
+          window.location.assign(destination.pathname+destination.search+destination.hash);
+        }
+      } catch { /* The panel is restricted to the application's own origin. */ }
+    }}/>;
+
   return (
     <div className="interview-practice-page">
       {permissionToast && <div className="placement-permission-toast" role="alert"><ShieldCheck size={18}/>{permissionToast}</div>}
@@ -650,11 +720,12 @@ export function Practice() {
                         <div><dt>Interview window</dt><dd>{formatDateTime(context.interview_window_start_at)} – {formatDateTime(context.interview_window_end_at)}</dd></div>
                       </dl>
                       <details className="placement-jd-details"><summary>View role details</summary><p>{context.job_description || "No job description was provided for this placement."}</p></details>
-                      <label className="placement-permission-consent" htmlFor="placement-interview-permissions">
-                        <input id="placement-interview-permissions" type="checkbox" checked={permissionsAccepted}
-                          onChange={event => { setPermissionsAccepted(event.target.checked); setPermissionToast(''); }}/>
-                        <span>I agree to fullscreen, camera/mic recording and AI assessment.</span>
-                      </label>
+                      <div className="placement-permission-actions">
+                        <button type="button" className="button secondary" onClick={() => void allowScreenSharing()} disabled={permissionBusy || screenReady} aria-describedby="placement-permission-note">
+                          <ShieldCheck size={16}/>{screenReady ? 'Screen sharing allowed' : permissionBusy ? 'Requesting permission…' : 'Allow screen sharing'}
+                        </button>
+                        <span id="placement-permission-note">By allowing sharing, you agree to fullscreen, camera/mic recording and AI assessment.</span>
+                      </div>
                       <div className="placement-primary-action">
                         {preparation && ['in_progress','ready'].includes(preparation.status) && !context.can_start_next_attempt ? <button type="button" className="button primary placement-start-interview" onClick={() => void enterInterview(preparation.submission_id, preparation.session_id, preparation.operation_id)}><Mic size={17}/>Start Interview <ArrowRight size={17}/></button>
                           : driveCanResume ? <button type="button" className="button primary placement-start-interview" onClick={() => void enterInterview(context.submission_id!, context.session_id || undefined)}><Mic size={17}/>Continue Interview <ArrowRight size={17}/></button>
