@@ -13,11 +13,9 @@ import {
   MessageSquare,
   Sparkles,
   Clock,
-  Play,
   Check,
   Trophy,
   ArrowRight,
-  BookOpen,
   FileText,
   RotateCw,
   Maximize2,
@@ -39,7 +37,7 @@ import { CoachLearningResources } from "./coach-learning-resources";
 import { CoachScheduleReattempt } from "./coach-schedule-reattempt";
 import { CoachTopNav } from "./coach-top-nav";
 import { PlacementJourneyGate } from "./placement-journey-gate";
-import { ImprovementJourneyChart } from "./improvement-journey-chart";
+import { DriveProgress, selectDriveTrajectory } from "./shared-assessment/DriveProgress";
 import { PlacementDriveRedirect } from "./placement-drive-redirect";
 import './result-stat-cards.css';
 import "./coach-approved.css";
@@ -952,20 +950,7 @@ function ImprovementJourneyScreens() {
     communication: number;
   };
 
-  const activeTrajectoryPoints = useMemo<TrajectoryPoint[]>(() => {
-    const records=(realStudentReports||[]).filter((row:any)=>row.drive_id===selectedDriveId&&row.status==='released'&&row.report)
-      .sort((a:any,b:any)=>Date.parse(a.completed_at||a.created_at)-Date.parse(b.completed_at||b.created_at));
-    const measured=records.flatMap((row:any,index:number)=>{
-      const overall=row.report.overall_score;
-      const technical=row.report.score_breakdown?.technical??row.report.score_breakdown?.technical_knowledge;
-      const communication=row.report.score_breakdown?.communication;
-      if(![overall,technical,communication].every(value=>typeof value==='number'&&Number.isFinite(value)))return [];
-      return [{milestone:`Attempt ${row.attempt_number||index+1}`,date:row.completed_at||row.created_at||'',overall,technical,communication}];
-    });
-    if(measured.length)return measured;
-    const saved=data?.progress_tracking?.trajectory_points;
-    return Array.isArray(saved)?saved.filter((point:any)=>[point.overall,point.technical,point.communication].every(value=>typeof value==='number'&&Number.isFinite(value))):[];
-  },[data,realStudentReports,selectedDriveId]);
+  const activeTrajectoryPoints = useMemo<TrajectoryPoint[]>(() => selectDriveTrajectory(realStudentReports,selectedDriveId,data?.progress_tracking?.trajectory_points),[data,realStudentReports,selectedDriveId]);
   const activeQuestions: DynamicQuestion[] = Array.isArray(data?.questions) ? data.questions : [];
 
   // Cached female voice for Neha Kapoor
@@ -3471,47 +3456,7 @@ function ImprovementJourneyScreens() {
 
           {/* Main White Card Container */}
           <div className="s-portal-card">
-            <ImprovementJourneyChart points={activeTrajectoryPoints} onReport={() => navigateTo(2)} />
-
-            {/* 3 Bottom Metric Stat Cards (Solid Blue and Green theme - ZERO purple) */}
-            <div className="s8-metrics-grid">
-              {/* Blue Card 1 */}
-              <div className="s8-metric-card card-blue">
-                <div className="s8-metric-icon-box icon-blue">
-                  <BookOpen size={22} />
-                </div>
-                <div className="s8-metric-content">
-                  <strong className="s8-metric-value">{progressMetrics.modules_completed ?? 0}</strong>
-                  <span className="s8-metric-label">Learning Modules Completed</span>
-                </div>
-              </div>
-
-              {/* Green Card 2 */}
-              <div className="s8-metric-card card-green">
-                <div className="s8-metric-icon-box icon-green">
-                  <CheckCircle2 size={22} />
-                </div>
-                <div className="s8-metric-content">
-                  <strong className="s8-metric-value">
-                    {progressMetrics.questions_completed ?? 0} / {progressMetrics.questions_total ?? 0}
-                  </strong>
-                  <span className="s8-metric-label">Practice Questions Completed</span>
-                </div>
-              </div>
-
-              {/* Solid Blue Card 3 */}
-              <div className="s8-metric-card card-blue">
-                <div className="s8-metric-icon-box icon-blue">
-                  <Play size={20} fill="currentColor" />
-                </div>
-                <div className="s8-metric-content">
-                  <strong className="s8-metric-value">
-                    {progressMetrics.mock_interviews_completed ?? 0} / {progressMetrics.mock_interviews_total ?? 0}
-                  </strong>
-                  <span className="s8-metric-label">Mock Interviews Completed</span>
-                </div>
-              </div>
-            </div>
+            <DriveProgress points={activeTrajectoryPoints} progressMetrics={progressMetrics} onReport={() => navigateTo(2)} />
 
             {/* Bottom Actions */}
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "28px", paddingTop: "20px", borderTop: "1px solid #f1f5f9" }}>
