@@ -1,0 +1,96 @@
+/* Deliberately light surfaces for results and coaching, including dark shells. */
+/* Reference result composition: gauge, competency panel, then totals and CTA. */
+:root .s2-screen-wrapper .s2-main-card{padding:24px;border-radius:12px;box-shadow:none}
+:root .s2-screen-wrapper .s2-top-screen-indicator{background:#dceeff;border:1px solid #c5dff9;border-radius:10px;padding:12px 16px;margin-bottom:16px;gap:12px;flex-wrap:wrap}
+:root .s2-screen-wrapper .s2-header-row{margin-bottom:18px}
+:root .s2-screen-wrapper .s2-title-group h2{font-size:26px;margin:0 0 5px}
+:root .s2-screen-wrapper .s2-title-group p{font-size:14px;color:#58718c;margin:0}
+:root .s2-screen-wrapper .s2-grid{display:grid;grid-template-columns:minmax(220px,.8fr) minmax(0,1.4fr);gap:22px;align-items:center}
+:root .s2-screen-wrapper .s2-gauge-box{background:#fff;border:0;padding:0;display:flex;flex-direction:column;align-items:center;min-width:0}
+:root .s2-screen-wrapper .s2-arc-gauge-container{width:240px;max-width:100%;height:230px}
+:root .s2-screen-wrapper .s2-arc-gauge-center{inset:0;transform:none;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:8px;padding-top:10px}
+:root .s2-screen-wrapper .s2-arc-score-num{font-size:54px;line-height:1;font-weight:800}
+:root .s2-screen-wrapper .s2-arc-score-denom{font-size:19px;color:#42698e}
+:root .s2-screen-wrapper .s2-gauge-status-badge{margin-top:-19px;position:relative;border-radius:7px;padding:9px 14px;font-size:14px}
+:root .s2-screen-wrapper .s2-comp-section{border:1px solid #e1ebf5;background:#fff;border-radius:12px;padding:20px;min-width:0}
+:root .s2-screen-wrapper .s2-comp-title{font-size:17px;margin-bottom:20px}
+:root .s2-screen-wrapper .s2-comp-rows-container{gap:18px}
+:root .s2-screen-wrapper .s2-comp-row-item{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(100px,1fr);gap:12px}
+:root .s2-screen-wrapper .s2-comp-label-wrap{width:auto;min-width:0;gap:8px}
+:root .s2-screen-wrapper .s2-comp-text-name{font-size:12px;line-height:1.4}
+:root .s2-screen-wrapper .s2-comp-bar-container{min-width:0;gap:10px}
+:root .s2-screen-wrapper .s2-comp-bar-bg{height:9px;background:#f1f5fa}
+:root .s2-screen-wrapper .s2-comp-bar-fill.bar-coral{background:#ff5259}
+:root .s2-screen-wrapper .s2-comp-bar-fill.bar-green{background:#12b981}
+:root .s2-screen-wrapper .s2-comp-bullet-icon.dot-coral{background:#fff0d6;color:#df850c;border:2px solid #ffb94d;width:17px;height:17px}
+:root .s2-screen-wrapper .s2-comp-bullet-icon.dot-green{background:#d9fae9;color:#0b9765;border:2px solid #42c992;width:17px;height:17px}
+:root .s2-screen-wrapper .s2-bottom-grid{grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:18px;border-top:1px solid #edf2f8;padding-top:20px;margin-top:22px;align-items:stretch}
+:root .s2-screen-wrapper .s2-metrics-cluster{border:1px solid #e1ebf5;border-radius:10px;gap:0;padding:18px 0;align-self:start;background:#fff}
+:root .s2-screen-wrapper .s2-stat-card{flex-direction:column;align-items:center;text-align:center;border:0;border-radius:0;box-shadow:none;padding:0 8px;gap:10px;min-width:0}
+:root .s2-screen-wrapper .s2-stat-card+.s2-stat-card{border-left:1px solid #edf2f8}
+:root .s2-screen-wrapper .s2-stat-content{display:flex;flex-direction:column;gap:5px}
+:root .s2-screen-wrapper .s2-stat-number{font-size:25px;color:#183650}
+:root .s2-screen-wrapper .s2-stat-label{font-size:11px;color:#58718c}
+:root .s2-screen-wrapper .s2-stat-icon-wrap.icon-blue{background:#dceeff;color:#0875ef}
+:root .s2-screen-wrapper .s2-stat-icon-wrap.icon-green{background:#ddfaec;color:#0bac77}
+:root .s2-screen-wrapper .s2-stat-icon-wrap.icon-purple{background:#f0e7ff;color:#9655dc}
+:root .s2-screen-wrapper .s2-action-box{background:#fff;border:1px solid #e1ebf5;border-radius:10px;padding:18px;gap:12px}
+:root .s2-screen-wrapper .s2-action-headline{font-size:14px;color:#254968;margin:0 0 5px}
+:root .s2-screen-wrapper .s2-action-subheadline{font-size:13px;line-height:1.6;color:#58718c;margin:0}
+:root .s2-screen-wrapper .s2-action-btn-row{display:flex;flex-direction:column;gap:8px;align-items:stretch}
+:root .s2-screen-wrapper .s2-talk-coach-btn{width:100%;justify-content:center;border-radius:8px;min-height:45px;font-size:14px}
+:root .s2-screen-wrapper .s2-review-btn-secondary{font-size:11px;padding:6px;min-height:28px;border:0;background:transparent;justify-content:center}
+.s3-detailed-conversation[hidden]{display:none}
+.s3-detailed-conversation:not([hidden]){display:flex;flex-direction:column;gap:20px}
+:root .s3-reference-intro .s3-window-body-grid{grid-template-columns:minmax(250px,.85fr) minmax(0,1.3fr)}
+:root .s3-reference-intro .s3-avatar-portrait-frame{width:100%;height:auto;aspect-ratio:3/4;max-height:450px;border-radius:18px}
+:root .s3-reference-intro .s3-intro-conversation>p{background:#f4f9ff;border:1px solid #d4e5f7;padding:16px;border-radius:12px;font-size:14px;line-height:1.7;margin:0 0 16px;color:#345575}
+.s3-intro-checklist{padding:4px 16px 16px}.s3-intro-checklist h3{font-size:15px;margin:0 0 12px}.s3-intro-checklist>div{display:flex;align-items:center;gap:10px;margin:10px 0;font-size:14px}.s3-intro-checklist svg{color:#0981ee;flex-shrink:0}
+:root .s3-reference-intro .s3-btn-start-plan{background:#08ac79;display:inline-flex;align-items:center;justify-content:center;gap:8px;flex:1;text-decoration:none;min-height:44px}
+:root .s3-reference-intro .s3-btn-start-plan:hover{background:#07865f}
+@media(max-width:1000px){:root .s2-screen-wrapper .s2-grid{grid-template-columns:minmax(180px,.7fr) minmax(0,1.3fr)}:root .s2-screen-wrapper .s2-comp-row-item{grid-template-columns:1fr;gap:6px}}
+@media(max-width:700px){:root .s2-screen-wrapper .s2-grid,:root .s2-screen-wrapper .s2-bottom-grid,:root .s3-reference-intro .s3-window-body-grid{grid-template-columns:1fr}:root .s2-screen-wrapper .s2-main-card{padding:16px}:root .s2-screen-wrapper .s2-comp-row-item{grid-template-columns:minmax(0,1fr) minmax(90px,.8fr)}:root .s3-reference-intro .s3-avatar-portrait-frame{max-height:260px}:root .s2-screen-wrapper .s2-title-group h2{font-size:22px}}
+:root .s2-screen-wrapper,
+:root .s3-modal-card {
+  --text: #183650;
+  --muted: #58718c;
+  --card: #fff;
+  --surface: #fff;
+  --border: #d4e5f7;
+  --primary: #0969da;
+  color: #183650;
+  color-scheme: light;
+}
+:root .s2-screen-wrapper { background: #f3f8ff; border-radius: 20px; padding: clamp(12px, 2vw, 24px); }
+:root .s2-screen-wrapper .s2-main-card,
+:root .s2-screen-wrapper .s2-stat-card,
+:root .s3-modal-card { background: #fff; border: 1px solid #d4e5f7; box-shadow: 0 8px 28px #2264a30d; }
+:root .s2-screen-wrapper :is(.s2-gauge-box, .s2-motivation-box, .s2-coach-cta-box) { background: #edf6ff; border-color: #c5dff9; }
+:root .s2-screen-wrapper :is(h1,h2,h3,h4,.s2-screen-title,.s2-arc-score-num,.s2-comp-text-name,.s2-comp-val-label) { color: #183650; }
+:root .s2-screen-wrapper :is(.s2-company-text,.s2-arc-score-denom) { color: #42698e; }
+:root .s2-screen-wrapper .s2-comp-bar-bg { background: #e6eff9; }
+:root .s2-screen-wrapper :is(.s2-review-btn-secondary,.s2-plan-btn-secondary) { background: #fff; border: 1px solid #b8d7f6; color: #0969da; box-shadow: none; }
+:root .s2-screen-wrapper .s2-talk-coach-btn { background: #0969da; border-color: #0969da; color: #fff; }
+:root .s3-modal-backdrop { background: #31649140; backdrop-filter: blur(5px); }
+:root .s3-modal-card .s3-top-window-bar { background: #edf6ff; border-color: #d4e5f7; }
+:root .s3-modal-card .s3-avatar-card-column { background: #f0f7ff; border-color: #d4e5f7; }
+:root .s3-modal-card .s3-content-column { background: #fff; }
+:root .s3-modal-card :is(.s3-avatar-portrait-frame,.s3-avatar-bottom-voice-bar,.s3-candidate-pill-badge,.s3-curriculum-card) { background: #fff; border: 1px solid #d4e5f7; box-shadow: none; }
+:root .s3-modal-card .s3-avatar-portrait-frame .officer-portrait { background: #fff; }
+:root .s3-modal-card .officer-portrait:after { background: linear-gradient(transparent, #e9f4ff); }
+:root .s3-modal-card .s3-avatar-floating-badge { background: #e8f3ffed; border: 1px solid #b8d7f6; color: #155ba6; }
+:root .s3-modal-card :is(.s3-top-title-text,.s3-candidate-name-bold,.s3-coach-headline,.s3-live-discussion-header,.s3-avatar-voice-info strong,.s3-curriculum-content h4) { color: #183650; }
+:root .s3-modal-card :is(.s3-coach-subheadline,.s3-avatar-voice-info span,.s3-candidate-dept-sub,.s3-curriculum-content p) { color: #58718c; }
+:root .s3-modal-card :is(.s3-dialogue-speech-box,.s3-live-discussion-card) { background: #f0f7ff; border: 1px solid #c5dff9; color: #245078; }
+:root .s3-modal-card :is(.s3-curriculum-icon-wrap,.s3-audio-toggle-btn,.s3-breadcrumb-item,.s3-breadcrumb-step) { background: #e8f3ff; color: #0969da; }
+:root .s3-modal-card :is(.s3-btn-readjust,.s3-discussion-prompt-chip) { background: #fff; border: 1px solid #b8d7f6; color: #155ba6; text-decoration: none; }
+:root .s3-modal-card :is(.s3-btn-start-plan,.s3-discussion-send-btn,.s3-top-badge-box,.s3-candidate-avatar-circle) { background: #0969da; color: #fff; border-color: #0969da; box-shadow: none; }
+:root .s3-modal-card .s3-discussion-text-input { background: #fff; color: #183650; border: 1px solid #b8d7f6; min-width: 0; }
+:root .s3-modal-card .s3-discussion-text-input::placeholder { color: #647d96; }
+:root .s3-modal-card .s3-bottom-actions-row { border-color: #d4e5f7; flex-wrap: wrap; gap: 10px; }
+:root .s3-modal-card :is(.s3-btn-start-plan,.s3-discussion-send-btn):hover,
+:root .s2-screen-wrapper .s2-talk-coach-btn:hover { background: #0759bc; }
+:root .s3-modal-card :is(.s3-btn-readjust,.s3-discussion-prompt-chip,.s3-audio-toggle-btn,.s3-modal-close-icon-btn):hover,
+:root .s2-screen-wrapper :is(.s2-review-btn-secondary,.s2-plan-btn-secondary):hover { background: #e8f3ff; color: #0759bc; border-color: #8bbcf0; }
+:root :is(.s2-screen-wrapper,.s3-modal-card) :is(button,a,input,select):focus-visible { outline: 3px solid #76b5f4; outline-offset: 3px; }
+:root :is(.s2-screen-wrapper,.s3-modal-card) button:disabled { opacity: .55; cursor: not-allowed; }

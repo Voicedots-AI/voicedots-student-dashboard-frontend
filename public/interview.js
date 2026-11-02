@@ -399,6 +399,339 @@ function startPresencePing() {
   }, PRESENCE_INTERVAL_MS);
 }
 
+let callTimerInterval = null;
+function startCallTimer() {
+  if (callTimerInterval) clearInterval(callTimerInterval);
+  const startTime = Date.now();
+  const timerTextEl = document.getElementById("call-timer-text");
+  if (!timerTextEl) return;
+  timerTextEl.textContent = "00:00";
+  callTimerInterval = setInterval(() => {
+    const elapsedSec = Math.floor((Date.now() - startTime) / 1000);
+    const m = String(Math.floor(elapsedSec / 60)).padStart(2, "0");
+    const s = String(elapsedSec % 60).padStart(2, "0");
+    timerTextEl.textContent = `${m}:${s}`;
+  }, 1000);
+}
+
+function getPriyaFemaleVoice() {
+  if (!("speechSynthesis" in window)) return null;
+  const voices = window.speechSynthesis.getVoices() || [];
+  if (!voices.length) return null;
+  const femaleKeywords = ["priya", "neha", "heera", "neerja", "swara", "kavya", "zira", "jenny", "aria", "samantha", "victoria", "karen", "female"];
+  const maleKeywords = ["david", "mark", "george", "guy", "james", "richard", "stefan", "ravi", "prabhat", "male"];
+  const isMale = (name) => maleKeywords.some(m => new RegExp(`\\b${m}\\b`, "i").test(name));
+  const isFemale = (name) => femaleKeywords.some(f => new RegExp(`\\b${f}\\b`, "i").test(name));
+  
+  // 1. Try Indian English Natural
+  const indian = voices.find(v => {
+    const n = v.name.toLowerCase();
+    const l = (v.lang || "").toLowerCase();
+    return l === "en-in" && isFemale(n) && !isMale(n);
+  });
+  if (indian) return indian;
+
+  // 2. Try any English female voice
+  const englishFemale = voices.find(v => {
+    const n = v.name.toLowerCase();
+    const l = (v.lang || "").toLowerCase();
+    return l.startsWith("en") && isFemale(n) && !isMale(n);
+  });
+  if (englishFemale) return englishFemale;
+
+  return null;
+}
+
+let priyaRemoteVoiceUnavailable = false;
+
+async function speakPriya(text) {
+  // Use the same canonical Gemini/Kore voice as Priya's live HR round.
+  // A different OS voice must not replace her identity during verification.
+  let objectUrl = null;
+  let player = null;
+  activePanelRound = 1;
+  setActivePanelTalking(false);
+  if (!priyaRemoteVoiceUnavailable) {
+  try {
+    const response = await studentFetch(`${_HTTP_BASE}/api/student/interview/verification-speech`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text }), signal: AbortSignal.timeout(10000),
+    });
+    if (!response.ok || response.status === 204) throw new Error("Priya voice unavailable");
+    objectUrl = URL.createObjectURL(await response.blob());
+    player = new Audio(objectUrl);
+    await new Promise((resolve, reject) => {
+      const timer = setTimeout(() => { player.pause(); reject(new Error("Priya playback timed out")); }, 20000);
+      player.onplaying = () => setActivePanelTalking(true);
+      player.onended = () => { clearTimeout(timer); resolve(); };
+      player.onerror = () => { clearTimeout(timer); reject(new Error("Priya playback failed")); };
+      player.play().catch(error => { clearTimeout(timer); reject(error); });
+    });
+    return;
+  } catch {
+    priyaRemoteVoiceUnavailable = true;
+    // Continue with visible instructions rather than switching voice identity.
+  } finally {
+    setActivePanelTalking(false);
+    if (player) { player.pause(); player.onplaying = null; player.onended = null; player.onerror = null; }
+    if (objectUrl) URL.revokeObjectURL(objectUrl);
+  }
+  }
+}
+
+async function runPriyaFaceVerificationFlow() {
+  const overlay = document.getElementById("pip-face-verify-overlay");
+  const badge = document.getElementById("pf-verify-badge");
+  const arrow = document.getElementById("pf-verify-arrow");
+  const verifyText = document.getElementById("pf-verify-text");
+  const dot1 = document.getElementById("vf-dot-1");
+  const dot2 = document.getElementById("vf-dot-2");
+  const dot3 = document.getElementById("vf-dot-3");
+  const confirmBtn = document.getElementById("pf-verify-confirm-btn");
+  const labelEl = document.querySelector(".question-focus-label");
+  const counterPill = document.getElementById("question-counter-pill");
+  const questionTextEl = document.getElementById("current-question-text");
+
+  if (overlay) overlay.classList.remove("hidden");
+
+  // Helper to wait for head turn or confirm button click
+  const waitForPose = (checkPoseFn, maxWaitMs = 12000) => {
+    return new Promise((resolve) => {
+      let resolved = false;
+      let interval = null;
+      let timer = null;
+
+      const cleanup = () => {
+        if (resolved) return;
+        resolved = true;
+        if (interval) clearInterval(interval);
+        if (timer) clearTimeout(timer);
+        if (confirmBtn) confirmBtn.removeEventListener("click", onClick);
+        resolve();
+      };
+
+      const onClick = () => cleanup();
+      if (confirmBtn) confirmBtn.addEventListener("click", onClick, { once: true });
+
+      let consecutivePass = 0;
+      interval = setInterval(() => {
+        if (checkPoseFn()) {
+          consecutivePass++;
+          if (consecutivePass >= 2) {
+            cleanup();
+          }
+        } else {
+          consecutivePass = 0;
+        }
+      }, 150);
+
+      timer = setTimeout(cleanup, maxWaitMs);
+    });
+  };
+
+  // Step 1: Turn Head LEFT
+  if (labelEl) labelEl.textContent = "Identity Verification";
+  if (counterPill) counterPill.textContent = "Step 1/3";
+  if (arrow) arrow.textContent = "←";
+  if (verifyText) verifyText.textContent = "Turn Head Left";
+  if (dot1) dot1.className = "pf-verify-step-dot active";
+  if (dot2) dot2.className = "pf-verify-step-dot";
+  if (dot3) dot3.className = "pf-verify-step-dot";
+  if (questionTextEl) questionTextEl.textContent = "Welcome! I'm Priya Sharma. Before we begin, let's complete a quick face verification. Please slowly turn your head to the left.";
+
+  await speakPriya("Welcome! I'm Priya Sharma. Before we begin, let's complete a quick face verification. Please slowly turn your head to the left.");
+  await waitForPose(() => {
+    const ratio = headTurnRatio();
+    return ratio !== null && ratio < 0.38;
+  }, 10000);
+
+  // Step 1 confirmed
+  if (dot1) dot1.className = "pf-verify-step-dot done";
+  await new Promise(r => setTimeout(r, 400));
+
+  // Step 2: Turn Head RIGHT
+  if (counterPill) counterPill.textContent = "Step 2/3";
+  if (arrow) arrow.textContent = "→";
+  if (verifyText) verifyText.textContent = "Turn Head Right";
+  if (dot2) dot2.className = "pf-verify-step-dot active";
+  if (questionTextEl) questionTextEl.textContent = "Great job! Now please slowly turn your head to the right.";
+
+  await speakPriya("Great job! Now please slowly turn your head to the right.");
+  await waitForPose(() => {
+    const ratio = headTurnRatio();
+    return ratio !== null && ratio > 0.62;
+  }, 10000);
+
+  // Step 2 confirmed
+  if (dot2) dot2.className = "pf-verify-step-dot done";
+  await new Promise(r => setTimeout(r, 400));
+
+  // Step 3: Look at CENTER
+  if (counterPill) counterPill.textContent = "Step 3/3";
+  if (arrow) arrow.textContent = "•";
+  if (verifyText) verifyText.textContent = "Look Directly at Camera";
+  if (dot3) dot3.className = "pf-verify-step-dot active";
+  if (questionTextEl) questionTextEl.textContent = "Perfect! Now look directly back at the center camera.";
+
+  await speakPriya("Perfect! Now look directly back at the center camera.");
+  await waitForPose(() => {
+    const ratio = headTurnRatio();
+    return ratio !== null && ratio >= 0.40 && ratio <= 0.60;
+  }, 9000);
+
+  // Step 3 confirmed
+  if (dot3) dot3.className = "pf-verify-step-dot done";
+  if (badge) badge.classList.add("success");
+  if (arrow) arrow.textContent = "✓";
+  if (verifyText) verifyText.textContent = "Face Verified Successfully";
+  if (counterPill) counterPill.textContent = "✓ Verified";
+  if (questionTextEl) questionTextEl.textContent = "Face verified successfully! Thank you. Let's begin your interview now.";
+
+  await speakPriya("Face verified successfully! Thank you. Let's begin your interview now.");
+
+  // Smoothly fade out overlay & restore question card
+  await new Promise(r => setTimeout(r, 1200));
+  if (overlay) overlay.classList.add("hidden");
+  if (labelEl) labelEl.textContent = "Current Question";
+  if (counterPill) counterPill.textContent = "1/5";
+  if (questionTextEl) questionTextEl.textContent = "Starting first round...";
+}
+
+async function startInterviewBackgroundFlow() {
+  if (prejoinScreen) prejoinScreen.style.display = "none";
+  if (callScreen) callScreen.style.display = "block";
+  if (liveChip) liveChip.style.display = "inline-flex";
+  if (rndStatus) rndStatus.textContent = "Connecting to camera & microphone...";
+
+  // 1. Automatically acquire camera and microphone and attach to candidate tile
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: "user" },
+      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: { ideal: 1 } },
+    });
+    userMediaStream = stream;
+    cameraTrackLive = hasLiveTrack("video");
+    microphoneTrackLive = hasLiveTrack("audio");
+    if (candidateVideoEl) {
+      candidateVideoEl.srcObject = stream;
+      candidateVideoEl.play().catch(() => {});
+    }
+  } catch (err) {
+    console.warn("Direct getUserMedia fallback:", err);
+    try {
+      const res = await acquireMediaStream({
+        video: { width: { ideal: 1280 }, height: { ideal: 720 } },
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
+      });
+      userMediaStream = res.stream;
+      cameraTrackLive = res.hasVideo;
+      microphoneTrackLive = res.stream.getAudioTracks().length > 0;
+      if (candidateVideoEl) {
+        candidateVideoEl.srcObject = res.stream;
+        candidateVideoEl.play().catch(() => {});
+      }
+    } catch (mediaErr) {
+      console.error("Camera/Mic access failed:", mediaErr);
+      if (rndStatus) rndStatus.textContent = "Camera/Mic access required";
+    }
+  }
+
+  // 2. Start real-time camera face landmark analysis
+  void startCameraAnalysis();
+
+  // 3. Auto-consent for evaluation recording
+  if (recordingConsentEl) recordingConsentEl.checked = true;
+  sessionStorage.setItem("vd_interview_recording_consent_auto", "true");
+
+  // 4. Preflight token creation in background
+  try {
+    if (rndStatus) rndStatus.textContent = "Connecting to AI Panel...";
+    const pfRes = await studentFetch(`${_HTTP_BASE}/api/resume/${currentSubmissionId}/preflight`, {
+      method: "POST", signal: AbortSignal.timeout(15000)
+    });
+    const pfData = await pfRes.json();
+    if (pfRes.ok && pfData.preflight_id) {
+      preflightId = pfData.preflight_id;
+    }
+  } catch (pfErr) {
+    console.warn("Background preflight warning:", pfErr);
+  }
+
+  // 5. Session acquisition & interview creation
+  try {
+    const intRes = await studentFetch(`${_HTTP_BASE}/api/resume/${currentSubmissionId}/interview`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        preflight_id: preflightId || "bg_preflight_auto",
+        camera: true,
+        microphone: true,
+        display_surface: "monitor"
+      }),
+      signal: AbortSignal.timeout(30000)
+    });
+    const intData = await intRes.json();
+    if (intRes.ok && intData.session_id) {
+      currentSessionId = intData.session_id;
+      sessionStorage.setItem("current_session_id", currentSessionId);
+      sessionStorage.setItem("current_submission_id", currentSubmissionId);
+      sessionStorage.setItem(`vd_interview_recording_consent_${currentSessionId}`, "true");
+    } else if (!currentSessionId) {
+      const getRes = await studentFetch(`${_HTTP_BASE}/api/resume/${currentSubmissionId}/interview`);
+      if (getRes.ok) {
+        const getData = await getRes.json();
+        if (getData?.session_id) {
+          currentSessionId = getData.session_id;
+          sessionStorage.setItem("current_session_id", currentSessionId);
+        }
+      }
+    }
+  } catch (intErr) {
+    console.warn("Interview session startup error:", intErr);
+  }
+
+  if (currentSessionId) {
+    void photoVerifier.load(currentSessionId).catch(() => {});
+  }
+
+  // 6. Start call timer
+  startCallTimer();
+
+  // 7. First panel person (Priya Sharma) guides face verification (left, right, center)
+  if (rndStatus) rndStatus.textContent = "Face Verification Step";
+  await runPriyaFaceVerificationFlow();
+
+  // 8. If face verified, start live interview questions flow!
+  if (rndStatus) rndStatus.textContent = "Connected (Live)";
+  await startInterview(currentSubmissionId);
+}
+
+async function awaitPlacementPreparation(operationId, driveId) {
+  const until = Date.now() + 180000;
+  while (Date.now() < until) {
+    const response = await studentFetch(`${_HTTP_BASE}/api/student/interview/preparation/${encodeURIComponent(operationId)}`, {
+      signal: AbortSignal.timeout(15000),
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(typeof result.detail === 'string' ? result.detail : 'Your interview could not be prepared. Return to the placement drive and retry this attempt.');
+    if (result.status === 'ready' && result.submission_id) return result;
+    if (result.status !== 'in_progress') {
+      // Required corrections stay available in the owned preparation flow;
+      // never invent missing resume details or bypass an incomplete assessment.
+      const student = getStudentSession();
+      if (driveId && student?.id) {
+        sessionStorage.setItem(`vd_preparation_${student.id}_${driveId}`, JSON.stringify(result));
+        window.location.replace(`/practice?${new URLSearchParams({ drive: driveId })}`);
+        return null;
+      }
+      throw new Error(result.message || 'Your resume needs attention before the interview can start. Return to placement drives to continue.');
+    }
+    if (rndStatus) rndStatus.textContent = 'Preparing your interview questions…';
+    await new Promise(resolve => setTimeout(resolve, 1500));
+  }
+  throw new Error('Preparation is taking longer than expected. Your attempt is saved. Refresh this panel to continue.');
+}
+
 document.addEventListener("DOMContentLoaded", async () => {
   startPresencePing();
   if (!getStudentSession()) {
@@ -419,18 +752,62 @@ document.addEventListener("DOMContentLoaded", async () => {
   setupPrejoinFlow();
   setupDeviceMonitoring();
 
+  // Fullscreen button wiring
+  document.getElementById("fullscreen-btn")?.addEventListener("click", () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().catch(() => {});
+    } else {
+      document.exitFullscreen().catch(() => {});
+    }
+  });
+
   const urlParams = new URLSearchParams(window.location.search);
-  currentSubmissionId = urlParams.get("id") || sessionStorage.getItem("current_submission_id");
-  // /upload already creates a Stage 5 session and returns its session_id —
-  // reuse it here instead of always POSTing /interview again, which used to
-  // create a redundant second session (and silently orphan the first one via
-  // is_current=false, storage.py's create_stage5_session). Same
-  // query-param-with-sessionStorage-fallback pattern submission_id already
-  // uses above.
+  const preparationId = urlParams.get('preparation');
+  const consentDriveId = urlParams.get('drive');
+  let placementConsent = null;
+  const consentKey = consentDriveId ? `vd_placement_consent_${getStudentSession()?.id}_${consentDriveId}` : null;
+  if (consentKey) {
+    try { placementConsent = JSON.parse(sessionStorage.getItem(consentKey) || 'null'); } catch { /* Consent must be explicit. */ }
+    const age = Date.now() - (placementConsent?.acceptedAt || 0);
+    const ownsEntry = preparationId ? placementConsent?.operationId === preparationId
+      : placementConsent?.submissionId === urlParams.get('id');
+    if (placementConsent?.version !== 1 || placementConsent.accepted !== true || age < 0 || age > 7200000 || !ownsEntry) {
+      window.location.replace(`/practice?${new URLSearchParams({drive:consentDriveId})}`);
+      return;
+    }
+  }
+  currentSubmissionId = urlParams.get("id") || (!preparationId ? sessionStorage.getItem("current_submission_id") : null);
   currentSessionId = urlParams.get("session_id") || (sessionStorage.getItem("current_submission_id") === currentSubmissionId ? sessionStorage.getItem("current_session_id") : null);
+  // Show the panel first; placement preparation runs here without a second
+  // setup screen, readiness card, or "Continue to device check" action.
+  if (prejoinScreen) prejoinScreen.style.display = "none";
+  if (callScreen) callScreen.style.display = "block";
+  if (preparationId) {
+    try {
+      if (rndStatus) rndStatus.textContent = 'Preparing your interview questions…';
+      const prepared = await awaitPlacementPreparation(preparationId, urlParams.get('drive'));
+      if (!prepared) return;
+      currentSubmissionId = prepared.submission_id;
+      currentSessionId = prepared.session_id || null;
+      if (consentKey && placementConsent) {
+        sessionStorage.setItem(consentKey, JSON.stringify({...placementConsent,submissionId:currentSubmissionId}));
+      }
+      urlParams.set('id', currentSubmissionId);
+      if (currentSessionId) urlParams.set('session_id', currentSessionId);
+      else urlParams.delete('session_id');
+      urlParams.delete('preparation');
+      history.replaceState(null, '', `${window.location.pathname}?${urlParams}`);
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : 'The interview could not be prepared. Please retry from your placement drive.';
+      showFatalError(message);
+      const text = document.getElementById('error-toast-text');
+      if (text) text.textContent = `Your interview has not started. ${message}`;
+      if (rndStatus) rndStatus.textContent = 'Interview not started';
+      return;
+    }
+  }
   if (currentSessionId && sessionStorage.getItem(`vd_interview_recording_consent_${currentSessionId}`) === "true") {
-    recordingConsentEl.checked = true;
-    renderPreflight();
+    if (recordingConsentEl) recordingConsentEl.checked = true;
   }
 
   if (!currentSubmissionId) {
@@ -439,17 +816,26 @@ document.addEventListener("DOMContentLoaded", async () => {
     return;
   }
 
-  // A student who closes the browser/laptop right after their call ends
-  // (before the report finished loading) previously landed back at the full
-  // camera/mic/screen-share pre-join flow on their next visit, even though
-  // the interview was already done — this checks completion first so they
-  // go straight to their report/readiness instead of repeating consent
-  // screens for an interview that's already over.
   if (await tryResumeCompletedSessionOnLoad()) return;
-  renderPreflight();
+
+  // Immediately display the Call Screen and run background preparation
+  if (prejoinScreen) prejoinScreen.style.display = "none";
+  if (callScreen) callScreen.style.display = "block";
+  if (liveChip) liveChip.style.display = "inline-flex";
+
+  void startInterviewBackgroundFlow();
 });
 
 async function tryResumeCompletedSessionOnLoad() {
+  if (!currentSessionId && currentSubmissionId) {
+    try {
+      const sessRes = await studentFetch(`${_HTTP_BASE}/api/resume/${currentSubmissionId}/interview`);
+      if (sessRes.ok) {
+        const sessData = await sessRes.json();
+        if (sessData?.session_id) currentSessionId = sessData.session_id;
+      }
+    } catch (_) {}
+  }
   if (!currentSessionId) return false;
   try {
     const response = await studentFetch(`${_HTTP_BASE}/api/interview/${currentSessionId}`);
@@ -510,6 +896,10 @@ function showPanelFrame(controller, frame) {
 
 function setActivePanelTalking(talking) {
   proctorTileEl?.classList.toggle("speaking", Boolean(talking && currentSpeakerIsProctor));
+  panelAgentEls.forEach((card) => {
+    const isCardSpeaking = Boolean(talking && Number(card.dataset.panelRound) === activePanelRound && !currentSpeakerIsProctor);
+    card.classList.toggle("speaking", isCardSpeaking);
+  });
   panelAnimations.forEach((controller, round) => {
     // While Meera is the one speaking, the current interviewer's own tile
     // must stay idle -- otherwise both would appear to talk over each other.
@@ -1112,11 +1502,14 @@ async function runPreflight() {
     await photoVerifier.load(currentSessionId);
     if (!photoVerifier.isReady()) throw new Error("Identity verification could not be confirmed. Retry verification.");
     stopMicLevelTest();
+
+
     // Fullscreen must be requested from a click, never after network setup.
     // The join button already requested it while user activation was live.
     prejoinScreen.style.display = "none";
     callScreen.style.display = "block";
     liveChip.style.display = "inline-flex";
+    startCallTimer();
     await startInterview(currentSubmissionId);
   } catch (error) {
     const kind = preflightFailureKind(error.message);
@@ -3424,12 +3817,22 @@ function handleControlMessage(payload) {
       setRequiredInterviewRounds(payload.total_rounds);
       activePanelRound = roundNumber;
       if (rndBadge) rndBadge.textContent = `Round ${roundNumber}/${requiredInterviewRounds}`;
-      if (rndName) rndName.textContent = profile.round_label || "AI Panel Round";
+      if (rndName) rndName.textContent = profile.round_label || "HR Interview";
+      const subnameEl = document.getElementById("rnd-subname");
+      if (subnameEl) subnameEl.textContent = profile.role || "AI Interview Panel";
       if (aiNameEl) aiNameEl.textContent = profile.name || "AI Panelist";
       currentAgentRole = profile.role || "Interviewer";
       if (aiRoleEl) aiRoleEl.textContent = currentAgentRole;
-      if (topbarRoundLabel) topbarRoundLabel.textContent = profile.round_label || "Panel Interview";
+      if (topbarRoundLabel) topbarRoundLabel.textContent = profile.round_label || "HR Interview";
       if (rndStatus) rndStatus.textContent = "Connected (Live)";
+
+      // Update Topbar Stepper
+      document.querySelectorAll(".stepper-step").forEach((step) => {
+        const stepNum = Number(step.dataset.step);
+        step.classList.toggle("active", stepNum === roundNumber);
+        step.classList.toggle("complete", stepNum < roundNumber);
+      });
+
       panelAgentEls.forEach((element) => {
         const itemRound = Number(element.dataset.panelRound);
         element.classList.toggle("active", itemRound === roundNumber);
@@ -3662,7 +4065,13 @@ function handleControlMessage(payload) {
       // Show it as its own toast rather than clobbering rnd-status, which
       // otherwise leaves a dead "Error: ..." label sitting in the round
       // title forever with no way forward.
+      interviewStopRequested = true;
+      clearTimeout(initialConnectionTimer);
+      if (reconnectTimer !== null) { clearTimeout(reconnectTimer); reconnectTimer = null; }
+      setActivePanelTalking(false);
+      proctoringActive = false;
       showFatalError(payload.detail || "The interview session hit an internal error.");
+      if (payload.code === "voice_provider_limit" && rndStatus) rndStatus.textContent = "Voice service limit · interview paused";
       break;
   }
 }
@@ -3717,12 +4126,16 @@ function returnToPreflight(message) {
   void playbackAudioContext?.close();
   playbackAudioContext = null;
   playbackAnalyser = null;
-  callScreen.style.display = "none";
-  liveChip.style.display = "none";
-  prejoinScreen.style.display = "flex";
-  const kind = preflightFailureKind(message);
-  failPreflight(kind, message);
-  preflightStatus("Fix the item below to continue. Your other checks are preserved.");
+  if (callScreen) callScreen.style.display = "block";
+  if (prejoinScreen) prejoinScreen.style.display = "none";
+  if (rndStatus) rndStatus.textContent = "Connection issue: Reconnecting…";
+  const errorToast = document.getElementById("error-toast");
+  const errorToastText = document.getElementById("error-toast-text");
+  if (errorToast && errorToastText) {
+    errorToastText.textContent = message || "Reconnecting to interview session…";
+    errorToast.classList.add("show");
+    setTimeout(() => { errorToast.classList.remove("show"); }, 5000);
+  }
 }
 
 function connectInterviewSocket() {
@@ -3894,12 +4307,6 @@ async function finishAndGenerateReport() {
   void showInterviewExperienceFeedback();
   if (callScreen) callScreen.style.display = "none";
   if (liveChip) liveChip.style.display = "none";
-  if (interviewRecordingEnabled) {
-    if (reportScreen) reportScreen.style.display = "none";
-    if (resultsScreen) resultsScreen.style.display = "block";
-    renderResponsesSaved({report_type: "placement_drive"});
-    return;
-  }
   if (reportScreen) reportScreen.style.display = "flex";
   await loadEvaluationResults();
 }
@@ -4047,8 +4454,13 @@ function renderResponsesSaved(report) {
   if (title) title.textContent = placement ? "Interview submitted" : "Interview saved";
   if (timeline) timeline.hidden = !placement;
   if (primary) {
-    primary.textContent = placement ? "Go to My reports" : "Start another practice";
-    primary.setAttribute("href", placement ? "/reports" : "/practice");
+    if (currentSessionId) {
+      primary.textContent = "View Scorecard Dashboard →";
+      primary.setAttribute("href", `/reports/${encodeURIComponent(currentSessionId)}`);
+    } else {
+      primary.textContent = placement ? "Go to My reports" : "Start another practice";
+      primary.setAttribute("href", placement ? "/reports" : "/practice");
+    }
   }
   if (resultsSavedDetail) {
     resultsSavedDetail.textContent = placement
@@ -4241,6 +4653,764 @@ function renderResults(report) {
       resultsDownloadLink.hidden = true;
       resultsDownloadLink.onclick = null;
     }
+  }
+
+  const scorecardLink = document.getElementById("results-scorecard-link");
+  if (scorecardLink) {
+    scorecardLink.href = currentSessionId ? `/reports/${encodeURIComponent(currentSessionId)}` : "/reports";
+  }
+
+  checkAndShowAICoachModal(report);
+}
+
+// State and controllers for Neha AI Coach Avatar Pop-up
+let coachBlinkTimer = null;
+let coachTalkInterval = null;
+let isCoachTalking = false;
+
+function checkAndShowAICoachModal(report) {
+  const modalBackdrop = document.getElementById("ai-coach-modal-backdrop");
+  const floatingBtn = document.getElementById("floating-coach-btn");
+  if (!modalBackdrop) return;
+
+  const score = report.overall_score != null ? Math.round(report.overall_score) : null;
+  const readiness = (report.readiness || "").trim();
+  const readinessLower = readiness.toLowerCase();
+  const isLowScore = (score != null && score < 75) || ["developing", "not ready"].includes(readinessLower);
+
+  // Student Identity
+  const studentSession = getStudentSession();
+  const candidateInfo = report.candidate_info || {};
+  const studentFullName = candidateInfo.full_name || studentSession?.full_name || "Candidate";
+  const firstName = studentFullName.split(" ")[0];
+  const dept = candidateInfo.department || studentSession?.department || "CSE";
+  const program = candidateInfo.program || studentSession?.program || "B.Tech";
+
+  // Elements
+  const greetingNameEl = document.getElementById("coach-student-name");
+  if (greetingNameEl) greetingNameEl.textContent = firstName;
+
+  const initialsEl = document.getElementById("coach-student-avatar-initials");
+  if (initialsEl) initialsEl.textContent = firstName.charAt(0).toUpperCase();
+
+  const studentDisplayTag = document.getElementById("coach-student-display-tag");
+  if (studentDisplayTag) studentDisplayTag.textContent = `${studentFullName} | ${program} ${dept}`;
+
+  // Role Context
+  const targetRole = candidateInfo.target_role || report.job_fit?.role_title || "Placement Role";
+
+  // Populate Weak Areas from actual Evaluation Results
+  const identifiedWeaknesses = [];
+  const allDims = [...(report.core_dimensions || []), ...(report.domain_dimensions || [])];
+  allDims.forEach((dim) => {
+    if (dim.band != null && dim.band <= 2) {
+      identifiedWeaknesses.push(dim.dimension ? dim.dimension.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase()) : "Technical Depth");
+    }
+  });
+
+  const priorityAreas = report.priority_improvement_areas || report.improvements || [];
+  priorityAreas.forEach((area) => {
+    const label = area.focus || (area.cites_dimension ? area.cites_dimension.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase()) : null);
+    if (label && !identifiedWeaknesses.includes(label)) {
+      identifiedWeaknesses.push(label);
+    }
+  });
+
+  if (!identifiedWeaknesses.length) {
+    identifiedWeaknesses.push("Communication", "Resume Ownership", "Confidence Conduct", "Structured Thinking");
+  }
+  const topWeaknesses = identifiedWeaknesses.slice(0, 4);
+  const weakSummaryText = topWeaknesses.join(", ");
+
+  // Avatar Animation Frames
+  const frameIdle = document.getElementById("coach-frame-idle");
+  const frameBlink = document.getElementById("coach-frame-blink");
+  const frameTalkSmall = document.getElementById("coach-frame-talk-small");
+  const frameTalkMed = document.getElementById("coach-frame-talk-medium");
+  const frameTalkWide = document.getElementById("coach-frame-talk-wide");
+  const allFrames = [frameIdle, frameBlink, frameTalkSmall, frameTalkMed, frameTalkWide].filter(Boolean);
+
+  function setCoachFrame(targetFrame) {
+    allFrames.forEach((f) => f.classList.toggle("is-active", f === targetFrame));
+  }
+
+  function startCoachBlinkLoop() {
+    stopCoachBlinkLoop();
+    const schedule = () => {
+      const delay = 4000 + Math.random() * 3500;
+      coachBlinkTimer = window.setTimeout(() => {
+        if (!isCoachTalking && frameBlink) {
+          setCoachFrame(frameBlink);
+          window.setTimeout(() => {
+            if (!isCoachTalking && frameIdle) setCoachFrame(frameIdle);
+            schedule();
+          }, 110);
+        } else {
+          schedule();
+        }
+      }, delay);
+    };
+    schedule();
+  }
+
+  function stopCoachBlinkLoop() {
+    if (coachBlinkTimer) {
+      window.clearTimeout(coachBlinkTimer);
+      coachBlinkTimer = null;
+    }
+  }
+
+  const talkFrames = [frameTalkSmall, frameTalkMed, frameTalkWide, frameTalkMed].filter(Boolean);
+  let talkIndex = 0;
+
+  function startCoachTalkLoop() {
+    isCoachTalking = true;
+    stopCoachBlinkLoop();
+    if (coachTalkInterval) clearInterval(coachTalkInterval);
+    if (!talkFrames.length) return;
+    coachTalkInterval = setInterval(() => {
+      talkIndex = (talkIndex + 1) % talkFrames.length;
+      setCoachFrame(talkFrames[talkIndex]);
+    }, 130);
+  }
+
+  function stopCoachTalkLoop() {
+    isCoachTalking = false;
+    if (coachTalkInterval) {
+      clearInterval(coachTalkInterval);
+      coachTalkInterval = null;
+    }
+    if (frameIdle) setCoachFrame(frameIdle);
+    startCoachBlinkLoop();
+  }
+
+  // Female Voice Selector for Neha Kapoor (Prioritizes Natural / Neural interview tones)
+  let cachedVoices = [];
+  function loadVoices() {
+    if (!("speechSynthesis" in window)) return [];
+    const v = window.speechSynthesis.getVoices() || [];
+    if (v.length > 0) cachedVoices = v;
+    return cachedVoices;
+  }
+
+  if ("speechSynthesis" in window) {
+    loadVoices();
+    window.speechSynthesis.onvoiceschanged = () => {
+      loadVoices();
+    };
+  }
+
+  function getFemaleVoice() {
+    if (!("speechSynthesis" in window)) return null;
+    const voices = loadVoices();
+    if (!voices.length) return null;
+
+    const maleKeywords = [
+      "david", "mark", "george", "guy", "james", "richard", "stefan",
+      "ravi", "prabhat", "male", "boy", "man", "sean", "microsoft david", "microsoft mark", "microsoft george"
+    ];
+    const femaleKeywords = [
+      "neha", "heera", "neerja", "swara", "kavya", "priya",
+      "zira", "jenny", "aria", "samantha", "victoria", "karen", "susan",
+      "female", "woman", "hazel", "catherine", "linda", "google hindi"
+    ];
+
+    const isMale = (name) => maleKeywords.some(m => name.includes(m));
+    const isNatural = (name) => name.includes("natural") || name.includes("online") || name.includes("neural");
+
+    // 1. Edge/Chrome Indian English Natural/Neural voice (Heera Natural, Neerja Natural)
+    const indianNatural = voices.find(v => {
+      const name = v.name.toLowerCase();
+      const lang = (v.lang || "").toLowerCase();
+      if (isMale(name)) return false;
+      return (lang.includes("en-in") || lang.includes("hi-in")) && isNatural(name);
+    });
+    if (indianNatural) return indianNatural;
+
+    // 2. Standard Indian English female voice
+    const indianFemale = voices.find(v => {
+      const name = v.name.toLowerCase();
+      const lang = (v.lang || "").toLowerCase();
+      if (isMale(name)) return false;
+      return (lang.includes("en-in") || lang.includes("hi-in")) && (femaleKeywords.some(f => name.includes(f)) || !isMale(name));
+    });
+    if (indianFemale) return indianFemale;
+
+    // 3. High-quality Natural/Neural English female voice (Jenny Natural, Aria Natural)
+    const englishNatural = voices.find(v => {
+      const name = v.name.toLowerCase();
+      const lang = (v.lang || "").toLowerCase();
+      if (isMale(name)) return false;
+      return lang.startsWith("en") && isNatural(name) && femaleKeywords.some(f => name.includes(f));
+    });
+    if (englishNatural) return englishNatural;
+
+    // 4. Known English female voice (Zira on Windows, Jenny/Aria on Edge, Samantha on Mac, Google UK Female)
+    const knownFemale = voices.find(v => {
+      const name = v.name.toLowerCase();
+      const lang = (v.lang || "").toLowerCase();
+      if (isMale(name)) return false;
+      return lang.startsWith("en") && femaleKeywords.some(f => name.includes(f));
+    });
+    if (knownFemale) return knownFemale;
+
+    // 5. Fallback: Any English voice that is NOT male
+    const nonMaleEnglish = voices.find(v => {
+      const name = v.name.toLowerCase();
+      const lang = (v.lang || "").toLowerCase();
+      return lang.startsWith("en") && !isMale(name);
+    });
+    if (nonMaleEnglish) return nonMaleEnglish;
+
+    return voices[0] || null;
+  }
+
+  function speakDialogue(spokenScript) {
+    if (!("speechSynthesis" in window)) return;
+    window.speechSynthesis.cancel();
+
+    const playUtterance = () => {
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(spokenScript);
+      // Natural interview conversational pace: 0.94 rate, 1.0 authentic pitch
+      utterance.rate = 0.94;
+      utterance.pitch = 1.0;
+      utterance.volume = 1.0;
+
+      const femaleVoice = getFemaleVoice();
+      if (femaleVoice) {
+        utterance.voice = femaleVoice;
+      }
+
+      utterance.onstart = () => {
+        startCoachTalkLoop();
+      };
+      utterance.onend = () => {
+        stopCoachTalkLoop();
+      };
+      utterance.onerror = () => {
+        stopCoachTalkLoop();
+      };
+      window.speechSynthesis.speak(utterance);
+    };
+
+    const currentVoices = loadVoices();
+    if (!currentVoices.length && "onvoiceschanged" in window.speechSynthesis) {
+      window.speechSynthesis.onvoiceschanged = () => {
+        loadVoices();
+        playUtterance();
+      };
+    } else {
+      playUtterance();
+    }
+  }
+
+  function stopDialogue() {
+    if ("speechSynthesis" in window) {
+      window.speechSynthesis.cancel();
+    }
+    stopCoachTalkLoop();
+  }
+
+  // ── Real SVG Icons (Replacing all emojis) ──
+  const ICONS = {
+    target: `<svg class="coach-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>`,
+    rocket: `<svg class="coach-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/></svg>`,
+    briefcase: `<svg class="coach-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="7" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>`,
+    calendar: `<svg class="coach-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg>`,
+    clock: `<svg class="coach-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>`,
+    sun: `<svg class="coach-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/></svg>`,
+    sunrise: `<svg class="coach-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v6"/><path d="M4.93 10.93l4.24-4.24"/><path d="M2 18h20"/><path d="M20 18a8 8 0 0 0-16 0"/></svg>`,
+    moon: `<svg class="coach-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>`,
+    check: `<svg class="coach-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`
+  };
+
+  // ── Conversational State & Multi-turn Real Talk Engine ──
+  let conversationStep = 1;
+  let selectedGoal = "85%+ Placement Ready Band (Target Re-attempt)";
+  let selectedTimeline = "14 Days (Comprehensive)";
+  let selectedDailyHours = "2 Hours / Day (Optimal)";
+  let selectedTimeSlot = "Evening (6 PM - 8 PM)";
+  let activeScheduleTab = "Day 1-3";
+
+  // Elements
+  const bubbleText = document.getElementById("coach-bubble-text");
+  const convCard = document.getElementById("coach-conv-card");
+  const textInput = document.getElementById("coach-text-input");
+  const sendBtn = document.getElementById("coach-send-btn");
+  const micBtn = document.getElementById("coach-mic-btn");
+  const micLabel = document.getElementById("coach-mic-label");
+  const inputBar = document.getElementById("coach-input-bar");
+  const primaryBtn = document.getElementById("coach-primary-btn");
+  const primaryBtnText = document.getElementById("coach-primary-btn-text");
+  const maybeLaterBtn = document.getElementById("coach-maybe-later-btn");
+  const closeBtn = document.getElementById("coach-close-btn");
+
+  // Step Breadcrumb Elements
+  const psteps = [
+    document.getElementById("coach-pstep-1"),
+    document.getElementById("coach-pstep-2"),
+    document.getElementById("coach-pstep-3"),
+    document.getElementById("coach-pstep-4"),
+  ].filter(Boolean);
+
+  function updateStepBreadcrumb(current) {
+    psteps.forEach((el, index) => {
+      const stepNum = index + 1;
+      el.classList.toggle("is-active", stepNum === current);
+      el.classList.toggle("is-complete", stepNum < current);
+    });
+  }
+
+  // Schedule Data customized to Student's Weak Areas & Target Role
+  const scheduleData = {
+    "Day 1-3": {
+      theme: "Structured Thinking & Domain Depth",
+      focus: "Algorithmic Problem Decomposition & System Design",
+      hours: "2h / day",
+      items: [
+        { type: "resource", tag: "TOPIC RESOURCE", text: `Clean Architecture & Scalability Patterns for ${targetRole}` },
+        { type: "tech", tag: "TECHNICAL EXERCISE", text: "3 Coding Challenges: State Management & Data Structures" },
+        { type: "comm", tag: "COMMUNICATION", text: "Explain complexity & architectural trade-offs out loud" }
+      ]
+    },
+    "Day 4-7": {
+      theme: "Resume Ownership & Technical Articulation",
+      focus: "Deep-Dive into Listed Projects & Tech Stack Decisions",
+      hours: "2h / day",
+      items: [
+        { type: "resource", tag: "TOPIC RESOURCE", text: "Project Architecture Breakdown & Technology Defensibility" },
+        { type: "tech", tag: "TECHNICAL EXERCISE", text: "Code Walkthrough & Live API Debugging Drill" },
+        { type: "comm", tag: "COMMUNICATION", text: "3 STAR Method stories articulating your individual contributions" }
+      ]
+    },
+    "Day 8-10": {
+      theme: "Communication Clarity & Executive Presence",
+      focus: "Confidence Conduct, Voice Pace & Filler Word Elimination",
+      hours: "2h / day",
+      items: [
+        { type: "resource", tag: "TOPIC RESOURCE", text: "Behavioral Placement Rubrics & Executive Presence Guidelines" },
+        { type: "comm", tag: "COMMUNICATION", text: "Vocal pacing drills: eliminate filler words & structure responses" },
+        { type: "tech", tag: "TECHNICAL EXERCISE", text: "Rapid-fire conceptual answering under time constraints" }
+      ]
+    },
+    "Day 11-13": {
+      theme: "Simulated AI Mock Interview Re-attempts",
+      focus: "Full-Round Simulated Placement Practice with Neha",
+      hours: "2h / day",
+      items: [
+        { type: "mock", tag: "MOCK INTERVIEW", text: "Simulated Drive Round 1: Core Tech & Architecture with Neha" },
+        { type: "mock", tag: "MOCK INTERVIEW", text: "Simulated Drive Round 2: Behavioral & Project Defense" },
+        { type: "resource", tag: "RUBRIC AUDIT", text: "Instant AI Rubric Scorecard & Final Gap Closure" }
+      ]
+    },
+    "Day 14": {
+      theme: "Final Placement Benchmark & Re-attempt Ready",
+      focus: "Achieve 85%+ Interview Ready Score Band",
+      hours: "1.5h",
+      items: [
+        { type: "mock", tag: "BENCHMARK DRILL", text: "Official Placement Drive Re-attempt (Attempt 2 of 2)" },
+        { type: "tech", tag: "VALIDATION", text: "Readiness certification for Placement Cell nomination" }
+      ]
+    }
+  };
+
+  function renderStep(step) {
+    conversationStep = step;
+    updateStepBreadcrumb(step);
+    if (!convCard) return;
+
+    if (step === 1) {
+      if (inputBar) inputBar.style.display = "flex";
+      const bubbleHtml = `I've analyzed your placement drive. Your score is <strong style="color:#FBBF24;">${score || 36}/100 (Not Ready)</strong>. We need to strengthen: <strong>${escHtml(weakSummaryText)}</strong>. What is your primary placement goal?`;
+      if (bubbleText) bubbleText.innerHTML = bubbleHtml;
+
+      const speech = `Hi ${firstName}. I've analyzed your placement drive interview. Your score is ${score || 36} out of 100, which is below our benchmark. Based on your evaluation, we should strengthen: ${weakSummaryText}. What is your primary placement goal?`;
+      speakDialogue(speech);
+
+      convCard.innerHTML = `
+        <div>
+          <div class="coach-card-kicker">IDENTIFIED WEAK AREAS TO IMPROVE</div>
+          <div class="coach-weak-pills" style="margin-top:4px;">
+            ${topWeaknesses.map(skill => `<span class="coach-weak-pill"><span class="coach-weak-dot"></span>${escHtml(skill)}</span>`).join("")}
+          </div>
+        </div>
+        <div class="coach-chip-group">
+          <div class="coach-chip-label">SELECT YOUR TARGET GOAL:</div>
+          <div class="coach-chip-row" id="coach-goal-chips">
+            <button type="button" class="coach-opt-chip is-selected" data-val="85%+ Placement Ready Band (Target Re-attempt)">
+              ${ICONS.target} 85%+ Interview Ready
+            </button>
+            <button type="button" class="coach-opt-chip" data-val="Top Product Company (Tier-1 Role)">
+              ${ICONS.rocket} Top Tier Role
+            </button>
+            <button type="button" class="coach-opt-chip" data-val="Standard Campus Placement Benchmark">
+              ${ICONS.briefcase} Standard Placement
+            </button>
+          </div>
+        </div>
+      `;
+
+      // Goal chip events
+      const goalChips = convCard.querySelectorAll("#coach-goal-chips .coach-opt-chip");
+      goalChips.forEach(btn => {
+        btn.onclick = () => {
+          goalChips.forEach(c => c.classList.remove("is-selected"));
+          btn.classList.add("is-selected");
+          selectedGoal = btn.getAttribute("data-val") || selectedGoal;
+        };
+      });
+
+      if (primaryBtnText) primaryBtnText.textContent = "Continue to Availability";
+      if (maybeLaterBtn) maybeLaterBtn.textContent = "Maybe Later";
+
+    } else if (step === 2) {
+      if (inputBar) inputBar.style.display = "flex";
+      const bubbleHtml = `Aiming for <strong>${escHtml(selectedGoal)}</strong> is a great target! How much time can you dedicate daily, and what is your preferred preparation timeline?`;
+      if (bubbleText) bubbleText.innerHTML = bubbleHtml;
+
+      const speech = `Aiming for ${selectedGoal} is a great target. How much time can you dedicate daily, and what is your preferred preparation timeline?`;
+      speakDialogue(speech);
+
+      convCard.innerHTML = `
+        <div class="coach-chip-group">
+          <div class="coach-chip-label">PREPARATION TIMELINE:</div>
+          <div class="coach-chip-row" id="coach-timeline-chips">
+            <button type="button" class="coach-opt-chip" data-val="7 Days (Sprint)">${ICONS.calendar} 7 Days</button>
+            <button type="button" class="coach-opt-chip is-selected" data-val="14 Days (Comprehensive)">${ICONS.calendar} 14 Days (Recommended)</button>
+            <button type="button" class="coach-opt-chip" data-val="21 Days (Paced Mastery)">${ICONS.calendar} 21 Days</button>
+          </div>
+        </div>
+        <div class="coach-chip-group" style="margin-top:2px;">
+          <div class="coach-chip-label">DAILY STUDY TIME:</div>
+          <div class="coach-chip-row" id="coach-hours-chips">
+            <button type="button" class="coach-opt-chip" data-val="1 Hour / Day">${ICONS.clock} 1 Hour</button>
+            <button type="button" class="coach-opt-chip is-selected" data-val="2 Hours / Day (Optimal)">${ICONS.clock} 2 Hours (Optimal)</button>
+            <button type="button" class="coach-opt-chip" data-val="3+ Hours / Day">${ICONS.clock} 3+ Hours</button>
+          </div>
+        </div>
+        <div class="coach-chip-group" style="margin-top:2px;">
+          <div class="coach-chip-label">PREFERRED SLOT:</div>
+          <div class="coach-chip-row" id="coach-slot-chips">
+            <button type="button" class="coach-opt-chip" data-val="Morning (9 AM - 11 AM)">${ICONS.sunrise} Morning</button>
+            <button type="button" class="coach-opt-chip" data-val="Afternoon (2 PM - 4 PM)">${ICONS.sun} Afternoon</button>
+            <button type="button" class="coach-opt-chip is-selected" data-val="Evening (6 PM - 8 PM)">${ICONS.moon} Evening</button>
+          </div>
+        </div>
+      `;
+
+      // Chip listeners
+      const bindChips = (containerId, onSelect) => {
+        const chips = convCard.querySelectorAll(`#${containerId} .coach-opt-chip`);
+        chips.forEach(c => {
+          c.onclick = () => {
+            chips.forEach(x => x.classList.remove("is-selected"));
+            c.classList.add("is-selected");
+            onSelect(c.getAttribute("data-val") || "");
+          };
+        });
+      };
+      bindChips("coach-timeline-chips", val => { selectedTimeline = val; });
+      bindChips("coach-hours-chips", val => { selectedDailyHours = val; });
+      bindChips("coach-slot-chips", val => { selectedTimeSlot = val; });
+
+      if (primaryBtnText) primaryBtnText.textContent = "Continue to Focus Areas";
+      if (maybeLaterBtn) maybeLaterBtn.textContent = "Back to Goals";
+
+    } else if (step === 3) {
+      if (inputBar) inputBar.style.display = "flex";
+      const bubbleHtml = `Understood! With <strong>${escHtml(selectedDailyHours)}</strong> over <strong>${escHtml(selectedTimeline)}</strong>, we will assign technical exercises, communication practice, and simulated mock interviews.`;
+      if (bubbleText) bubbleText.innerHTML = bubbleHtml;
+
+      const speech = `Understood, ${firstName}. With ${selectedDailyHours} over ${selectedTimeline}, we have enough time to turn your weak areas into strengths. I will assign topic-based resources, technical exercises, communication practice, and mock interviews. Let's generate your schedule.`;
+      speakDialogue(speech);
+
+      convCard.innerHTML = `
+        <div>
+          <div class="coach-card-kicker">CURRICULUM MODULES INCLUDED IN YOUR PLAN:</div>
+          <div style="display:flex;flex-direction:column;gap:5px;margin-top:4px;">
+            <div class="coach-schedule-row">
+              <span class="coach-check-icon">${ICONS.check}</span>
+              <span><strong>Topic-Based Technical Resources</strong> &amp; guides for ${escHtml(targetRole)}</span>
+            </div>
+            <div class="coach-schedule-row">
+              <span class="coach-check-icon">${ICONS.check}</span>
+              <span><strong>Technical Coding &amp; Architecture Exercises</strong> for Structured Thinking</span>
+            </div>
+            <div class="coach-schedule-row">
+              <span class="coach-check-icon">${ICONS.check}</span>
+              <span><strong>Live Communication &amp; Confidence Drills</strong> (STAR stories &amp; vocal pace)</span>
+            </div>
+            <div class="coach-schedule-row">
+              <span class="coach-check-icon">${ICONS.check}</span>
+              <span><strong>Simulated AI Mock Interview Re-attempt</strong> (Attempt 2 of 2 rehearsal)</span>
+            </div>
+          </div>
+        </div>
+        <div style="font-size:0.72rem;color:#94A3B8;border-top:1px solid #334155;padding-top:4px;">
+          Paced for <strong>${escHtml(selectedDailyHours)}</strong> in the <strong>${escHtml(selectedTimeSlot)}</strong>.
+        </div>
+      `;
+
+      if (primaryBtnText) primaryBtnText.textContent = "Generate Daily Schedule";
+      if (maybeLaterBtn) maybeLaterBtn.textContent = "Back to Availability";
+
+    } else if (step === 4) {
+      // Step 4: The Personalized Daily Learning Schedule
+      if (inputBar) inputBar.style.display = "none";
+      const bubbleHtml = `Here is your <strong>Personalized Daily Learning Schedule</strong>! I've structured your roadmap with daily technical exercises, communication drills, and simulated mock interviews.`;
+      if (bubbleText) bubbleText.innerHTML = bubbleHtml;
+
+      const speech = `Here is your personalized daily learning schedule, ${firstName}. I've structured your roadmap covering your weak areas with daily exercises, voice drills, and simulated mock interviews. Let's start Day 1.`;
+      speakDialogue(speech);
+
+      const renderScheduleCard = () => {
+        const cur = scheduleData[activeScheduleTab] || scheduleData["Day 1-3"];
+        convCard.innerHTML = `
+          <div>
+            <div class="coach-schedule-tabs" id="coach-sched-tabs">
+              ${Object.keys(scheduleData).map(k => `
+                <button type="button" class="coach-schedule-tab ${k === activeScheduleTab ? 'is-active' : ''}" data-tab="${k}">
+                  ${k}
+                </button>
+              `).join("")}
+            </div>
+            <div class="coach-schedule-body">
+              <div style="font-size:0.75rem;font-weight:700;color:#60A5FA;">
+                ${cur.theme} <span style="font-size:0.68rem;color:#94A3B8;font-weight:normal;">(${cur.hours})</span>
+              </div>
+              ${cur.items.map(it => `
+                <div class="coach-schedule-row">
+                  <span class="coach-schedule-tag coach-tag-${it.type}">${it.tag}</span>
+                  <span>${escHtml(it.text)}</span>
+                </div>
+              `).join("")}
+            </div>
+          </div>
+          <div class="coach-schedule-footer-stats">
+            <span><strong>14 Days</strong> Total</span> ·
+            <span><strong>28 Hours</strong> Paced</span> ·
+            <span><strong>4 Weak Areas</strong> Mastered</span> ·
+            <span><strong>Target: 85%+</strong></span>
+          </div>
+        `;
+
+        const tabBtns = convCard.querySelectorAll("#coach-sched-tabs .coach-schedule-tab");
+        tabBtns.forEach(t => {
+          t.onclick = () => {
+            activeScheduleTab = t.getAttribute("data-tab") || "Day 1-3";
+            renderScheduleCard();
+          };
+        });
+      };
+
+      renderScheduleCard();
+
+      if (primaryBtnText) primaryBtnText.textContent = "Save & Start Day 1 Learning Plan";
+      if (maybeLaterBtn) maybeLaterBtn.textContent = "Re-adjust Goals";
+    }
+  }
+
+  // Handle student conversational input (via mic or text input)
+  function handleStudentInput(text) {
+    if (!text || !text.trim()) return;
+    const clean = text.toLowerCase().trim();
+
+    if (conversationStep === 1) {
+      if (clean.includes("tier") || clean.includes("product") || clean.includes("top")) {
+        selectedGoal = "Top Product Company (Tier-1 Role)";
+      } else if (clean.includes("standard") || clean.includes("campus")) {
+        selectedGoal = "Standard Campus Placement Benchmark";
+      } else {
+        selectedGoal = "85%+ Placement Ready Band (Target Re-attempt)";
+      }
+      renderStep(2);
+    } else if (conversationStep === 2) {
+      if (clean.includes("7") || clean.includes("sprint") || clean.includes("one week")) {
+        selectedTimeline = "7 Days (Sprint)";
+      } else if (clean.includes("21") || clean.includes("three")) {
+        selectedTimeline = "21 Days (Paced Mastery)";
+      } else {
+        selectedTimeline = "14 Days (Comprehensive)";
+      }
+
+      if (clean.includes("1") || clean.includes("one")) {
+        selectedDailyHours = "1 Hour / Day";
+      } else if (clean.includes("3") || clean.includes("three")) {
+        selectedDailyHours = "3+ Hours / Day";
+      } else {
+        selectedDailyHours = "2 Hours / Day (Optimal)";
+      }
+
+      if (clean.includes("morning")) selectedTimeSlot = "Morning (9 AM - 11 AM)";
+      else if (clean.includes("afternoon")) selectedTimeSlot = "Afternoon (2 PM - 4 PM)";
+      else selectedTimeSlot = "Evening (6 PM - 8 PM)";
+
+      renderStep(3);
+    } else if (conversationStep === 3) {
+      renderStep(4);
+    }
+    if (textInput) textInput.value = "";
+  }
+
+  // Primary Button Workflow
+  if (primaryBtn) {
+    primaryBtn.onclick = () => {
+      if (conversationStep === 1) {
+        renderStep(2);
+      } else if (conversationStep === 2) {
+        renderStep(3);
+      } else if (conversationStep === 3) {
+        renderStep(4);
+      } else if (conversationStep === 4) {
+        // Save plan to localStorage and redirect to /coach workspace
+        stopDialogue();
+        const planData = {
+          studentId: studentSession?.student_id || "candidate",
+          candidateName: studentFullName,
+          targetRole: targetRole,
+          weakAreas: topWeaknesses,
+          goal: selectedGoal,
+          timeline: selectedTimeline,
+          dailyHours: selectedDailyHours,
+          timeSlot: selectedTimeSlot,
+          schedule: scheduleData,
+          savedAt: new Date().toISOString()
+        };
+        try {
+          localStorage.setItem("voicedots_active_coach_plan", JSON.stringify(planData));
+        } catch (e) {}
+
+        window.location.href = "/calendar?filter=coach&from=coach_plan";
+      }
+    };
+  }
+
+  // Secondary Button Action
+  if (maybeLaterBtn) {
+    maybeLaterBtn.onclick = () => {
+      if (conversationStep === 2) {
+        renderStep(1);
+      } else if (conversationStep === 3) {
+        renderStep(2);
+      } else if (conversationStep === 4) {
+        renderStep(1);
+      } else {
+        dismissModal();
+      }
+    };
+  }
+
+  // Send Button & Text Input
+  if (sendBtn && textInput) {
+    sendBtn.onclick = () => handleStudentInput(textInput.value);
+    textInput.onkeydown = (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        handleStudentInput(textInput.value);
+      }
+    };
+  }
+
+  // Microphone Speech Recognition
+  let recognition = null;
+  let isListening = false;
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+  if (SpeechRecognition) {
+    recognition = new SpeechRecognition();
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    recognition.lang = "en-IN";
+
+    recognition.onstart = () => {
+      isListening = true;
+      if (micBtn) micBtn.classList.add("is-listening");
+      if (micLabel) micLabel.textContent = "Listening…";
+    };
+
+    recognition.onresult = (event) => {
+      const transcript = event.results[0]?.[0]?.transcript || "";
+      if (textInput) textInput.value = transcript;
+      handleStudentInput(transcript);
+    };
+
+    recognition.onerror = () => {
+      stopListening();
+    };
+
+    recognition.onend = () => {
+      stopListening();
+    };
+  }
+
+  function stopListening() {
+    isListening = false;
+    if (micBtn) micBtn.classList.remove("is-listening");
+    if (micLabel) micLabel.textContent = "Speak";
+    if (recognition) {
+      try { recognition.stop(); } catch (e) {}
+    }
+  }
+
+  function toggleListening() {
+    if (!recognition) {
+      if (textInput) {
+        textInput.placeholder = "Speech recognition unavailable. Type your reply here...";
+        textInput.focus();
+      }
+      return;
+    }
+    if (isListening) {
+      stopListening();
+    } else {
+      stopDialogue(); // Pause coach voice when student starts speaking
+      try {
+        recognition.start();
+      } catch (e) {
+        stopListening();
+      }
+    }
+  }
+
+  if (micBtn) {
+    micBtn.onclick = toggleListening;
+  }
+
+  // Modal open & close
+  const dismissModal = () => {
+    document.body.classList.remove("coach-modal-active");
+    stopListening();
+    stopDialogue();
+    modalBackdrop.style.display = "none";
+    if (floatingBtn) floatingBtn.style.display = "inline-flex";
+  };
+
+  const openModal = () => {
+    document.body.classList.add("coach-modal-active");
+    modalBackdrop.style.display = "flex";
+    if (floatingBtn) floatingBtn.style.display = "none";
+    setCoachFrame(frameIdle);
+    startCoachBlinkLoop();
+    // Start Real Talk Conversation Step 1!
+    setTimeout(() => {
+      renderStep(1);
+    }, 350);
+  };
+
+  if (closeBtn) closeBtn.onclick = dismissModal;
+  modalBackdrop.onclick = (e) => {
+    if (e.target === modalBackdrop) dismissModal();
+  };
+  if (floatingBtn) {
+    floatingBtn.onclick = openModal;
+  }
+
+  // Auto popup when score is low!
+  if (isLowScore) {
+    setTimeout(openModal, 600);
+  } else {
+    if (floatingBtn) floatingBtn.style.display = "inline-flex";
   }
 }
 

@@ -15,12 +15,45 @@ type PersonalEvent = {
   start_at: string; end_at: string; all_day: boolean; location?: string | null;
   meeting_url?: string | null; description?: string | null; reminder_minutes?: number | null;
 };
+type CoachPracticeDetails = {
+  dayNumber: number;
+  totalDays: number;
+  theme: string;
+  focus: string;
+  items: Array<{ type: string; tag: string; text: string }>;
+  weakAreas: string[];
+  targetRole: string;
+  goal: string;
+  timeSlot: string;
+  coachName: string;
+  dailyHours: string;
+};
+
+type ActiveCoachPlan = {
+  studentId?: string;
+  candidateName?: string;
+  targetRole?: string;
+  weakAreas?: string[];
+  goal?: string;
+  timeline?: string;
+  dailyHours?: string;
+  timeSlot?: string;
+  schedule?: Record<string, {
+    theme: string;
+    focus: string;
+    hours: string;
+    items: Array<{ type: string; tag: string; text: string }>;
+  }>;
+  savedAt?: string;
+};
+
 type CalendarEvent = {
   id: string; kind: Kind; date: string; title: string; subtitle: string;
   startsAt?: number; endsAt?: number; dateOnly?: boolean; location?: string;
   status?: string; durationMinutes?: number; plan_id?: string; session_id?: string;
   cycle_id?: string; session_type?: string; interviewAction?: string;
   interviewResumeAvailable?: boolean; resultAvailable?: boolean; personal?: PersonalEvent;
+  coachDetails?: CoachPracticeDetails;
 };
 
 const IST = "Asia/Kolkata";
@@ -46,6 +79,9 @@ function timeRange(event: CalendarEvent) {
   return event.endsAt ? `${start} – ${indiaTime.format(event.endsAt)} IST` : `${start} IST`;
 }
 function eventDescription(event: CalendarEvent) {
+  if (event.coachDetails) {
+    return `${event.coachDetails.theme}: ${event.coachDetails.focus}. Scheduled placement practice session with AI Coach ${event.coachDetails.coachName}.`;
+  }
   return event.personal?.description || (event.kind === "coach" ? "Open this saved AI Coach activity to continue your preparation." : event.kind === "placement" ? "View the placement opportunity for current interview status and available actions." : "");
 }
 function coachStatus(status?: string) {
@@ -69,7 +105,13 @@ export function Calendar() {
   const [month, setMonth] = useState(() => { const [year, monthNumber] = today.split("-").map(Number); return new Date(year, monthNumber - 1, 1); });
   const [view, setView] = useState<CalendarView>("month");
   const [selectedDay, setSelectedDay] = useState("");
-  const [filter, setFilter] = useState<CategoryFilter>("all");
+  const [filter, setFilter] = useState<CategoryFilter>(() => {
+    const params = new URLSearchParams(window.location.search);
+    const f = params.get("filter");
+    if (f === "coach" || f === "interviews" || f === "personal") return f;
+    if (params.get("from") === "coach_plan") return "coach";
+    return "all";
+  });
   const [search, setSearch] = useState("");
   const [personalEvents, setPersonalEvents] = useState<PersonalEvent[]>([]);
   const [formEvent, setFormEvent] = useState<PersonalEvent | null>(null);
@@ -80,6 +122,109 @@ export function Calendar() {
   const [saving, setSaving] = useState(false);
   const [mutationError, setMutationError] = useState("");
   const [allDay, setAllDay] = useState(false);
+
+  // Active AI Coach Improvement Plan (from AI Coach conversational modal / localStorage)
+  const [activePlan] = useState<ActiveCoachPlan | null>(null);
+
+  const activePlanEvents = useMemo<CalendarEvent[]>(() => {
+    if (!activePlan || !activePlan.schedule) return [];
+
+    const timelineStr = activePlan.timeline || "14 Days";
+    const totalDays = timelineStr.includes("7") ? 7 : timelineStr.includes("21") ? 21 : 14;
+    const baseDateStr = activePlan.savedAt ? indiaDateParts(new Date(activePlan.savedAt)) : today;
+    const baseDate = dateFromKey(baseDateStr);
+
+    const slotStr = activePlan.timeSlot || "Evening (6 PM - 8 PM)";
+    let startHour = 18;
+    let endHour = 20;
+    if (slotStr.includes("Morning") || slotStr.includes("9 AM")) {
+      startHour = 9; endHour = 11;
+    } else if (slotStr.includes("Afternoon") || slotStr.includes("2 PM")) {
+      startHour = 14; endHour = 16;
+    }
+
+    const dailyHoursStr = activePlan.dailyHours || "2 Hours";
+    let durationMins = 120;
+    if (dailyHoursStr.includes("1 Hour")) {
+      durationMins = 60;
+      endHour = startHour + 1;
+    } else if (dailyHoursStr.includes("3+")) {
+      durationMins = 180;
+      endHour = startHour + 3;
+    }
+
+    const sched = activePlan.schedule;
+    const planEvents: CalendarEvent[] = [];
+
+    for (let dayIdx = 0; dayIdx < totalDays; dayIdx++) {
+      const dayNum = dayIdx + 1;
+      const curDate = new Date(baseDate);
+      curDate.setDate(baseDate.getDate() + dayIdx);
+      const curDateKey = dayKey(curDate);
+
+      // Determine matching schedule segment
+      let segmentKey = "Day 1-3";
+      if (totalDays === 14) {
+        if (dayNum <= 3) segmentKey = "Day 1-3";
+        else if (dayNum <= 7) segmentKey = "Day 4-7";
+        else if (dayNum <= 10) segmentKey = "Day 8-10";
+        else if (dayNum <= 13) segmentKey = "Day 11-13";
+        else segmentKey = "Day 14";
+      } else if (totalDays === 7) {
+        if (dayNum <= 2) segmentKey = "Day 1-3";
+        else if (dayNum <= 4) segmentKey = "Day 4-7";
+        else if (dayNum === 5) segmentKey = "Day 8-10";
+        else if (dayNum === 6) segmentKey = "Day 11-13";
+        else segmentKey = "Day 14";
+      } else {
+        if (dayNum <= 5) segmentKey = "Day 1-3";
+        else if (dayNum <= 10) segmentKey = "Day 4-7";
+        else if (dayNum <= 15) segmentKey = "Day 8-10";
+        else if (dayNum <= 19) segmentKey = "Day 11-13";
+        else segmentKey = "Day 14";
+      }
+
+      const segment = sched[segmentKey] || sched["Day 1-3"] || {
+        theme: "Placement Competency Practice",
+        focus: "Strengthen Technical & Communication Readiness",
+        hours: "2h / day",
+        items: []
+      };
+
+      const startIso = `${curDateKey}T${String(startHour).padStart(2, "0")}:00:00+05:30`;
+      const endIso = `${curDateKey}T${String(endHour).padStart(2, "0")}:00:00+05:30`;
+      const startsAt = Date.parse(startIso);
+      const endsAt = Date.parse(endIso);
+
+      planEvents.push({
+        id: `coach-plan-day-${dayNum}-${curDateKey}`,
+        kind: "coach",
+        date: curDateKey,
+        title: `Day ${dayNum}: Practice with AI Coach (${segment.theme})`,
+        subtitle: `Neha Kapoor · ${segment.hours || activePlan.dailyHours || "2h / day"}`,
+        startsAt,
+        endsAt,
+        location: "VoiceDots AI Interview Stage",
+        status: dayNum === 1 ? "In progress" : "Scheduled",
+        durationMinutes: durationMins,
+        coachDetails: {
+          dayNumber: dayNum,
+          totalDays,
+          theme: segment.theme,
+          focus: segment.focus,
+          items: segment.items || [],
+          weakAreas: activePlan.weakAreas || ["Structured Thinking", "Communication", "Resume Ownership"],
+          targetRole: activePlan.targetRole || "Placement Candidate",
+          goal: activePlan.goal || "85%+ Placement Ready Band",
+          timeSlot: slotStr,
+          coachName: "Neha Kapoor",
+          dailyHours: activePlan.dailyHours || "2 Hours / Day"
+        }
+      });
+    }
+
+    return planEvents;
+  }, [activePlan, today]);
 
   useEffect(() => {
     if (personalResource.data) setPersonalEvents(personalResource.data.events || []);
@@ -100,8 +245,9 @@ export function Calendar() {
       const startsAt = event.time ? Date.parse(event.time) : Date.parse(`${date}T00:00:00+05:30`);
       return { ...event, kind: "coach" as const, date, startsAt, endsAt: event.time ? startsAt + (event.duration_minutes || 30) * 60000 : dayEnd(date), durationMinutes: event.duration_minutes || 30 };
     }),
+    ...activePlanEvents,
     ...personalEvents.map((item) => ({ id: item.id, kind: "personal" as const, date: indiaDateParts(new Date(item.start_at)), title: item.title, subtitle: item.category, startsAt: Date.parse(item.start_at), endsAt: Date.parse(item.end_at), location: item.location || undefined, status: "Personal event", personal: item })),
-  ].sort((left, right) => (left.startsAt ?? Number.MAX_SAFE_INTEGER) - (right.startsAt ?? Number.MAX_SAFE_INTEGER) || left.id.localeCompare(right.id)), [drives.data, coach.data, personalEvents]);
+  ].sort((left, right) => (left.startsAt ?? Number.MAX_SAFE_INTEGER) - (right.startsAt ?? Number.MAX_SAFE_INTEGER) || left.id.localeCompare(right.id)), [drives.data, coach.data, activePlanEvents, personalEvents]);
 
   const filteredEvents = useMemo(() => events.filter((event) => {
     const categoryMatches = filter === "all" || (filter === "interviews" && event.kind === "placement") || (filter === "coach" && event.kind === "coach") || (filter === "personal" && event.kind === "personal");
@@ -141,10 +287,12 @@ export function Calendar() {
   function openSystemEvent(event: CalendarEvent) {
     setDetail(null);
     if (event.kind === "placement") { navigate(`/placements?drive=${encodeURIComponent(event.id)}`); return; }
-    if (event.kind === "coach" && event.cycle_id && event.session_type === "validation") { navigate(`/practice?coach_cycle=${encodeURIComponent(event.cycle_id)}`); return; }
-    if (event.kind === "coach" && event.plan_id && event.cycle_id) { navigate(`/coach/session?plan=${encodeURIComponent(event.plan_id)}&cycle=${encodeURIComponent(event.cycle_id)}`); return; }
-    if (event.kind === "coach" && event.plan_id && event.session_id) { navigate(`/coach?plan=${encodeURIComponent(event.plan_id)}&session=${encodeURIComponent(event.session_id)}&stage=coach`); return; }
-    setMutationError("This older Coach event is not linked to a specific session. Open AI Coach to choose a session.");
+    if (event.kind === "coach") {
+      if (event.plan_id && event.cycle_id) { navigate(`/coach/session?plan=${encodeURIComponent(event.plan_id)}&cycle=${encodeURIComponent(event.cycle_id)}`); return; }
+      if (event.plan_id && event.session_id) { navigate(`/coach?plan=${encodeURIComponent(event.plan_id)}&session=${encodeURIComponent(event.session_id)}&stage=coach`); return; }
+      navigate("/placement/plan");
+      return;
+    }
   }
   function shiftPeriod(direction: number) {
     if (view === "day") { const date = dateFromKey(selectedDay || today); date.setDate(date.getDate() + direction); setSelectedDay(dayKey(date)); setMonth(new Date(date.getFullYear(), date.getMonth(), 1)); return; }
@@ -196,6 +344,11 @@ export function Calendar() {
   }
   function resultFor(event: CalendarEvent) { return event.resultAvailable ? (reports.data?.reports || []).find((report) => report.drive_id === event.id && report.submission_id && !["held_for_review", "processing", "failed"].includes(report.status)) : undefined; }
   function eventPrimaryAction(event: CalendarEvent) {
+    if (event.coachDetails || event.kind === "coach") {
+      setDetail(null);
+      navigate("/placement/plan");
+      return;
+    }
     if (event.kind === "personal") {
       if (event.personal?.meeting_url) window.open(event.personal.meeting_url, "_blank", "noopener,noreferrer");
       setDetail(null); return;
@@ -204,7 +357,7 @@ export function Calendar() {
   }
   function eventActionLabel(event: CalendarEvent) {
     if (event.kind === "placement") return event.interviewResumeAvailable && event.interviewAction === "resume" ? "Continue interview" : event.interviewResumeAvailable && ["start", "retry_preparation"].includes(event.interviewAction || "") ? "Join / Continue" : "View opportunity";
-    if (event.kind === "coach") return "Open session";
+    if (event.coachDetails || event.kind === "coach") return "Start Practice with AI Coach";
     return event.personal?.meeting_url ? "Open meeting" : "View event";
   }
   async function completeCoachEvent(event: CalendarEvent) {
@@ -225,6 +378,7 @@ export function Calendar() {
         <strong>{event.title}</strong>
         <span className="calendar-event-subtitle">{event.kind === "placement" ? event.subtitle : event.kind === "coach" ? event.subtitle : event.personal?.category === "study" ? "Study" : event.personal?.category === "reminder" ? "Reminder" : "Personal event"}</span>
         <span className="calendar-card-meta"><Clock size={14}/>{timeRange(event)}</span>
+        {event.coachDetails && <span className="calendar-card-meta" style={{ color: "#38BDF8", fontWeight: 600 }}>Focus: {event.coachDetails.focus}</span>}
         {event.location && <span className="calendar-card-meta"><MapPin size={14}/>{event.location}</span>}
         {event.kind === "coach" && !event.location && <span className="calendar-card-meta">Online session</span>}
         {event.personal?.description && <span className="calendar-event-note">{event.personal.description}</span>}
@@ -252,6 +406,56 @@ export function Calendar() {
     <PageHeading eyebrow="YOUR SCHEDULE" title="Calendar" action={<button className="button primary calendar-create-button" onClick={beginCreate} disabled={personalResource.loading}><Plus size={17}/>Create Event</button>}>
       Interviews, AI Coach and personal events in one place.
     </PageHeading>
+
+    {activePlan && (
+      <div style={{
+        margin: "0 0 16px 0",
+        padding: "14px 18px",
+        borderRadius: "14px",
+        background: "linear-gradient(135deg, rgba(30, 41, 59, 0.95), rgba(15, 23, 42, 0.95))",
+        border: "1px solid rgba(59, 130, 246, 0.35)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: "14px",
+        flexWrap: "wrap",
+        boxShadow: "0 4px 18px rgba(0,0,0,0.2)"
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+          <img src="/assets/panel/stills/neha-v3-idle.png" alt="Neha Kapoor" style={{ width: "42px", height: "42px", borderRadius: "50%", objectFit: "cover", border: "2px solid #2563EB", flexShrink: 0 }} />
+          <div>
+            <div style={{ fontSize: "0.95rem", fontWeight: 700, color: "#F8FAFC", display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+              <span>AI Coach Placement Improvement Schedule Active</span>
+              <span style={{ fontSize: "0.68rem", fontWeight: 700, padding: "2px 8px", borderRadius: "9999px", background: "#1E3A8A", color: "#93C5FD", border: "1px solid #2563EB" }}>
+                {activePlan.timeline || "14 Days"}
+              </span>
+            </div>
+            <div style={{ fontSize: "0.80rem", color: "#94A3B8", marginTop: "3px" }}>
+              Coach: <strong style={{ color: "#F1F5F9" }}>Neha Kapoor</strong> · Target: <strong style={{ color: "#38BDF8" }}>{activePlan.goal}</strong> · Paced for <strong style={{ color: "#F1F5F9" }}>{activePlan.timeSlot}</strong> ({activePlan.dailyHours})
+            </div>
+          </div>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+          <button
+            type="button"
+            className="button secondary small"
+            style={{ borderRadius: "9999px", fontSize: "0.78rem" }}
+            onClick={() => setFilter("coach")}
+          >
+            Filter AI Coach Sessions ({activePlanEvents.length})
+          </button>
+          <button
+            type="button"
+            className="button primary small"
+            style={{ borderRadius: "9999px", fontSize: "0.78rem" }}
+            onClick={() => navigate("/placement/plan")}
+          >
+            Start Practice with AI Coach →
+          </button>
+        </div>
+      </div>
+    )}
+
     {resourceError && <ErrorMessage message={resourceError} retry={retryResources}/>}
     {mutationError && <ErrorMessage message={mutationError} retry={undefined}/>}
     <ResourceState resource={drives}>
@@ -311,8 +515,65 @@ export function Calendar() {
 
     {detail && <Dialog labelledBy="calendar-event-detail-title" close={() => setDetail(null)} className="calendar-dialog calendar-detail-dialog">
       <header className="calendar-dialog-header"><div><span className={`calendar-kind ${detail.kind}`}>{categoryNames[detail.personal?.category || detail.kind]}</span><h2 id="calendar-event-detail-title">{detail.title}</h2><p>{detail.kind === "placement" ? detail.subtitle : detail.kind === "coach" ? detail.subtitle : "Personal event"}</p></div><button type="button" className="icon-button" aria-label="Close event details" onClick={() => setDetail(null)}><X size={18}/></button></header>
-      <dl className="calendar-detail-list"><div><dt>Date</dt><dd>{shortDate(detail.date)}</dd></div><div><dt>Time</dt><dd>{timeRange(detail)}</dd></div>{detail.kind === "coach" && <div><dt>Status</dt><dd>{coachStatus(detail.status)}{detail.durationMinutes ? ` · ${detail.durationMinutes} minutes` : ""}</dd></div>}{detail.kind === "placement" && <div><dt>Interview status</dt><dd>{placementStatus(detail.status)}</dd></div>}{detail.location && <div><dt>Location</dt><dd>{detail.location}</dd></div>}{detail.kind === "coach" && !detail.location && <div><dt>Location</dt><dd>Online session</dd></div>}{detail.personal && <div><dt>Reminder</dt><dd>{detail.personal.reminder_minutes == null ? "None" : detail.personal.reminder_minutes === 1440 ? "1 day before" : detail.personal.reminder_minutes >= 60 ? `${detail.personal.reminder_minutes / 60} hour${detail.personal.reminder_minutes > 60 ? "s" : ""} before` : `${detail.personal.reminder_minutes} minutes before`}</dd></div>}{detail.personal?.meeting_url && <div><dt>Meeting link</dt><dd><a href={detail.personal.meeting_url} target="_blank" rel="noopener noreferrer">Open meeting link <ExternalLink size={14}/></a></dd></div>}<div className="description"><dt>Description</dt><dd>{eventDescription(detail) || "No notes added."}</dd></div></dl>
-      {mutationError&&<p role="alert">{mutationError}</p>}<footer className="calendar-dialog-actions">{detail.kind === "coach"&&(detail.session_id||detail.cycle_id)&&detail.status!=="completed"&&<button className="button secondary" disabled={saving} onClick={()=>void completeCoachEvent(detail)}>Mark as complete</button>}{detail.kind === "personal" ? <><button className="button secondary calendar-danger" onClick={() => { setDeleteTarget(detail.personal!); setDetail(null); }}>Delete</button><button className="button secondary" onClick={() => beginEdit(detail.personal!)}><Pencil size={15}/>Edit</button>{detail.personal?.meeting_url && <button className="button primary" onClick={() => eventPrimaryAction(detail)}>Open meeting<ArrowRight size={15}/></button>}</> : <><button className="button secondary" onClick={() => setDetail(null)}>Close details</button><button className="button primary" onClick={() => eventPrimaryAction(detail)}>{eventActionLabel(detail)}<ArrowRight size={15}/></button></>}</footer>
+      <dl className="calendar-detail-list">
+        <div><dt>Date</dt><dd>{shortDate(detail.date)}</dd></div>
+        <div><dt>Time</dt><dd>{timeRange(detail)}</dd></div>
+        {detail.kind === "coach" && <div><dt>Status</dt><dd>{coachStatus(detail.status)}{detail.durationMinutes ? ` · ${detail.durationMinutes} minutes` : ""}</dd></div>}
+        {detail.kind === "placement" && <div><dt>Interview status</dt><dd>{placementStatus(detail.status)}</dd></div>}
+        {detail.location && <div><dt>Location</dt><dd>{detail.location}</dd></div>}
+        {detail.kind === "coach" && !detail.location && <div><dt>Location</dt><dd>Online session</dd></div>}
+        {detail.coachDetails && <>
+          <div><dt>AI Placement Coach</dt><dd>{detail.coachDetails.coachName} (Placement Readiness Specialist)</dd></div>
+          <div><dt>Target Placement Goal</dt><dd>{detail.coachDetails.goal}</dd></div>
+          <div><dt>Day Focus &amp; Theme</dt><dd><strong>{detail.coachDetails.theme}</strong> — {detail.coachDetails.focus}</dd></div>
+          <div className="description">
+            <dt>Target Weak Areas</dt>
+            <dd>
+              <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginTop: "4px" }}>
+                {detail.coachDetails.weakAreas.map((skill) => (
+                  <span key={skill} style={{ background: "#7F1D1D", color: "#FECACA", padding: "2px 9px", borderRadius: "9999px", fontSize: "0.74rem", fontWeight: 700, border: "1px solid #EF4444" }}>
+                    • {skill}
+                  </span>
+                ))}
+              </div>
+            </dd>
+          </div>
+          <div className="description">
+            <dt>Scheduled Practice Modules &amp; Exercises</dt>
+            <dd>
+              <div style={{ display: "flex", flexDirection: "column", gap: "6px", marginTop: "4px" }}>
+                {detail.coachDetails.items.map((it, idx) => (
+                  <div key={idx} style={{ display: "flex", alignItems: "baseline", gap: "8px", fontSize: "0.82rem", color: "var(--text)" }}>
+                    <span style={{ fontSize: "0.68rem", fontWeight: 700, padding: "2px 6px", borderRadius: "9999px", background: it.type === "tech" ? "#064E3B" : it.type === "comm" ? "#4C1D95" : it.type === "mock" ? "#78350F" : "#1E3A8A", color: it.type === "tech" ? "#6EE7B7" : it.type === "comm" ? "#C4B5FD" : it.type === "mock" ? "#FCD34D" : "#93C5FD", flexShrink: 0 }}>
+                      {it.tag}
+                    </span>
+                    <span>{it.text}</span>
+                  </div>
+                ))}
+              </div>
+            </dd>
+          </div>
+        </>}
+        {detail.personal && <div><dt>Reminder</dt><dd>{detail.personal.reminder_minutes == null ? "None" : detail.personal.reminder_minutes === 1440 ? "1 day before" : detail.personal.reminder_minutes >= 60 ? `${detail.personal.reminder_minutes / 60} hour${detail.personal.reminder_minutes > 60 ? "s" : ""} before` : `${detail.personal.reminder_minutes} minutes before`}</dd></div>}
+        {detail.personal?.meeting_url && <div><dt>Meeting link</dt><dd><a href={detail.personal.meeting_url} target="_blank" rel="noopener noreferrer">Open meeting link <ExternalLink size={14}/></a></dd></div>}
+        {!detail.coachDetails && <div className="description"><dt>Description</dt><dd>{eventDescription(detail) || "No notes added."}</dd></div>}
+      </dl>
+      {mutationError&&<p role="alert">{mutationError}</p>}
+      <footer className="calendar-dialog-actions">
+        {detail.kind === "coach"&&(detail.session_id||detail.cycle_id)&&detail.status!=="completed"&&<button className="button secondary" disabled={saving} onClick={()=>void completeCoachEvent(detail)}>Mark as complete</button>}
+        {detail.kind === "personal" ? (
+          <>
+            <button className="button secondary calendar-danger" onClick={() => { setDeleteTarget(detail.personal!); setDetail(null); }}>Delete</button>
+            <button className="button secondary" onClick={() => beginEdit(detail.personal!)}><Pencil size={15}/>Edit</button>
+            {detail.personal?.meeting_url && <button className="button primary" onClick={() => eventPrimaryAction(detail)}>Open meeting<ArrowRight size={15}/></button>}
+          </>
+        ) : (
+          <>
+            <button className="button secondary" onClick={() => setDetail(null)}>Close details</button>
+            <button className="button primary" onClick={() => eventPrimaryAction(detail)}>{eventActionLabel(detail)}<ArrowRight size={15}/></button>
+          </>
+        )}
+      </footer>
     </Dialog>}
 
     {deleteTarget && <Dialog labelledBy="calendar-delete-title" close={() => setDeleteTarget(null)} className="calendar-dialog calendar-delete-dialog">

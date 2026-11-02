@@ -1,0 +1,56 @@
+/* Explicitly scoped so generic dashboard fieldsets and labels cannot distort the survey. */
+.student-scorecard-page{max-width:1320px;margin:0 auto}
+.student-scorecard-page .student-scorecard-toolbar{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:18px;font-size:12px;color:#60758e}
+.student-scorecard-toolbar>div{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.student-scorecard-page .student-scorecard-toolbar a{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:38px;box-sizing:border-box;padding:8px 12px;border-radius:9px;color:#0969da;text-decoration:none;font-weight:600}
+.student-scorecard-page .student-scorecard-toolbar>a{background:#fff;border:1px solid #bfd7f2}
+.student-scorecard-page .student-scorecard-toolbar a:hover{background:#eaf4ff}
+.student-scorecard-page .student-scorecard-followup{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;padding:18px 4px}
+.student-scorecard-page .student-scorecard-followup a{display:inline-flex;align-items:center;gap:8px;color:#0969da;text-decoration:none;font-size:13px;font-weight:600}
+:root .s2-screen-wrapper .scorecard-satisfaction-panel{color-scheme:light;background:#fff;color:#183650;border:1px solid #d4e5f7;border-radius:16px;padding:0;margin-top:20px;overflow:hidden;box-shadow:0 4px 18px #1261a508}
+.scorecard-satisfaction-panel .satisfaction-panel-header{display:flex;align-items:center;gap:14px;padding:24px 26px;background:#f1f7ff;border-bottom:1px solid #dbe9f8}
+.feedback-section-icon{display:grid;place-items:center;width:46px;height:46px;flex:none;border-radius:13px;background:#dfedff;color:#0969da}
+.feedback-heading-copy{flex:1;min-width:0}.feedback-eyebrow{display:block;font-size:10px;font-weight:700;letter-spacing:.12em;color:#3270ae;margin-bottom:6px}
+:root .scorecard-satisfaction-panel .satisfaction-panel-header h3{margin:0;color:#183650;font-size:18px;line-height:1.4;font-weight:700}
+.scorecard-satisfaction-panel .satisfaction-panel-header p{font-size:12px;line-height:1.6;color:#60758e;margin:5px 0 0}
+.feedback-completion{white-space:nowrap;color:#0969da;background:#fff;border:1px solid #c9def6;border-radius:20px;padding:7px 11px;font-size:11px;font-weight:600}
+.scorecard-satisfaction-panel .satisfaction-panel-form{display:flex;flex-direction:column;gap:22px;padding:24px 26px;margin:0}
+.scorecard-satisfaction-panel .feedback-survey-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+:root .scorecard-satisfaction-panel .feedback-rating-question{display:block;min-width:0;margin:0;padding:15px 16px 12px;border:1px solid #dbe6f2;border-radius:12px;background:#fbfdff}
+:root .scorecard-satisfaction-panel .feedback-rating-question:has(input:checked){background:#f3f8ff;border-color:#a8c9ef}
+:root .scorecard-satisfaction-panel .feedback-rating-question legend{display:flex;align-items:flex-start;gap:9px;float:left;width:100%;max-width:100%;box-sizing:border-box;padding:0;margin:0 0 14px;font-size:12px;font-weight:600;line-height:1.6;color:#264966}
+.feedback-question-number{display:inline-grid;place-items:center;flex:none;width:21px;height:21px;border-radius:6px;background:#e4effc;color:#0969da;font-size:10px}
+.scorecard-satisfaction-panel .feedback-star-options{clear:both;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;margin:0}
+:root .scorecard-satisfaction-panel .feedback-star-options label{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;position:relative;min-height:56px;box-sizing:border-box;padding:7px 4px;border:1px solid #d9e5f3;border-radius:9px;background:#fff;color:#7190b0;cursor:pointer;transition:background .15s,border-color .15s,color .15s}
+.scorecard-satisfaction-panel .feedback-star-options label input{position:absolute;inset:0;width:100%;height:100%;min-height:0;margin:0;opacity:0;cursor:pointer}
+:root .scorecard-satisfaction-panel .feedback-star-options label:hover{border-color:#76ace8;background:#edf6ff;color:#0969da}
+:root .scorecard-satisfaction-panel .feedback-star-options label.feedback-star-selected{color:#0969da!important;background:#e7f2ff;border-color:#8bbcf0}
+.scorecard-satisfaction-panel .feedback-star-selected svg{fill:#0969da;stroke:#0969da}
+.scorecard-satisfaction-panel .feedback-star-options label:has(input:checked){border-color:#0969da;box-shadow:inset 0 0 0 1px #0969da}
+.scorecard-satisfaction-panel .feedback-star-options label:has(input:focus-visible){outline:3px solid #71b2f5;outline-offset:3px}
+.scorecard-satisfaction-panel .feedback-star-options small{font-size:11px;font-weight:600}
+.feedback-scale-labels{display:flex;justify-content:space-between;gap:8px;margin-top:9px;font-size:10px;color:#748aa1}
+.feedback-recommend-section{padding:16px;border:1px solid #dbe6f2;border-radius:12px;background:#f7faff}
+:root .scorecard-satisfaction-panel .satisfaction-panel-form label.feedback-recommend-toggle{display:flex;flex-direction:row;align-items:center;justify-content:flex-start;gap:11px;margin:0;cursor:pointer;font-size:13px;font-weight:600;color:#264966}
+.scorecard-satisfaction-panel .feedback-recommend-toggle input{width:18px;height:18px;min-height:0;flex:none;margin:0;accent-color:#0969da}
+.feedback-recommend-toggle span{display:flex;flex-direction:column;gap:3px}.feedback-recommend-toggle small{font-size:11px;font-weight:400;color:#60758e}
+:root .scorecard-satisfaction-panel .feedback-recommend-range{display:flex;flex-direction:column;gap:12px;padding-top:18px;font-size:12px;color:#264966}
+.feedback-recommend-range output{align-self:flex-start;background:#e2efff;border-radius:6px;color:#0969da;padding:4px 8px;font-weight:700}
+.feedback-recommend-range input{width:100%;accent-color:#0969da;cursor:pointer}
+:root .scorecard-satisfaction-panel .feedback-comments{display:flex;flex-direction:column;gap:9px;font-size:13px;color:#264966;font-weight:600}
+.feedback-comments>span{display:flex;align-items:center;gap:9px}.feedback-comments>span small{font-size:10px;color:#70869e;font-weight:400;background:#f1f5fa;padding:3px 7px;border-radius:5px}
+:root .scorecard-satisfaction-panel .feedback-comments textarea{width:100%;box-sizing:border-box;min-height:105px;resize:vertical;padding:13px 14px;border:1px solid #c8daed;border-radius:10px;background:#fff;color:#183650;font-family:inherit;font-size:13px;line-height:1.7}
+.feedback-comments textarea::placeholder{color:#7c91a8}
+.scorecard-satisfaction-panel .feedback-comments textarea:focus{outline:none;border-color:#0969da;box-shadow:0 0 0 3px #0969da15}
+.feedback-character-count{align-self:flex-end;font-size:10px;font-weight:400;color:#748aa1}
+.feedback-form-footer{display:flex;align-items:center;justify-content:space-between;gap:16px;border-top:1px solid #e4edf7;padding-top:18px}
+.feedback-required-note{font-size:11px;color:#70869e}
+.scorecard-satisfaction-panel .satisfaction-panel-form button[type=submit]{display:inline-flex;align-items:center;justify-content:center;gap:9px;min-height:42px;border:1px solid #0969da;border-radius:9px;padding:10px 18px;background:#0969da;color:#fff;font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;box-shadow:none}
+.scorecard-satisfaction-panel .satisfaction-panel-form button[type=submit]:hover:not(:disabled){background:#0759bc;border-color:#0759bc}
+.scorecard-satisfaction-panel .satisfaction-panel-form button:disabled{opacity:.6;cursor:wait}
+.feedback-error{background:#fff1f1;border:1px solid #f5c9cb;color:#ae2832;padding:11px 14px;border-radius:9px;font-size:12px;margin:0}
+.feedback-success{display:flex;align-items:center;gap:8px;background:#edfcf5;border:1px solid #bde8d5;color:#087849;padding:11px 14px;border-radius:9px;font-size:12px;margin:0}
+.scorecard-empty-note{font-size:12px;line-height:1.7;color:#71869e;margin:0}
+.student-scorecard-page :is(a,button):focus-visible{outline:3px solid #71b2f5;outline-offset:3px}
+@media(max-width:768px){.scorecard-satisfaction-panel .feedback-survey-grid{grid-template-columns:1fr}.scorecard-satisfaction-panel .satisfaction-panel-header{padding:18px;flex-wrap:wrap}.feedback-completion{margin-left:60px}.scorecard-satisfaction-panel .satisfaction-panel-form{padding:18px}.feedback-form-footer{align-items:stretch;flex-direction:column}.feedback-form-footer button{width:100%}.student-scorecard-page .student-scorecard-toolbar{align-items:flex-start;flex-wrap:wrap}:root .scorecard-satisfaction-panel .satisfaction-panel-header h3{font-size:16px}}
+@media(prefers-reduced-motion:reduce){:root .s2-screen-wrapper .scorecard-satisfaction-panel{animation:none}.scorecard-satisfaction-panel *{transition:none!important}}

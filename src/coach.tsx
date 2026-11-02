@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, ArrowRight, CalendarDays, AlertCircle, RefreshCw, LoaderCircle, Check, ChevronLeft, ChevronRight, FileText } from 'lucide-react';
+import { ArrowLeft, ArrowRight, CalendarDays, AlertCircle, RefreshCw, LoaderCircle, Check, ChevronLeft, ChevronRight, FileText, TrendingUp, BookOpen } from 'lucide-react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { api, json, ApiError } from './api';
 import { ErrorMessage, PageHeading, useResource } from './ui';
@@ -49,7 +49,22 @@ export function Coach(){
  const go=(next:number)=>{if(next===1||next<=stage){setStage(next);return}if(next===2&&driveContext&&overview.data?.main_resume){setStage(2);return}if(next===3&&match){setStage(3);return}if(next===4&&canCreate&&currentPlan){setStage(4);return}if(next===5&&currentPlan){setStage(5);return}setError('Complete the current step before continuing.')};
  const previousList=[...(overview.data?.completed_placements||[])].sort((a,b)=>new Date(b.completed_at||0).getTime()-new Date(a.completed_at||0).getTime());const previous=previousList[0];const otherPrevious=previousList.slice(1);
  const selectedSession=requestedSession||currentPlan?.plan.daily_roadmap.find(day=>day.planned_at&&day.schedule_status!=='cancelled')?.session_id||'';
- return <div className="coach-approved-page" data-stage={stage}><header className="coach-approved-heading"><div><div className="coach-approved-crumb">Workspace / AI Coach</div><PageHeading eyebrow="YOUR PLACEMENT COACH" title="AI Coach">Build preparation around your assigned placement and saved learning.</PageHeading></div><Link to={profileResumeUrl()} className="coach-resume-reference"><FileText size={18}/><span><small>{overview.loading&&!overview.data?'Checking Main Resume':overview.data?.main_resume?'Using Main Resume':'Main Resume needed'}</small><strong>{overview.loading&&!overview.data?'Loading resume…':overview.data?.main_resume?.label||'Add a resume in My Profile'}</strong></span><ArrowRight size={15}/></Link></header>
+ return <div className="coach-approved-page" data-stage={stage}>
+  <nav className="coach-top-navbar" aria-label="AI Coach Quick Navigation">
+   <Link to="/coach/progress" className="coach-nav-btn">
+    <TrendingUp size={16}/>
+    <span>Daily Progress & Performance Tracking</span>
+   </Link>
+   <Link to="/coach/resources" className="coach-nav-btn">
+    <BookOpen size={16}/>
+    <span>Learning Resources & Practice Questions</span>
+   </Link>
+   <Link to="/coach/re-attempt" className="coach-nav-btn">
+    <CalendarDays size={16}/>
+    <span>Schedule Re-attempt</span>
+   </Link>
+  </nav>
+  <header className="coach-approved-heading"><div><div className="coach-approved-crumb">Workspace / AI Coach</div><PageHeading eyebrow="YOUR PLACEMENT COACH" title="AI Coach">Build preparation around your assigned placement and saved learning.</PageHeading></div><Link to={profileResumeUrl()} className="coach-resume-reference"><FileText size={18}/><span><small>{overview.loading&&!overview.data?'Checking Main Resume':overview.data?.main_resume?'Using Main Resume':'Main Resume needed'}</small><strong>{overview.loading&&!overview.data?'Loading resume…':overview.data?.main_resume?.label||'Add a resume in My Profile'}</strong></span><ArrowRight size={15}/></Link></header>
 
  <div className="coach-post-interview-entry"><button type="button" className="coach-secondary" disabled title="Post-interview review will be available here when ready."><FileText size={16}/>Post-interview review <small>Coming soon</small></button></div>
  <nav className="coach-stage-nav" aria-label="AI Coach stages">{steps.map((label,index)=>{const number=index+1;const completed=number<stage;const active=number===stage;const available=number===1||number<=stage||number===2&&Boolean(driveContext&&overview.data?.main_resume)||number===3&&Boolean(match)||number===4&&Boolean(currentPlan)||number===5&&Boolean(currentPlan);return <button key={label} className={`${active?'active':''} ${completed?'complete':''}`} aria-current={active?'step':undefined} disabled={!available} onClick={()=>go(number)}><span>{completed?<Check size={14}/>:number}</span>{label}</button>})}</nav>

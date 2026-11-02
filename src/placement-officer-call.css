@@ -1,0 +1,66 @@
+.officer-call{--primary:#0969da;--primary-hover:#0759bc;--accent:#0969da;max-width:1440px;margin:auto;color:var(--text);background:linear-gradient(180deg,#edf5ff60,transparent 250px);border-radius:20px}
+.officer-call .button.primary{background:#0969da;border-color:#0969da;color:#fff;box-shadow:0 4px 12px #0969da20}.officer-call .button.primary:hover:not(:disabled){background:#0759bc;border-color:#0759bc}.officer-call .button.secondary{background:var(--surface,#fff);border-color:#bfd7f2;color:#1459a5}.officer-call .button.secondary:hover{background:#edf5ff;border-color:#78aee8}
+.officer-stage{position:relative;overflow:hidden}.officer-portrait{position:relative;isolation:isolate;width:calc(100% + 56px);aspect-ratio:1.45;margin:-28px -28px 0;flex:none;background:#f5f8fc;overflow:hidden}.officer-portrait img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;object-position:center;opacity:0}.officer-portrait img.is-visible{opacity:1}.officer-portrait:after{content:"";position:absolute;inset:65% 0 0;background:linear-gradient(transparent,#142e48);pointer-events:none}.officer-stage .officer-status{position:absolute;top:18px;left:18px;z-index:2;background:#123251e8;backdrop-filter:blur(8px)}.officer-stage h2{position:relative;margin-top:-22px;z-index:1}.officer-stage .officer-wave i{background:#7dc6ff}.officer-call .officer-prompts button:not(:disabled):hover{background:#edf5ff;border-color:#9ac3ef;color:#0759bc}.officer-call .officer-message.student{background:#edf5ff;border-color:#c6dff9;color:#173d65}.officer-call .officer-conversation input:focus{border-color:#0969da;outline:2px solid #0969da20}.officer-call .officer-ai-badge{background:#e9f3ff;color:#1459a5;border-color:#bfd7f2}.officer-call .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+.officer-call-heading{display:flex;justify-content:space-between;align-items:center;gap:20px;margin:28px 0}
+.officer-call-heading p{font-size:11px;letter-spacing:.14em;color:var(--muted);font-weight:700}.officer-call-heading h1{font-size:clamp(24px,3vw,34px);margin:8px 0}.officer-call-heading span{font-size:14px;color:var(--muted)}
+.officer-ai-badge{border:1px solid var(--border,#dce3eb);border-radius:30px;padding:9px 14px;white-space:nowrap}
+.officer-call-grid{display:grid;grid-template-columns:minmax(300px,.9fr) minmax(0,1.1fr);gap:24px}
+.officer-stage{border-radius:24px;background:linear-gradient(145deg,#142e48,#214d60);color:#fff;text-align:center;padding:28px;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:570px}
+.officer-status{font-size:12px;padding:7px 13px;border:1px solid #ffffff30;border-radius:20px;background:#ffffff0d}.officer-avatar{width:210px;max-width:70%;margin:28px 0 8px}.officer-stage h2{font-size:24px;margin:10px 0}.officer-stage p{color:#ccdde6;font-size:14px;margin:0 0 14px}.officer-stage small{color:#ccdde6;font-size:12px;max-width:300px;line-height:1.6;margin-top:18px}
+.officer-wave{display:flex;align-items:center;justify-content:center;gap:5px;height:48px;margin:8px 0}.officer-wave i{display:block;width:4px;height:8px;background:#77d8c8;border-radius:5px}.officer-stage.is-speaking .officer-wave i{animation:officer-wave .8s ease-in-out infinite alternate}.officer-controls{display:flex;justify-content:center;gap:10px;flex-wrap:wrap;margin-top:16px}.officer-end.button{background:#c83f4a;color:white;border:1px solid #e56b73}
+.officer-conversation{background:var(--surface,#fff);border:1px solid var(--border,#dce3eb);border-radius:24px;padding:24px;display:flex;flex-direction:column;min-width:0}.officer-conversation header{display:flex;justify-content:space-between;gap:12px;align-items:center;padding-bottom:18px;border-bottom:1px solid var(--border,#dce3eb)}.officer-conversation h2{font-size:18px;margin:0}.officer-conversation header span{font-size:11px;color:var(--muted)}
+.officer-transcript{height:360px;overflow-y:auto;overscroll-behavior:contain;padding:18px 3px;flex:1;min-height:240px;max-height:480px}.officer-intro,.officer-interim{font-size:13px;color:var(--muted);line-height:1.7}.officer-message{padding:14px 16px;margin:12px 0;border:1px solid var(--border,#dce3eb);border-radius:16px;max-width:94%;overflow-wrap:anywhere}.officer-message b{font-size:11px;color:var(--muted)}.officer-message p{font-size:14px;line-height:1.7;margin:6px 0 0}.officer-message.student{margin-left:auto;background:var(--bg,#f2f6fa)}
+.officer-prompts{display:flex;gap:7px;flex-wrap:wrap;margin:16px 0}.officer-prompts button{font:inherit;font-size:11px;border:1px solid var(--border,#dce3eb);border-radius:20px;padding:8px 11px;background:var(--surface,#fff);color:var(--text);cursor:pointer}.officer-call button:disabled{opacity:.5;cursor:not-allowed}.officer-conversation form{display:flex;gap:8px}.officer-conversation input{flex:1;min-width:0;border:1px solid var(--border,#dce3eb);border-radius:12px;padding:12px;background:var(--bg,#f2f6fa);color:var(--text);font:inherit;font-size:13px}.officer-next{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:20px 0}.officer-next span{font-size:12px;color:var(--muted)}.officer-notice{padding:12px 16px;border:1px solid var(--border,#dce3eb);border-radius:12px;font-size:13px}.officer-call :focus-visible{outline:3px solid #35aeaa;outline-offset:3px}
+@keyframes officer-wave{to{height:34px;opacity:.55}}
+.officer-call .officer-stage{justify-content:flex-start;background:linear-gradient(150deg,#142e48,#174879)}
+.officer-stage .officer-portrait{aspect-ratio:1;max-height:480px}
+.officer-stage h2{margin-top:-20px}
+
+.officer-call :focus-visible{outline-color:#2786ed}
+.dark .officer-call .officer-message.student{background:#163a61;border-color:#285681;color:#d9ecff}
+.dark .officer-call .button.secondary,.dark .officer-call .officer-ai-badge{background:#142e48;color:#b9dcff;border-color:#315e89}
+.dark .officer-call .button.secondary:hover,.dark .officer-call .officer-prompts button:not(:disabled):hover{background:#1b4168;color:#e1f0ff}
+@media(max-width:900px){.officer-call-grid{grid-template-columns:1fr}.officer-stage{min-height:460px}.officer-call-heading{align-items:flex-start}.officer-ai-badge{display:none}.officer-conversation{padding:18px}.officer-conversation header{flex-wrap:wrap}}
+@media(prefers-reduced-motion:reduce){.officer-stage.is-speaking .officer-wave i{animation:none;height:20px}.officer-transcript{scroll-behavior:auto}}
+
+/* Fit the call workspace to the shell rather than stacking fixed-height cards. */
+@media(min-width:901px) and (min-height:600px){
+  .dashboard-body:has(.officer-call){height:100dvh;display:flex;flex-direction:column;overflow:hidden}
+  .dashboard-body:has(.officer-call)>.dashboard-topbar{flex-shrink:0}
+  .dashboard-content:has(>.officer-call){box-sizing:border-box;display:flex;flex-direction:column;flex:1;min-height:0;width:100%;padding:14px 24px 12px;overflow:hidden}
+  .dashboard-content:has(>.officer-call)>.dashboard-footer{display:none}
+  .officer-call{display:flex;flex-direction:column;flex:1;min-height:0;width:100%;gap:10px;margin:0 auto}
+  .officer-call .coach-top-navbar{margin-bottom:0}
+  
+  .officer-call-heading{margin:0;gap:12px;flex-shrink:0}
+  .officer-call-heading p{font-size:9px;margin:0 0 3px}
+  .officer-call-heading h1{font-size:23px;line-height:1.2;margin:0 0 4px}
+  .officer-call-heading span{font-size:12px}
+  .officer-call .officer-ai-badge{padding:6px 10px}
+  .officer-notice{margin:0;padding:7px 12px;font-size:11px;flex-shrink:0}
+  .officer-call-grid{flex:1;min-height:0;grid-template-columns:minmax(250px,.85fr) minmax(0,1.15fr);grid-template-rows:minmax(0,1fr);gap:16px}
+  .officer-call .officer-stage{min-height:0;padding:14px;border-radius:18px}
+  .officer-stage .officer-portrait{width:calc(100% + 28px);margin:-14px -14px 0;flex:1;min-height:0;max-height:none;aspect-ratio:auto}
+  .officer-stage .officer-status{top:12px;left:12px;font-size:10px;padding:5px 9px}
+  .officer-stage h2{font-size:19px;line-height:1.25;margin:0 0 4px;flex-shrink:0}
+  .officer-stage p{font-size:11px;margin:0 0 4px;flex-shrink:0}
+  .officer-stage .officer-stage-caption{display:none}
+  .officer-wave{height:25px;margin:3px 0;flex-shrink:0}
+  .officer-controls{gap:8px;margin-top:4px;flex-shrink:0}
+  .officer-call .button{min-height:36px;padding:8px 12px;font-size:12px}
+  .officer-stage small{font-size:10px;line-height:1.4;margin-top:8px;max-width:none;flex-shrink:0}
+  .officer-conversation{min-height:0;padding:16px;border-radius:18px;overflow:hidden}
+  .officer-conversation header{padding-bottom:10px;gap:8px;flex-shrink:0}
+  .officer-conversation h2{font-size:16px}
+  .officer-transcript{height:auto;min-height:0;max-height:none;flex:1;padding:10px 3px;scrollbar-width:none}
+  .officer-transcript::-webkit-scrollbar{display:none}
+  .officer-intro,.officer-interim{font-size:12px;line-height:1.5;margin:0 0 8px}
+  .officer-message{padding:10px 12px;margin:8px 0;border-radius:12px}
+  .officer-message p{font-size:12px;line-height:1.55}
+  .officer-prompts{gap:5px;margin:10px 0;flex-shrink:0}
+  .officer-prompts button{font-size:10px;padding:6px 9px}
+  .officer-conversation form{flex-shrink:0}
+  .officer-conversation input{padding:9px 11px;font-size:12px}
+  .officer-next{gap:8px;margin:0;flex-shrink:0}
+  .officer-next span{font-size:10px}
+}

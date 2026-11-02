@@ -33,12 +33,14 @@ import {
   useResource,
 } from "./ui";
 import { PreparationJourney } from "./preparation-journey";
+import './placement-interview-consent.css';
 import { ResumeClarificationSteps, type ClarificationAnswer } from "./resume-clarification";
 
 export function Practice() {
   const { identity } = useAuth();
   const [params] = useSearchParams();
   const requestedDriveId = params.get("drive");
+  const completedSessionParam = params.get("completed_session");
   const [mode, setMode] = useState<"practice" | "placement">(requestedDriveId ? "placement" : "practice");
   const [selectedDriveId, setSelectedDriveId] = useState(requestedDriveId || "");
   const driveId = mode === "placement" ? selectedDriveId : null;
@@ -74,6 +76,29 @@ export function Practice() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
+  const [permissionsAccepted, setPermissionsAccepted] = useState(false);
+  const [permissionToast, setPermissionToast] = useState('');
+  const permissionTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    setPermissionsAccepted(false);
+    setPermissionToast('');
+    return () => { if (permissionTimer.current) clearTimeout(permissionTimer.current); };
+  }, [driveId, identity?.student.id]);
+
+  function requirePermissions() {
+    if (!driveId || permissionsAccepted) return true;
+    setPermissionToast('Please accept the interview permissions to continue.');
+    if (permissionTimer.current) clearTimeout(permissionTimer.current);
+    permissionTimer.current = setTimeout(() => setPermissionToast(''), 4000);
+    return false;
+  }
+
+  function savePermissionConsent(submissionId?: string, operationId?: string) {
+    if (!driveId) return;
+    sessionStorage.setItem(`vd_placement_consent_${identity!.student.id}_${driveId}`, JSON.stringify({
+      version: 1, accepted: true, acceptedAt: Date.now(), submissionId, operationId,
+    }));
+  }
   const [stageKey, setStageKey] = useState<string | undefined>(undefined);
   const [preparation, setPreparation] = useState<Preparation | null>(() => {
     try {
@@ -208,6 +233,10 @@ export function Practice() {
     sessionStorage.removeItem(`${draftKey}:jd`);
     sessionStorage.setItem(key, JSON.stringify(result));
     setPreparation(result);
+    if (driveId && permissionsAccepted && ['in_progress','ready'].includes(result.status) && (result.submission_id || result.operation_id)) {
+      savePermissionConsent(result.submission_id, result.operation_id);
+      openInterview(result.submission_id, result.session_id, result.operation_id, driveId);
+    }
   }
   function reset() {
     sessionStorage.removeItem(key);
@@ -288,16 +317,21 @@ export function Practice() {
     placementATS.retry();
     return false;
   }
-  async function enterInterview(submissionId:string,sessionId?:string) {
+  async function enterInterview(submissionId?:string,sessionId?:string,operationId?:string) {
+    if (!requirePermissions()) return;
     if (driveId && (!atsQualified || !context || context.is_locked || context.main_resume_available !== true || context.interview_window !== "open")) {
       setError(`An ATS Fit of at least ${placementATS.minimum}% and an open placement interview are required.`);
       return;
     }
-    if (await verifyPlacementATS()) openInterview(submissionId,sessionId);
+    if (await verifyPlacementATS()) {
+      savePermissionConsent(submissionId, operationId);
+      openInterview(submissionId,sessionId,operationId,driveId || undefined);
+    }
   }
 
-  async function start(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  async function start(event?: FormEvent<HTMLFormElement>) {
+    event?.preventDefault();
+    if (!requirePermissions()) return;
     setError("");
     setNotice("");
     if (!file || !activeResume) {
@@ -488,6 +522,7 @@ export function Practice() {
 
   return (
     <div className="interview-practice-page">
+      {permissionToast && <div className="placement-permission-toast" role="alert"><ShieldCheck size={18}/>{permissionToast}</div>}
       <PageHeading eyebrow="A SAFE SPACE TO FIND YOUR VOICE" title="Let’s get you interview-ready">
         Choose a practice conversation or continue an available placement interview.
       </PageHeading>
@@ -509,16 +544,28 @@ export function Practice() {
         <div className="gentle-note" role="status"><ShieldCheck size={18}/><p>This placement is no longer available to start. Choose an active opportunity below.</p></div>
       )}
 
-      {preparation ? (
+      {completedSessionParam && (
+        <div className="gentle-note success-message" role="status">
+          <Check size={18} />
+          <p>
+            Your practice interview is completed! You can review your full Scorecard and competency breakdown below.
+          </p>
+        </div>
+      )}
+
+
+
+      {preparation && (!driveId || !['in_progress','ready'].includes(preparation.status)) ? (
         <section className={`panel preparation-panel${pending ? " preparation-horizontal" : ""}${needsClarification ? " resume-clarification-panel" : ""}`} aria-live="polite">
-          {pending && <>
+          {pending && !driveId && <>
             <PreparationJourney stage={stageKey} placement={mode === "placement"}
               panel={mode === "placement" ? panel.map(person => ({ track: person.track, role: person.role }))
                 : [{ track: "hr", role: "HR interviewer" }, { track: "domain", role: "Domain specialist" }, { track: "industry", role: "Industry expert" }, { track: "manager", role: "Hiring manager" }]} />
             {pollError && <ErrorMessage message={pollError} retry={() => setPollVersion((v) => v + 1)} />}
             {pollError && <button className="button secondary" onClick={() => { sessionStorage.removeItem(key); setPreparation(null); setPollError(""); }}>Return to setup</button>}
           </>}
-          {ready && <>
+          {driveId && (pending || ready) && <><p role="status">Opening your interview panel…</p>{error && <ErrorMessage message={error}/>}</>}
+          {ready && !driveId && <>
             <span className="prep-ready-burst" aria-hidden="true"><Check size={30} /></span>
             <h2>Your panel is ready.</h2>
             <p>Next, we’ll check your camera, microphone, and screen sharing before the interview begins.</p>
@@ -603,9 +650,15 @@ export function Practice() {
                         <div><dt>Interview window</dt><dd>{formatDateTime(context.interview_window_start_at)} – {formatDateTime(context.interview_window_end_at)}</dd></div>
                       </dl>
                       <details className="placement-jd-details"><summary>View role details</summary><p>{context.job_description || "No job description was provided for this placement."}</p></details>
+                      <label className="placement-permission-consent" htmlFor="placement-interview-permissions">
+                        <input id="placement-interview-permissions" type="checkbox" checked={permissionsAccepted}
+                          onChange={event => { setPermissionsAccepted(event.target.checked); setPermissionToast(''); }}/>
+                        <span>I agree to fullscreen, camera/mic recording and AI assessment.</span>
+                      </label>
                       <div className="placement-primary-action">
-                        {driveCanResume ? <button type="button" className="button primary" onClick={() => void enterInterview(context.submission_id!, context.session_id || undefined)}>Continue interview <ArrowRight size={17}/></button>
-                          : driveCanStart && activeResume && file ? <button type="submit" className="button primary" disabled={busy || resumeBusy}>{busy ? <><LoaderCircle className="spin" size={17}/> Preparing placement interview…</> : <>{placementActionLabel} <ArrowRight size={17}/></>}</button>
+                        {preparation && ['in_progress','ready'].includes(preparation.status) && !context.can_start_next_attempt ? <button type="button" className="button primary placement-start-interview" onClick={() => void enterInterview(preparation.submission_id, preparation.session_id, preparation.operation_id)}><Mic size={17}/>Start Interview <ArrowRight size={17}/></button>
+                          : driveCanResume ? <button type="button" className="button primary placement-start-interview" onClick={() => void enterInterview(context.submission_id!, context.session_id || undefined)}><Mic size={17}/>Continue Interview <ArrowRight size={17}/></button>
+                          : driveCanStart && activeResume && file ? <button type="submit" className="button primary placement-start-interview" disabled={busy || resumeBusy}>{busy ? <><LoaderCircle className="spin" size={17}/> Opening interview…</> : <><Mic size={17}/>Start Interview <ArrowRight size={17}/></>}</button>
                             : releasedAttempt?.submission_id ? <Link className="button primary" to={`/reports?submission=${encodeURIComponent(releasedAttempt.submission_id)}`}>View result <ArrowRight size={17}/></Link>
                               : <button type="button" className="button primary" disabled>{!activeResume ? "Add Main Resume to start" : placementActionLabel}</button>}
                         {releasedAttempt?.submission_id && driveCanStart && <Link className="button secondary" to={`/reports?submission=${encodeURIComponent(releasedAttempt.submission_id)}`}>View released result</Link>}

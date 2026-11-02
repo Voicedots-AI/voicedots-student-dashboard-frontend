@@ -1,0 +1,12 @@
+:root .s2-screen-wrapper .s2-metrics-cluster{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;padding:0;border:0;background:transparent;border-radius:0;align-self:stretch;align-items:stretch}
+:root .s2-screen-wrapper .s2-metrics-cluster>.s2-stat-card{display:flex;flex-direction:column;align-items:flex-start;justify-content:center;text-align:left;gap:14px;min-width:0;padding:20px 18px;border:1px solid #dbe8f8;border-radius:14px;background:linear-gradient(155deg,#f1f7ff,#fff);box-shadow:0 3px 12px #1e4c8b04}
+:root .s2-screen-wrapper .s2-metrics-cluster>.s2-stat-card.card-green{border-color:#d5eee5;background:linear-gradient(155deg,#effbf6,#fff)}
+:root .s2-screen-wrapper .s2-metrics-cluster>.s2-stat-card:last-child{border-color:#f2e4ce;background:linear-gradient(155deg,#fffbf3,#fff)}
+:root .s2-screen-wrapper .s2-metrics-cluster .s2-stat-icon-wrap{width:36px;height:36px;border-radius:11px;background:#e1edff;color:#2563eb}
+:root .s2-screen-wrapper .s2-metrics-cluster .s2-stat-icon-wrap.icon-green{background:#daf6e9;color:#059669}
+:root .s2-screen-wrapper .s2-metrics-cluster>.s2-stat-card:last-child .s2-stat-icon-wrap{background:#fff0d7;color:#d18b19}
+:root .s2-screen-wrapper .s2-metrics-cluster .s2-stat-content{display:flex;flex-direction:column;gap:7px}
+:root .s2-screen-wrapper .s2-metrics-cluster .s2-stat-number{font-size:30px;line-height:1;letter-spacing:-1px;color:#214b7c;font-variant-numeric:tabular-nums}
+:root .s2-screen-wrapper .s2-metrics-cluster .card-green .s2-stat-number{color:#087c5a}
+:root .s2-screen-wrapper .s2-metrics-cluster .s2-stat-label{font-size:11px;line-height:1.5;font-weight:600;color:#66809d}
+@media(max-width:560px){:root .s2-screen-wrapper .s2-metrics-cluster{gap:8px}:root .s2-screen-wrapper .s2-metrics-cluster>.s2-stat-card{padding:15px 11px;gap:12px}:root .s2-screen-wrapper .s2-metrics-cluster .s2-stat-number{font-size:26px}:root .s2-screen-wrapper .s2-metrics-cluster .s2-stat-label{font-size:10px}}

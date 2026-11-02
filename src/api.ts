@@ -309,13 +309,14 @@ export const json = (body: unknown): RequestInit => ({
   body: JSON.stringify(body),
 });
 
-export function openInterview(submissionId?: string, sessionId?: string) {
-  if (!submissionId)
+export function openInterview(submissionId?: string, sessionId?: string, preparationId?: string, driveId?: string) {
+  if (!submissionId && !preparationId)
     throw new Error("The interview is not ready yet. Refresh and try again.");
-  const params = new URLSearchParams({
-    id: submissionId,
-  });
+  const params = new URLSearchParams();
+  if (submissionId) params.set('id', submissionId);
   if (sessionId) params.set("session_id", sessionId);
+  if (preparationId) params.set('preparation', preparationId);
+  if (driveId) params.set('drive', driveId);
   window.location.assign(`/interview.html?${params}`);
 }
 

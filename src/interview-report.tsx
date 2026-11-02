@@ -103,6 +103,14 @@ export function InterviewReport() {
   }
   function replay(question:QuestionReview){const offset=questionOffset(question),video=videoRef.current;if(offset==null||!video)return;video.scrollIntoView({behavior:"smooth",block:"center"});const play=()=>{video.currentTime=offset;void video.play().catch(()=>undefined);};if(video.readyState===0)video.addEventListener("loadedmetadata",play,{once:true});else play();}
 
+  useEffect(() => {
+    if (released || !report) return;
+    const timer = window.setInterval(() => {
+      reports.reload();
+    }, 5000);
+    return () => clearInterval(timer);
+  }, [released, report]);
+
   const interviewVideo = report?.drive_id && <aside className="panel report-video-review"><div className="report-section-heading"><div><span className="report-section-label">REVIEW YOUR INTERVIEW</span><h2>Interview video</h2></div></div>{recording.loading ? <p role="status">Loading video…</p> : recording.error ? <ErrorMessage message={recording.error} retry={recording.reload}/> : recording.data?.playback_url ? <><video ref={videoRef} className="report-video" controls playsInline preload="metadata" src={recording.data.playback_url} aria-label="Interview video" onError={playbackError} onLoadedMetadata={event=>{if(Number.isFinite(event.currentTarget.duration))setVideoDuration(event.currentTarget.duration);restorePlayback();}} onDurationChange={event=>{if(Number.isFinite(event.currentTarget.duration))setVideoDuration(event.currentTarget.duration);}} onTimeUpdate={event=>setPlayhead(event.currentTarget.currentTime)}/>{markers.length>0 ? <div className="report-video-markers" role="group" aria-label="Question markers on the video timeline"><div className="report-marker-track"><span className="report-marker-progress" style={{width:`${percent(playhead)}%`}}/>{markers.map(marker=><button key={`${marker.index}-${marker.question.turn_id||""}`} type="button" className={`report-marker${activeMarker===marker.index?" active":""}`} style={{left:`${percent(marker.offset)}%`}} aria-label={`Question ${marker.index+1} at ${timeLabel(marker.offset)}: ${marker.question.question||"Interview question"}`} aria-current={activeMarker===marker.index?"true":undefined} onClick={()=>jumpToQuestion(marker)}><span>{marker.index+1}</span><span className="report-marker-tip" aria-hidden="true"><b>Q{marker.index+1} · {timeLabel(marker.offset)}</b>{marker.question.question}</span></button>)}</div><div className="report-marker-scale"><span>0:00</span><span>Tap a pin to jump to that question</span><span>{timeLabel(timelineLength)}</span></div></div> : Number(recording.data.segment_count||0)>1 ? <p className="report-marker-note">Question pins are unavailable because this recording combines several capture segments.</p> : null}{mediaError && <p role="status">{mediaError}</p>}</> : <p className="report-media-unavailable">{recording.data?.message || "No video was saved for this attempt. You can still review your answers and feedback."}</p>}<button className="button secondary small" onClick={()=>{setMediaError("");refreshedPlayback.current=false;refreshVideo();}}><RefreshCw size={14}/> Refresh video</button>{localVideoPending && <a className="button secondary small" href={`/interview.html?id=${encodeURIComponent(report.submission_id)}&session_id=${encodeURIComponent(sessionId)}`}>Recover saved video upload</a>}</aside>;
 
   if(report&&released&&query.get('view')!=='details'&&!query.has('question'))return <section className="student-scorecard-page">
@@ -112,10 +120,26 @@ export function InterviewReport() {
   </section>;
 
   return <section className="interview-report-page report-workspace">
-    <Link className="report-back-link" to="/reports"><ArrowLeft size={16}/> All reports</Link>
+    <div className="report-nav-breadcrumbs">
+      <Link className="report-back-link" to="/reports"><ArrowLeft size={16}/> All reports</Link>
+      {report?.drive_id ? (
+        <Link className="report-back-link" to="/placements">Back to Placements</Link>
+      ) : (
+        <Link className="report-back-link" to="/practice">Back to Practice</Link>
+      )}
+    </div>
     <ResourceState resource={reports}>{report ? <>
       <header className="full-report-header"><div><span className="eyebrow">{report.drive_id ? "PLACEMENT INTERVIEW" : "PRACTICE INTERVIEW"}</span><h1>{report.target_role || "Your interview"}</h1><p>{report.company_name || "Self practice"} · {date(report.completed_at || report.created_at)}{report.attempt_number ? ` · Attempt ${report.attempt_number}` : ""}</p></div>{released && <a className="button secondary" href={apiUrl(`/api/interview/${encodeURIComponent(sessionId)}/evaluation/report.pdf`)}><Download size={16}/> Download PDF</a>}</header>
-      {!released ? <section className="panel report-awaiting"><MessageSquare size={24}/><h2>Your feedback is being prepared</h2><p>Your report and placement result will appear here when they are released.</p></section> : <ResourceState resource={detail}>{view && <>
+      {!released ? (
+        <section className="panel report-awaiting">
+          <MessageSquare size={24}/>
+          <h2>Your feedback is being prepared</h2>
+          <p>Our AI panel is analyzing your responses and compiling your competency scorecard. This page updates automatically.</p>
+          <button type="button" className="button secondary small" onClick={() => reports.reload()}>
+            <RefreshCw size={14}/> Refresh status
+          </button>
+        </section>
+      ) : <ResourceState resource={detail}>{view && <>
         {report.drive_id && <PlacementResult value={report.placement_decision} decidedAt={report.placement_decided_at}/>}
         <nav className="report-section-nav" aria-label="Report sections">{([{key:"overview",label:"Overview",Icon:CheckCircle2},{key:"questions",label:`Questions & feedback (${questions.length})`,Icon:MessageSquare}] as const).map(({key,label,Icon}) => <button key={key} aria-pressed={tab===key} onClick={() => setTab(key)}><Icon size={16}/>{label}</button>)}</nav>
         {tab === "overview" && <div className="report-overview-content"><InterviewScorecard key={sessionId} view={view} sessionId={sessionId} role={report.target_role} assessedAt={report.completed_at||report.created_at}/><details className="panel"><summary>Interview recording</summary>{interviewVideo}</details><section className="panel report-interview-details"><div><span className="eyebrow">INTERVIEW DETAILS</span><h2>Your interview at a glance</h2></div><dl><div><dt>Company</dt><dd>{report.company_name || "Self practice"}</dd></div><div><dt>Role</dt><dd>{report.target_role || "Interview"}</dd></div><div><dt>Interview date</dt><dd>{date(report.started_at || report.completed_at || report.created_at)}</dd></div><div><dt>Duration</dt><dd>{report.duration_minutes ? `${report.duration_minutes} minutes` : "Not recorded"}</dd></div><div><dt>Attempt</dt><dd>{report.attempt_number || "1"}</dd></div><div><dt>Interview type</dt><dd>{report.drive_id ? "Placement" : "Practice"}</dd></div></dl>{report.drive_id && <div className="report-community"><div><h3>Pass your experience forward</h3><p>Share the questions you were asked to help other students prepare.</p></div><CoachQuestionContribution driveId={report.drive_id} company={report.company_name || "Placement"} role={report.target_role || "Interview"}/></div>}</section>

@@ -193,7 +193,7 @@ function PerformanceBody({ data }: { data: PerformanceData }) {
         <div className="perf-chip-group"><h3><Target size={16} /> Focus next</h3>
           {data.focus.length ? <div className="focus-chips">{data.focus.map(key => <span className="pill" key={key}>{skillLabel(key)}</span>)}</div> : <p className="muted">Every assessed skill is above 70% on average.</p>}</div>
         {data.actions.length > 0 && <ol className="perf-actions">{data.actions.map(item => <li key={`${item.focus}-${item.action}`}><strong>{item.focus}</strong><span>{item.action}</span></li>)}</ol>}
-        <div className="perf-links"><Link className="button primary small" to="/practice"><Mic size={14} /> Practice an interview</Link><Link className="button secondary small" to="/coach"><BookOpen size={14} /> Prepare with AI Coach</Link></div>
+        <div className="perf-links"><Link className="button primary small" to="/practice"><Mic size={14} /> Practice an interview</Link><Link className="button secondary small" to="/placement/plan"><BookOpen size={14} /> Prepare with AI Coach</Link></div>
       </section>
 
       <section className="panel perf-communication">

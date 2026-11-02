@@ -7,3 +7,9 @@ test-results/
 playwright-report/
 .vercel
 .env*
+
+# Never bundle local fixture records into frontend assets.
+/local-demo-data/
+/public/local-demo-data/
+*.db
+*.sqlite3

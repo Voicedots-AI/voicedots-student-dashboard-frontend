@@ -9,7 +9,6 @@ import {
   Mail,
   ScanFace,
   Sparkles,
-  Bot,
   BookOpen,
   GraduationCap,
   LayoutGrid,
@@ -44,11 +43,8 @@ import { Academics } from "./academics";
 import { StudyResources } from "./study-resources";
 import { StudentErp } from "./student-erp";
 import { Calendar } from "./calendar";
-import { Coach } from "./coach";
-import { CoachSkills } from "./coach-skills";
 import { Practice } from "./practice";
 import { PhotoVerification } from "./PhotoVerification";
-import { CoachSession } from "./coach-session";
 import { CareerCoach } from "./career-coach";
 import { ResumeStudio } from "./resume-studio";
 import { ATSFitPage } from "./ats-fit-page";
@@ -56,6 +52,8 @@ import { ProfileSetupPrompt } from "./profile-setup";
 import { FeatureShowcase } from "./auth-showcase";
 import { ProductTour, START_TOUR_EVENT } from "./product-tour";
 import { Performance, SharedScorecard } from "./performance";
+import { StudentImprovementJourney } from "./StudentImprovementJourney";
+import { PlacementDriveRedirect } from "./placement-drive-redirect";
 
 type PendingPhotoLogin = {
   email: string;
@@ -300,7 +298,6 @@ const nav = [
   { to: "/placements", label: "Placements", icon: BriefcaseBusiness },
   { to: "/calendar", label: "Calendar", icon: CalendarDays },
   { to: "/practice", label: "Interview practice", icon: Mic },
-  { to: "/coach", label: "AI coach", icon: Bot },
   { to: "/resume-studio", label: "Resume Studio", icon: FileText },
   { to: "/career", label: "Career coach", icon: Compass },
   { to: "/academics", label: "Marks and attendance", icon: GraduationCap },
@@ -412,7 +409,7 @@ export function App() {
   if (!auth.identity) return <Login />;
   const student = auth.identity.student;
   const current =
-    nav.find((item) => item.to === location.pathname || (item.to === '/erp' && location.pathname.startsWith('/erp/')))?.label ||
+    nav.find((item) => item.to === location.pathname || (item.to === '/erp' && location.pathname.startsWith('/erp/')) || (item.to === '/placements' && location.pathname.startsWith('/placement')))?.label ||
     (location.pathname.startsWith("/reports/") ? "Interview report" : "Student dashboard");
   async function logout() {
     setLoggingOut(true);
@@ -559,11 +556,32 @@ export function App() {
             <Route path="/study-resources" element={<Navigate to="/question-papers" replace />} />
             <Route path="/erp" element={<StudentErp />} />
             <Route path="/erp/:service" element={<StudentErp />} />
-            <Route path="/coach" element={<Coach />} />
-            <Route path="/coach/skills" element={<CoachSkills />} />
+            <Route path="/placement" element={<Navigate to="/placements" replace />} />
+            <Route path="/placement/journey" element={<StudentImprovementJourney />} />
+            <Route path="/placement/call" element={<StudentImprovementJourney />} />
+            <Route path="/placement/coach-call" element={<Navigate to={`/placement/call${location.search}`} replace />} />
+            <Route path="/placement/interview" element={<PlacementDriveRedirect />} />
+            <Route path="/placement/plan" element={<StudentImprovementJourney />} />
+            <Route path="/placement/schedule" element={<StudentImprovementJourney />} />
+            <Route path="/placement/resources" element={<StudentImprovementJourney />} />
+            <Route path="/placement/reattempt" element={<StudentImprovementJourney />} />
+            <Route path="/placement/progress" element={<StudentImprovementJourney />} />
+            <Route path="/placement/readiness" element={<StudentImprovementJourney />} />
+            <Route path="/coach" element={<Navigate to="/placement/plan" replace />} />
+            <Route path="/coach/plan" element={<Navigate to="/placement/plan" replace />} />
+            <Route path="/coach/progress" element={<Navigate to="/placement/progress" replace />} />
+            <Route path="/progress" element={<Navigate to="/placement/progress" replace />} />
+            <Route path="/coach/schedule" element={<Navigate to="/placement/schedule" replace />} />
+            <Route path="/coach/resources" element={<Navigate to="/placement/resources" replace />} />
+            <Route path="/coach/re-attempt" element={<Navigate to="/placement/reattempt" replace />} />
+            <Route path="/coach/reattempt" element={<Navigate to="/placement/reattempt" replace />} />
+            <Route path="/improvement-journey" element={<StudentImprovementJourney />} />
+            <Route path="/journey" element={<StudentImprovementJourney />} />
+            <Route path="/interview" element={<PlacementDriveRedirect />} />
+            <Route path="/interview/live" element={<PlacementDriveRedirect />} />
+            <Route path="/interview/setup" element={<PlacementDriveRedirect />} />
             <Route path="/resume-studio" element={<ResumeStudio />} />
             <Route path="/career" element={<CareerCoach />} />
-            <Route path="/coach/session" element={<CoachSessionRoute />} />
             <Route path="/profile" element={<Profile />} />
             <Route
               path="*"
@@ -585,12 +603,4 @@ export function App() {
       </div>
     </div>
   );
-}
-
-function CoachSessionRoute() {
-  const params = new URLSearchParams(window.location.search);
-  const planId = params.get("plan");
-  const sessionId = params.get("session") || undefined;
-  const cycleId = params.get("cycle") || undefined;
-  return planId ? <CoachSession planId={planId} sessionId={sessionId} cycleId={cycleId} /> : <Navigate to="/coach" replace />;
 }
