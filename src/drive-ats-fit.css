@@ -572,3 +572,45 @@ dialog.modal.opportunity-dialog{--primary:#0969da;--soft:#edf5ff;--border:#e0e7e
 .placement-history .placement-history-row .placement-feature-ats[data-ats-tone=green]{border-color:#a9ddbe}.placement-history .placement-history-row .placement-feature-ats[data-ats-tone=red]{border-color:#efbdc4}
 
 .student-resume-preview-error{margin:10px 0 0;padding:10px 12px;border:1px solid #efc4c9;border-radius:7px;background:#fff5f6;color:#b43844;font-size:13px}
+
+/* Card actions: keep the unearned Progress slot genuinely empty. */
+.drive-card .placement-drive-footer nav.placement-card-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));grid-template-areas:"interview ats" "score progress";gap:8px}
+.drive-card .placement-drive-footer nav.placement-card-actions>:first-child{grid-area:interview}
+.drive-card .placement-drive-footer nav.placement-card-actions>.placement-feature-ats{grid-area:ats}
+.drive-card .placement-drive-footer nav.placement-card-actions>:nth-child(3){grid-area:score}
+.drive-card .placement-drive-footer nav.placement-card-actions>.placement-feature-call{grid-area:progress}
+.drive-card .placement-drive-footer nav.placement-card-actions>a,.drive-card .placement-drive-footer nav.placement-card-actions>span{min-height:74px;padding:12px 9px;gap:7px;justify-content:center;border-radius:9px;box-sizing:border-box}
+.drive-card .placement-card-actions .placement-feature-copy{align-items:center;text-align:center;gap:3px}
+.drive-card .placement-card-actions .placement-feature-copy b{font-size:11px;line-height:1.4}
+.drive-card .placement-card-actions .placement-feature-copy small{font-size:10px;line-height:1.4}
+.drive-card .placement-card-actions .placement-feature-icon{display:inline-flex;color:inherit}
+.drive-card .placement-card-actions .placement-feature-call{background:#f0f7ff;color:#1767c0;border-color:#c9dff8}
+.drive-card .placement-card-actions .placement-feature-call:hover{background:#e6f1ff;border-color:#92bcef}
+.drive-card .placement-card-actions .placement-feature-interview .placement-eligible-chip{display:none}
+.drive-card .placement-card-actions>a:focus-visible{outline:2px solid #0969da;outline-offset:3px}
+
+/* Dashboard history uses compact roster rows, independent of placement cards. */
+.placement-history .placement-history-list>.dashboard-drive-history-row{display:grid;grid-template-columns:minmax(130px,1.05fr) minmax(155px,1.25fr) minmax(85px,.5fr) minmax(115px,.7fr) minmax(300px,1.15fr);gap:18px;align-items:center;padding:19px 18px;background:#fff;min-width:0;border-radius:0}
+.placement-history .dashboard-drive-history-row+.dashboard-drive-history-row{border-top:1px solid #e8edf5}
+.placement-history .dashboard-drive-history-row:hover{background:#fbfdff}
+.placement-history .dashboard-drive-history-row>div,.placement-history .dashboard-drive-history-row>nav{grid-column:auto;grid-row:auto;min-width:0}
+.placement-history .dashboard-drive-history-row .company-avatar{width:36px;height:36px;flex-basis:36px;border-radius:9px;font-size:11px;background:#edf5ff;color:#2266aa}
+.placement-history .dashboard-drive-history-row .placement-history-company{gap:10px}
+.placement-history .dashboard-drive-history-row .placement-history-label{font-size:10px;color:#8390a2;line-height:1.4}
+.placement-history .dashboard-drive-history-row .placement-history-company strong,.placement-history .dashboard-drive-history-row .placement-history-drive h3{font-size:12px;font-weight:650;line-height:1.5;color:#28394f}
+.placement-history .dashboard-drive-history-row .placement-history-drive small,.placement-history .dashboard-drive-history-row .dashboard-history-status small{font-size:10px;color:#7a8a9f;line-height:1.5;overflow-wrap:anywhere}
+.placement-history .dashboard-drive-history-row .placement-history-eligibility .pill{font-size:10px;padding:4px 7px;border-radius:5px;white-space:normal}
+.dashboard-history-status{display:grid;gap:3px}.dashboard-history-status strong{font-size:12px;color:#33465e;font-weight:650;line-height:1.4}
+.placement-history .dashboard-drive-history-row .dashboard-history-actions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;margin:0;padding:0}
+.dashboard-history-actions>a,.dashboard-history-actions>button{display:flex;align-items:center;justify-content:center;gap:6px;box-sizing:border-box;min-height:40px;padding:7px 8px;border:1px solid #dce3ee;border-radius:6px;background:#f5f6fa;color:#405168;font:inherit;font-size:10px;font-weight:650;line-height:1.4;text-decoration:none;text-align:left;cursor:pointer}
+.dashboard-history-actions>a:hover{background:#edf5ff;border-color:#aac9ef;color:#1767c0}
+.dashboard-history-actions>button:disabled{cursor:not-allowed;opacity:1;color:#8290a0;background:#f5f6f9}
+.dashboard-history-actions svg{width:15px;height:15px;flex-shrink:0}
+.dashboard-history-actions>*>span{min-width:0;overflow-wrap:anywhere}
+.dashboard-history-actions .dashboard-history-ats>span{display:grid;gap:1px}.dashboard-history-ats strong{font-size:10px}.dashboard-history-ats small{font-size:10px;font-weight:450}
+.dashboard-history-actions .dashboard-history-ats[data-ats-tone=green]{background:#e8f8ee;color:#25784b;border-color:#b8dfc8}
+.dashboard-history-actions .dashboard-history-ats[data-ats-tone=red]{background:#fff0f2;color:#b84456;border-color:#edc3cc}
+.dashboard-history-actions>a:focus-visible{outline:2px solid #0969da;outline-offset:3px}
+.placement-history .dashboard-drive-history-row[data-expanded=false]{padding-top:12px;padding-bottom:12px}
+@media(max-width:1100px){.placement-history .placement-history-list>.dashboard-drive-history-row{grid-template-columns:minmax(0,1fr) minmax(0,1fr) auto;gap:12px 16px}.placement-history .dashboard-drive-history-row>.dashboard-history-status{grid-column:1;grid-row:2}.placement-history .dashboard-drive-history-row>.dashboard-history-actions{grid-column:2/-1;grid-row:2}}
+@media(max-width:600px){.placement-history .placement-history-list>.dashboard-drive-history-row{grid-template-columns:minmax(0,1fr) auto;padding:16px 12px;gap:10px 12px}.placement-history .dashboard-drive-history-row>.placement-history-drive{grid-column:1;grid-row:2}.placement-history .dashboard-drive-history-row>.placement-history-eligibility{grid-column:2;grid-row:1}.placement-history .dashboard-drive-history-row>.dashboard-history-status{grid-column:2;grid-row:2}.placement-history .dashboard-drive-history-row>.dashboard-history-actions{grid-column:1/-1;grid-row:3}.dashboard-history-actions>a,.dashboard-history-actions>button{min-height:42px}}

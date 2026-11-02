@@ -212,11 +212,11 @@ export function Performance() {
     : drives.error ? <section className="panel spi-empty-state"><ErrorMessage message={drives.error} retry={drives.reload}/></section>
     : (drives.data?.length || 0) > 0 ? <section className="panel placement-history">
       <div className="section-heading"><div><span className="eyebrow">PLACEMENT DRIVE HISTORY</span><h2>Your placement drives</h2><p>Drives you have participated in or opted for.</p></div><RosterExpandControl expanded={historyExpanded} onChange={setHistoryExpanded}/></div>
-      {historyExpanded && <div className="placement-history-list">
+      <div className="placement-history-list">
         {[...(drives.data || [])].sort((a,b)=>(Date.parse(b.window_start_at||b.drive_date||"")||0)-(Date.parse(a.window_start_at||a.drive_date||"")||0)).map(drive=> (
-          <PlacementDriveHistoryItem key={drive.id} drive={drive} />
+          <PlacementDriveHistoryItem key={drive.id} drive={drive} reports={released} expanded={historyExpanded} />
         ))}
-      </div>}
+      </div>
     </section>
     : <section className="panel spi-empty-state"><Empty title="No placement drives yet" action>Placement drives from your placement cell will appear here.</Empty></section>}
 

@@ -494,10 +494,13 @@ function PlacementDriveActions({drive,reports,eligibilityCheck,atsScore}: {drive
       : drive.interview_action==='not_assigned' || drive.interview_status==='awaiting_assignment' ? 'Not assigned yet'
       : 'Check opportunity details';
     const interviewContent=<><span className="placement-feature-icon"><Mic size={17}/></span><span className="placement-feature-copy"><b>{interviewLabel}</b>{eligibleForStart ? <span className="placement-eligible-chip">Eligible</span> : null}<small>{canInterview ? drive.interview_action==='resume'?'Continue your attempt':'Begin your assessment' : unavailableReason}</small>{canInterview&&<ArrowRight size={15}/>}</span></>;
-    return <footer className="placement-drive-footer"><nav aria-label={`Actions for ${drive.company_name} ${drive.role_title}`}>
+    return <footer className="placement-drive-footer"><nav className="placement-card-actions" aria-label={`Actions for ${drive.company_name} ${drive.role_title}`}>
       {canInterview?<Link className={`placement-feature placement-feature-interview${eligibleForStart ? " placement-feature-interview-eligible" : ""}`} aria-label={interviewLabel} to={`/practice?drive=${id}`}>{interviewContent}</Link>:<span className="placement-feature placement-feature-unavailable" aria-disabled="true" title={drive.eligibility_reason||unavailableReason}>{interviewContent}</span>}
+      <Link className="placement-feature placement-feature-ats" to={`/ats-fit?drive=${id}`} data-ats-tone={atsScore == null ? 'neutral' : atsScore >= 50 ? 'green' : 'red'} aria-label={`View ATS Fit${atsScore == null ? '' : `, ${atsScore}%`}`}>
+        <span className="placement-feature-icon"><FileText size={17}/></span><span className="placement-feature-copy"><b>ATS Fit</b><small>{atsScore == null ? 'Not assessed' : `${atsScore}%`}</small></span><ChevronRight size={14}/>
+      </Link>
       {report?.session_id&&availableScore?<Link className="placement-feature placement-feature-score" aria-label={`Score Card ${interviewScore}%`} to={`/reports/${encodeURIComponent(report.session_id)}`}><span className="placement-feature-icon"><FileText size={17}/></span><span className="placement-feature-copy"><b>Score Card</b><small>View your results</small><strong>{interviewScore}%</strong></span></Link>:<span className="placement-feature placement-feature-unavailable" aria-disabled="true"><span className="placement-feature-icon"><FileText size={17}/></span><span className="placement-feature-copy"><b>Score Card</b><small>{drive.interview_status==='completed'?'Awaiting result release':'After your interview'}</small></span></span>}
-      {coachAvailable ? <Link className="placement-feature placement-feature-call" aria-label={`Progress and AI coaching for ${drive.company_name}`} to={`/placement/call?drive=${id}&company=${encodeURIComponent(drive.company_name)}&role=${encodeURIComponent(drive.role_title)}`}><span className="placement-feature-icon"><TrendingUp size={17}/></span><span className="placement-feature-copy"><b>Progress</b><small>Mentor guidance</small></span></Link> : <span className="placement-feature placement-feature-unavailable" aria-disabled="true" title="Complete your first interview for this drive to unlock AI coaching"><span className="placement-feature-icon"><TrendingUp size={17}/></span><span className="placement-feature-copy"><b>Progress</b><small>After your first interview</small></span></span>}
+      {coachAvailable && <Link className="placement-feature placement-feature-call" aria-label={`Progress and AI coaching for ${drive.company_name}`} to={`/placement/call?drive=${id}&company=${encodeURIComponent(drive.company_name)}&role=${encodeURIComponent(drive.role_title)}`}><span className="placement-feature-icon"><TrendingUp size={17}/></span><span className="placement-feature-copy"><b>Progress</b><small>Mentor guidance</small></span></Link>}
     </nav></footer>;
 
 }
@@ -512,12 +515,12 @@ function DriveHeader({drive}: {drive:Drive}) {
   return <div className="drive-card-top"><div className="company-identity"><span className="company-avatar" aria-hidden="true">{(drive.company_name || "C").slice(0,2).toUpperCase()}</span><span className="drive-company-name" title={drive.company_name}>{drive.company_name}</span></div></div>;
 }
 
-function PlacementEligibilitySummary({drive,ats,compact=false}:{drive:Drive;ats:ReturnType<typeof usePlacementATS>;compact?:boolean}) {
+function PlacementEligibilitySummary({drive,ats,compact=false,showATS=true}:{drive:Drive;ats:ReturnType<typeof usePlacementATS>;compact?:boolean;showATS?:boolean}) {
   const ineligible = placementDriveEligibility(drive,ats).eligibility_status === "ineligible";
   const qualified = ats.eligible && !ineligible;
   const label = ineligible ? "Not eligible" : qualified ? "Eligible" : ats.pending ? "Checking…" : "Not assessed";
   const reason = ats.missing.length ? ineligible ? "Required skills missing" : "Some skill evidence is missing" : ineligible && ats.score !== null && ats.score < 50 ? "ATS Fit below 50%" : "";
-  return <div className={`placement-eligibility-summary${compact?" compact":""}`}><PlacementATSBadge driveId={drive.id} ats={ats}/><div className="placement-eligibility-line"><span className={`pill ${ineligible?"placement-ineligible-badge":qualified?"placement-summary-eligible":"placement-eligibility-pending"}`}>{label}</span>{reason&&<span className={`placement-eligibility-reason${ineligible?" is-ineligible":""}`}>– {reason}</span>}</div>{ats.missing.length>0&&<div className="placement-missing-skills"><strong>Missing skills:</strong><ul>{ats.missing.slice(0,3).map(skill=><li key={skill}>{skill}</li>)}</ul>{ats.missing.length>3&&<Link to={`/ats-fit?drive=${encodeURIComponent(drive.id)}`}>+{ats.missing.length-3} more · View assessment <ArrowRight size={12}/></Link>}</div>}{drive.is_locked&&<span className="pill placement-locked-badge">Locked</span>}</div>;
+  return <div className={`placement-eligibility-summary${compact?" compact":""}`}>{showATS&&<PlacementATSBadge driveId={drive.id} ats={ats}/>}<div className="placement-eligibility-line"><span className={`pill ${ineligible?"placement-ineligible-badge":qualified?"placement-summary-eligible":"placement-eligibility-pending"}`}>{label}</span>{reason&&<span className={`placement-eligibility-reason${ineligible?" is-ineligible":""}`}>– {reason}</span>}</div>{ats.missing.length>0&&<div className="placement-missing-skills"><strong>Missing skills:</strong><ul>{ats.missing.slice(0,3).map(skill=><li key={skill}>{skill}</li>)}</ul>{ats.missing.length>3&&<Link to={`/ats-fit?drive=${encodeURIComponent(drive.id)}`}>+{ats.missing.length-3} more · View assessment <ArrowRight size={12}/></Link>}</div>}{drive.is_locked&&<span className="pill placement-locked-badge">Locked</span>}</div>;
 }
 
 function PlacementTableStatus({drive}:{drive:Drive}) {
@@ -562,24 +565,31 @@ function PlacementProgress({drive, status}: {drive:Drive; status:string}) {
   );
 }
 
-export function PlacementDriveHistoryItem({drive:record}:{drive:Drive}) {
+export function PlacementDriveHistoryItem({drive:record,reports=[],expanded=true}:{drive:Drive;reports?:Report[];expanded?:boolean}) {
   const drive=currentDriveState(record,Date.now());
   const ats=usePlacementATS(drive.id);
   const qualified=ats.eligible && drive.eligibility_status!=="ineligible";
   const closed=drive.status==="closed" || ["closed","expired"].includes(drive.interview_status||"");
   const canInterview=qualified && !closed && !drive.is_locked && drive.main_resume_available===true && ["start","resume","retry_preparation"].includes(drive.interview_action||"");
   const label=drive.main_resume_available===false?"Resume required":qualified?"Eligible":ats.pending?"Checking…":ats.score===null?"Not assessed":"Not eligible";
-  const reason=closed?"Interview closed":drive.is_locked?"Drive locked":ats.pending?"Checking ATS Fit":ats.score===null?"Assessment required":!qualified?ats.score<50?"ATS Fit below 50%":"Eligibility requirements unmet":drive.main_resume_available!==true?"Main Resume required":drive.interview_status==="upcoming"||drive.status==="scheduled"?"Not open yet":drive.interview_action==="completed"?"Attempts completed":"Awaiting assignment";
+  const reason=closed?"Interview closed":drive.is_locked?"Drive locked":ats.pending?"Checking ATS Fit":ats.score===null?"Assessment required":!qualified?(ats.score ?? 0)<50?"ATS Fit below 50%":"Eligibility requirements unmet":drive.main_resume_available!==true?"Main Resume required":drive.interview_status==="upcoming"||drive.status==="scheduled"?"Not open yet":drive.interview_action==="completed"?"Attempts completed":"Awaiting assignment";
   const actionLabel=drive.interview_action==="resume"?"Continue Interview":"Start Interview";
-  return <article className="placement-history-item" data-drive-id={drive.id}>
+  const info=placementPresentation(drive);
+  const attempts=studentAttemptState(drive);
+  const latest=reports.filter(report=>report.drive_id===drive.id && report.status==='released' && report.report?.status!=='awaiting_release' && typeof report.report?.overall_score==='number')
+    .sort((a,b)=>Date.parse(b.completed_at||b.created_at)-Date.parse(a.completed_at||a.created_at))[0];
+  return <article className="placement-history-item dashboard-drive-history-row" data-drive-id={drive.id} data-expanded={expanded}>
     <div className="placement-history-company"><span className="company-avatar" aria-hidden="true">{(drive.company_name||"C").slice(0,2).toUpperCase()}</span><div><span className="placement-history-label">Company</span><strong>{drive.company_name}</strong></div></div>
-    <div className="placement-history-drive"><span className="placement-history-label">Drive / role</span><h3>{drive.role_title}</h3></div>
-    <div className="placement-history-ats"><PlacementATSBadge driveId={drive.id} ats={ats}/></div>
+    <div className="placement-history-drive"><span className="placement-history-label">Drive / role</span><h3>{drive.role_title}</h3>{expanded&&<small>{info.window}</small>}</div>
     <div className="placement-history-eligibility"><span className={`pill ${qualified&&drive.main_resume_available!==false?"placement-summary-eligible":ats.score!==null?"placement-history-ineligible":"placement-eligibility-pending"}`}>{label}</span></div>
-    <div className="placement-history-action">{canInterview?<Link className="button primary small" to={`/practice?drive=${encodeURIComponent(drive.id)}`} aria-label={`${actionLabel} for ${drive.role_title} at ${drive.company_name}`}>{actionLabel}<ArrowRight size={14}/></Link>:<><button type="button" className="button secondary small" disabled title={reason} aria-label={`${actionLabel} unavailable: ${reason}`}>{actionLabel}<ArrowRight size={14}/></button><small>{reason}</small></>}</div>
+    <div className="dashboard-history-status"><span className="placement-history-label">Interview status</span><strong>{info.status}</strong>{expanded&&<small>{attempts.completed} completed · {attempts.remaining} remaining</small>}</div>
+    <nav className="dashboard-history-actions" aria-label={`Interview actions for ${drive.company_name}`}>
+      {canInterview?<Link to={`/practice?drive=${encodeURIComponent(drive.id)}`} aria-label={`${actionLabel} for ${drive.company_name}`}><Mic size={15}/><span>{actionLabel}</span></Link>:<button type="button" disabled title={reason}><Mic size={15}/><span>{actionLabel}</span></button>}
+      <Link className="dashboard-history-ats" data-ats-tone={ats.score===null?'neutral':ats.score>=50?'green':'red'} to={`/ats-fit?drive=${encodeURIComponent(drive.id)}`} aria-label={`ATS Fit assessment for ${drive.company_name}`}><FileText size={15}/><span><strong>ATS Fit</strong><small>{ats.score===null?'Not assessed':`${ats.score}%`}</small></span></Link>
+      {latest?.session_id?<Link to={`/reports/${encodeURIComponent(latest.session_id)}`} aria-label={`Scorecard for ${drive.company_name}`}><FileText size={15}/><span>Scorecard</span></Link>:<button type="button" disabled title="Available after your interview result is released"><FileText size={15}/><span>Scorecard</span></button>}
+    </nav>
   </article>;
 }
-
 export function PlacementDriveCard({drive,reports=[],select}: {drive:Drive;reports?:Report[];select?:(drive:Drive)=>Promise<void>}) {
   const ats=usePlacementATS(drive.id);
   const hasPlacementDecision=["success","rejected","hold"].includes(placementResult(drive.placement_decision).tone);
@@ -595,7 +605,7 @@ export function PlacementDriveCard({drive,reports=[],select}: {drive:Drive;repor
                 <DriveHeader drive={drive} />
 
                 <h2>{drive.role_title}</h2>
-                <PlacementEligibilitySummary drive={drive} ats={ats}/>
+                <PlacementEligibilitySummary drive={drive} ats={ats} showATS={false}/>
                 {hasPlacementDecision&&<PlacementResult value={drive.placement_decision} compact/>}
                 {cardDrive.eligibility_status === "ineligible" && !ats.missing.length && !hasPlacementDecision && <p className="placement-eligibility-notice">{cardDrive.eligibility_reason || "You do not meet this drive’s eligibility requirements."}</p>}
 
