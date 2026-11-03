@@ -365,8 +365,8 @@ export function Practice() {
     if (!driveId) return true;
     try {
       const result = await api<{criteria_ats_fit?:number|null;ats_status:string;ats_fit_score:unknown}>(`/api/student/drives/${encodeURIComponent(driveId)}/ats-fit`,{timeoutMs:8000});
-      if (meetsPlacementATSThreshold(evaluatedPlacementScore(result.ats_status,result.ats_fit_score),result.criteria_ats_fit??50)) return true;
-      setError(`ATS Fit must be at least ${result.criteria_ats_fit??50}% to take this interview.`);
+      if (meetsPlacementATSThreshold(evaluatedPlacementScore(result.ats_status,result.ats_fit_score),result.criteria_ats_fit??null)) return true;
+      setError(`ATS Fit must be at least ${result.criteria_ats_fit??null}% to take this interview.`);
     } catch {
       setError("Unable to verify ATS Fit. Please retry before starting the interview.");
     }
@@ -549,7 +549,7 @@ export function Practice() {
   ) || (context?.publication_status === "released" && context.submission_id
     ? { submission_id: context.submission_id }
     : null);
-  const placementActionLabel = !atsQualified ? placementATS.pending ? "Checking ATS Fit…" : placementATS.score === null ? "ATS assessment required" : placementATS.score < placementATS.minimum ? `ATS Fit below ${placementATS.minimum}%` : "ATS assessment required" : driveCanResume
+  const placementActionLabel = !atsQualified ? placementATS.pending ? "Checking ATS Fit…" : placementATS.score === null ? "ATS assessment required" : placementATS.minimum!==null&&placementATS.score < placementATS.minimum ? `ATS Fit below ${placementATS.minimum}%` : "ATS assessment required" : driveCanResume
     ? "Continue interview"
     : driveCanStart
       ? context?.action === "retry_preparation" ? "Retry placement interview" : context?.can_start_next_attempt ? `Start attempt ${context.next_attempt_number || context.attempt_number}` : "Start placement interview"
