@@ -11,6 +11,7 @@ export async function requestCoachSpeech(text: string, signal: AbortSignal): Pro
     });
     const blob = await response.blob();
     if (!blob.size) throw new Error('Coach voice returned no audio. You can continue using the conversation text.');
+    if (!blob.type.startsWith('audio/')) throw new Error('Coach voice returned an unexpected response. Please retry; if it continues, contact support.');
     return blob;
   } catch (cause) {
     if (cause instanceof ApiError && (cause.status === 503 || cause.status === 429)) {

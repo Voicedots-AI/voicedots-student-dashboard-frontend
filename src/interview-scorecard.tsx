@@ -127,6 +127,8 @@ export function InterviewScorecard({ view, sessionId, role }: { view: InterviewR
   const coachAudioUrl = useRef<string | null>(null);
   const coachSpeechRequest = useRef<AbortController | null>(null);
   const [coachVoiceError, setCoachVoiceError] = useState('');
+  const [coachVoiceLoading, setCoachVoiceLoading] = useState(false);
+  const coachAudioText = useRef('');
 
   function stopCoachVoice() {
     coachSpeechRequest.current?.abort();
@@ -140,14 +142,27 @@ export function InterviewScorecard({ view, sessionId, role }: { view: InterviewR
     }
     if (coachAudioUrl.current) URL.revokeObjectURL(coachAudioUrl.current);
     coachAudioUrl.current = null;
+    coachAudioText.current = '';
+    setCoachVoiceLoading(false);
     setIsCoachSpeaking(false);
   }
 
   // Use the same canonical male voice as Dr. Rajesh's coach call.
-  async function speakCoachText(text: string) {
+  async function speakCoachText(text: string, userInitiated = false) {
+    // Retry cached audio directly within the click gesture when autoplay was blocked.
+    if (userInitiated && coachAudio.current && coachAudioText.current === text) {
+      setCoachVoiceError('');
+      try {
+        await coachAudio.current.play();
+      } catch {
+        setCoachVoiceError('Audio could not play. Check your browser sound settings and select Play voice again.');
+      }
+      return;
+    }
     stopCoachVoice();
-    if (isVoiceMuted) return;
+    if (isVoiceMuted && !userInitiated) return;
     setCoachVoiceError('');
+    setCoachVoiceLoading(true);
     const controller = new AbortController();
     coachSpeechRequest.current = controller;
     try {
@@ -158,6 +173,9 @@ export function InterviewScorecard({ view, sessionId, role }: { view: InterviewR
       coachAudioUrl.current = url;
       const player = new Audio(url);
       coachAudio.current = player;
+      coachAudioText.current = text;
+      player.muted = false;
+      player.volume = 1;
       player.playbackRate = 1.08;
       player.onplaying = () => setIsCoachSpeaking(true);
       player.onended = stopCoachVoice;
@@ -168,8 +186,14 @@ export function InterviewScorecard({ view, sessionId, role }: { view: InterviewR
       await player.play();
     } catch (cause) {
       if (controller.signal.aborted) return;
+      if (cause instanceof DOMException && cause.name === 'NotAllowedError') {
+        setCoachVoiceError('Select Play voice to hear Dr. Rajesh. Your browser needs a click before playing sound.');
+        return;
+      }
       stopCoachVoice();
       setCoachVoiceError(cause instanceof Error ? cause.message : 'Voice is unavailable. You can continue reading the conversation.');
+    } finally {
+      if (!controller.signal.aborted) setCoachVoiceLoading(false);
     }
   }
 
@@ -201,7 +225,8 @@ export function InterviewScorecard({ view, sessionId, role }: { view: InterviewR
     4: `Here is your Personalized Daily Learning Schedule! I've structured your roadmap with daily technical exercises, communication drills, and simulated mock interviews.`,
   };
 
-  const currentDialogue = customDialogue || defaultDialogueForStep[activeStep];
+  const introDialogue = `Hi ${studentFirstName}! I'm Dr. Rajesh, your AI Coach. I've analysed your interview. Your score is ${overallScore} out of 100. I can help you improve and prepare for your next attempt. We can create a personalized improvement plan based on your weak areas. Would you like to start now?`;
+  const currentDialogue = customDialogue || (coachIntro ? introDialogue : defaultDialogueForStep[activeStep]);
 
   useEffect(() => {
     if (showCoachPopup && !isVoiceMuted) {
@@ -210,7 +235,7 @@ export function InterviewScorecard({ view, sessionId, role }: { view: InterviewR
       }, 350);
       return () => { clearTimeout(timer); stopCoachVoice(); };
     }
-  }, [showCoachPopup, isVoiceMuted, activeStep]);
+  }, [showCoachPopup, activeStep, coachIntro]);
 
   async function saveFeedback(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -500,15 +525,20 @@ export function InterviewScorecard({ view, sessionId, role }: { view: InterviewR
                   <button
                     type="button"
                     className="s3-audio-toggle-btn"
+                    disabled={coachVoiceLoading}
                     onClick={() => {
-                      if (!isVoiceMuted) {
+                      if (isCoachSpeaking) {
                         stopCoachVoice();
+                        setIsVoiceMuted(true);
+                      } else {
+                        setIsVoiceMuted(false);
+                        void speakCoachText(currentDialogue, true);
                       }
-                      setIsVoiceMuted(!isVoiceMuted);
                     }}
-                    title={isVoiceMuted ? 'Turn Coach Voice On' : 'Mute Coach Voice'}
+                    title={isCoachSpeaking ? 'Mute Coach Voice' : 'Play Coach Voice'}
                   >
-                    {isVoiceMuted ? <VolumeX size={15} /> : <Volume2 size={15} />}
+                    {isCoachSpeaking ? <VolumeX size={15} /> : <Volume2 size={15} />}
+                    <span>{coachVoiceLoading ? 'Preparing voice…' : isCoachSpeaking ? 'Mute' : 'Play voice'}</span>
                   </button>
                 </div>
               </div>
@@ -519,6 +549,7 @@ export function InterviewScorecard({ view, sessionId, role }: { view: InterviewR
                   <h2 className="s3-coach-headline">Hi {studentFirstName}! I'm your AI Coach</h2>
                   <p className="s3-coach-subheadline">Personalized Placement Readiness Guidance</p>
                 </div>
+                {coachVoiceError && <div role="status" className="s3-voice-notice"><p>{coachVoiceError}</p><button type="button" className="s3-discussion-prompt-chip" disabled={coachVoiceLoading} onClick={() => { setIsVoiceMuted(false); void speakCoachText(currentDialogue, true); }}>Play voice / Retry</button></div>}
 
                 {coachIntro && <div className="s3-intro-conversation">
                   <p>I've analysed your interview. Your score is <strong>{overallScore}/100</strong>. I can help you improve and prepare for your next attempt.</p>
@@ -578,9 +609,8 @@ export function InterviewScorecard({ view, sessionId, role }: { view: InterviewR
                   </button>
                 </div>
 
-                {/* Neha Speech Box */}
+                {/* Dr. Rajesh's discussion */}
                 <div className="s3-dialogue-speech-box">
-                  {coachVoiceError && <p role="status">{coachVoiceError}</p>}
                   {activeStep === 4 && !customDialogue ? (
                     <>
                       Here is your <span className="s3-dialogue-highlight-amber">Personalized Daily Learning Schedule</span>!
