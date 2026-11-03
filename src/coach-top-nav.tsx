@@ -1,6 +1,7 @@
 import { Link, useLocation } from 'react-router-dom';
 import { TrendingUp, Calendar, BookOpen, CalendarDays, LineChart, Award, PhoneCall } from 'lucide-react';
 import './coach-approved.css';
+import { coachCallPath } from './coach-call-link';
 
 export function CoachTopNav({ activeTab }: { activeTab?: 'call' | 'coach' | 'plan' | 'schedule' | 'resources' | 'reattempt' | 'progress' | 'readiness' }) {
   const location = useLocation();
@@ -9,6 +10,7 @@ export function CoachTopNav({ activeTab }: { activeTab?: 'call' | 'coach' | 'pla
   const screen = (searchParams.get('screen') || pathSegment || '').toLowerCase();
 
   const buildPath = (screenName: string) => {
+    if (screenName === 'call') return coachCallPath(location.search, location.pathname);
     const params = new URLSearchParams(location.search);
     params.delete('screen');
     params.delete('phase');

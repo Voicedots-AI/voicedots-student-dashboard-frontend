@@ -11,8 +11,10 @@ import {
 import { PageHeading } from './ui';
 import { CoachTopNav } from './coach-top-nav';
 import './coach-approved.css';
+import { useCoachCallPath } from './coach-call-link';
 
 export function CoachDailyProgress() {
+  const coachPath = useCoachCallPath();
   const stats = [
     { label: 'Current Streak', value: '4 Days', sub: 'Personal best: 7 days', icon: Flame, color: '#f59e0b' },
     { label: 'Completed Sessions', value: '12', sub: 'Across 3 preparation plans', icon: CheckCircle2, color: '#10b981' },
@@ -38,7 +40,7 @@ export function CoachDailyProgress() {
       <CoachTopNav activeTab="plan" />
 
       <div style={{ marginBottom: '16px' }}>
-        <Link to="/coach" className="coach-secondary" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '6px 14px', borderRadius: '9999px', fontSize: '12px' }}>
+        <Link to={coachPath} className="coach-secondary" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '6px 14px', borderRadius: '9999px', fontSize: '12px' }}>
           <ArrowLeft size={14} /> Back to AI Coach
         </Link>
       </div>
@@ -111,7 +113,7 @@ export function CoachDailyProgress() {
 
           <div style={{ marginTop: '24px', paddingTop: '16px', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span style={{ fontSize: '12px', color: '#64748b' }}>Next AI evaluation scheduled on next completed lesson</span>
-            <Link to="/coach" className="coach-secondary" style={{ fontSize: '12px', padding: '6px 14px' }}>
+            <Link to={coachPath} className="coach-secondary" style={{ fontSize: '12px', padding: '6px 14px' }}>
               Practice with AI Coach <ChevronRight size={14} />
             </Link>
           </div>

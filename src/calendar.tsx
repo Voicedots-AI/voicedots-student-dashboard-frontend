@@ -5,6 +5,7 @@ import {
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { api, type Drive, type Report } from "./api";
+import { coachCallPath } from './coach-call-link';
 import { Dialog, Empty, ErrorMessage, PageHeading, ResourceState, useResource } from "./ui";
 
 type Kind = "placement" | "coach" | "personal";
@@ -288,9 +289,7 @@ export function Calendar() {
     setDetail(null);
     if (event.kind === "placement") { navigate(`/placements?drive=${encodeURIComponent(event.id)}`); return; }
     if (event.kind === "coach") {
-      if (event.plan_id && event.cycle_id) { navigate(`/coach/session?plan=${encodeURIComponent(event.plan_id)}&cycle=${encodeURIComponent(event.cycle_id)}`); return; }
-      if (event.plan_id && event.session_id) { navigate(`/coach?plan=${encodeURIComponent(event.plan_id)}&session=${encodeURIComponent(event.session_id)}&stage=coach`); return; }
-      navigate("/placement/plan");
+      navigate(coachCallPath('', '/calendar', {plan:event.plan_id || ''}));
       return;
     }
   }
@@ -346,7 +345,7 @@ export function Calendar() {
   function eventPrimaryAction(event: CalendarEvent) {
     if (event.coachDetails || event.kind === "coach") {
       setDetail(null);
-      navigate("/placement/plan");
+      navigate(coachCallPath('', '/calendar', {plan:event.plan_id || ''}));
       return;
     }
     if (event.kind === "personal") {
@@ -448,7 +447,7 @@ export function Calendar() {
             type="button"
             className="button primary small"
             style={{ borderRadius: "9999px", fontSize: "0.78rem" }}
-            onClick={() => navigate("/placement/plan")}
+            onClick={() => navigate(coachCallPath('', '/calendar'))}
           >
             Start Practice with AI Coach →
           </button>

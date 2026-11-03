@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, type FormEvent } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   AlertCircle,
   ArrowRight,
@@ -18,8 +18,9 @@ import {
   VolumeX,
   PhoneCall,
 } from 'lucide-react';
-import { api, json, type CandidateSatisfaction, type InterviewReportView } from './api';
+import { api, ApiError, json, type CandidateSatisfaction, type InterviewReportView } from './api';
 import { requestCoachSpeech } from './coach-voice-audio';
+import { coachCallPath } from './coach-call-link';
 
 import { PlacementOfficerAvatar } from './placement-officer-avatar';
 import './journey-screens.css';
@@ -41,6 +42,9 @@ const feedbackQuestions = [
 
 export function InterviewScorecard({ view, sessionId, role }: { view: InterviewReportView; sessionId: string; role?: string; assessedAt?: string; durationSeconds?: number }) {
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const [openingPlan, setOpeningPlan] = useState(false);
+  const [planError, setPlanError] = useState('');
   const [callDriveId, setCallDriveId] = useState(searchParams.get('drive') || '');
   useEffect(() => {
     let active = true;
@@ -51,7 +55,9 @@ export function InterviewScorecard({ view, sessionId, role }: { view: InterviewR
         setCallDriveId(report?.drive_id || '');
         setCompanyName(report?.company_name || 'Placement interview');
       }
-    }).catch(() => { /* Keep general guidance available if report context is unavailable. */ });
+    }).catch(() => {
+      if (active) setPlanError('We couldn’t identify this report’s placement drive. Refresh the report or open Progress from your placement card.');
+    });
     return () => { active = false; };
   }, [sessionId]);
   const callParams = new URLSearchParams();
@@ -444,9 +450,8 @@ export function InterviewScorecard({ view, sessionId, role }: { view: InterviewR
                 type="button"
                 className="s2-talk-coach-btn"
                 onClick={() => {
-                  setShowCoachPopup(true);
-                  setCoachIntro(true);
-                  speakCoachText(currentDialogue);
+                  stopCoachVoice();
+                  navigate(coachCallPath(callParams.toString(), `/reports/${encodeURIComponent(sessionId)}`, {report_session_id:sessionId}));
                 }}
               >
                 Talk to AI Coach Now
@@ -859,17 +864,28 @@ export function InterviewScorecard({ view, sessionId, role }: { view: InterviewR
                 </div>
                 {/* Bottom Action Buttons: Save & Start Day 1 Learning Plan -> and Re-adjust Goals */}
                 <div className="s3-bottom-actions-row">
-                  {!coachIntro && <Link className="s3-btn-readjust" to={`/placement/call?${callParams.toString()}`} onClick={() => { stopCoachVoice(); setShowCoachPopup(false); }}><PhoneCall size={16} /> Call Placement Officer Now</Link>}
-                  <Link
-                    to={`/placement/plan?${callParams.toString()}`}
+                  {!coachIntro && <Link className="s3-btn-readjust" to={coachCallPath(callParams.toString(), `/reports/${encodeURIComponent(sessionId)}`, {report_session_id:sessionId})} onClick={() => { stopCoachVoice(); setShowCoachPopup(false); }}><PhoneCall size={16} /> Call AI Coach Now</Link>}
+                  <button
+                    type="button"
+                    disabled={openingPlan || !callDriveId}
                     className="s3-btn-start-plan"
-                    onClick={() => {
-                      stopCoachVoice();
-                      setShowCoachPopup(false);
+                    onClick={async () => {
+                      setOpeningPlan(true);
+                      setPlanError('');
+                      try {
+                        await api(`/api/student/coach/improvement-journey?drive_id=${encodeURIComponent(callDriveId)}`);
+                        stopCoachVoice();
+                        setShowCoachPopup(false);
+                        navigate(`/placement/plan?${callParams.toString()}`);
+                      } catch (cause) {
+                        setPlanError(cause instanceof ApiError && [404,405].includes(cause.status)
+                          ? 'Your interview report is available, but the improvement journey service is not enabled on this server yet. Please contact support. You can keep reviewing your results here.'
+                          : cause instanceof Error ? cause.message : 'Your plan could not be opened. Please try again.');
+                      } finally { setOpeningPlan(false); }
                     }}
                   >
-                    {coachIntro ? "Let's Start My Improvement Plan" : 'Save & Start Day 1 Learning Plan'} <ArrowRight size={15} />
-                  </Link>
+                    {openingPlan ? 'Opening your plan…' : !callDriveId ? 'Waiting for placement drive…' : coachIntro ? "Let's Start My Improvement Plan" : 'Open My Learning Plan'} <ArrowRight size={15} />
+                  </button>
 
                   <button
                     type="button"
@@ -884,6 +900,7 @@ export function InterviewScorecard({ view, sessionId, role }: { view: InterviewR
                     {coachIntro ? 'Maybe Later' : 'Re-adjust Goals'}
                   </button>
                 </div>
+                {planError && <p role="alert" className="s3-voice-notice">{planError}</p>}
               </div>
             </div>
           </div>

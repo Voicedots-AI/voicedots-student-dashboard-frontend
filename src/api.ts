@@ -36,6 +36,9 @@ export type Attempt = {
   source?: "practice" | "placement";
 };
 export type Report = {
+  session_status?: string | null;
+  termination_reason?: string | null;
+  termination_source?: string | null;
   evaluation_id: string;
   session_id: string;
   submission_id: string;
@@ -53,6 +56,9 @@ export type Report = {
   report: InterviewReportView | null;
 };
 export type Drive = {
+  interview_session_status?: string | null;
+  interview_termination_reason?: string | null;
+  interview_termination_source?: string | null;
   placement_decision?: string | null;
   is_locked?: boolean;
   id: string;

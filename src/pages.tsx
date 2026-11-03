@@ -531,6 +531,12 @@ function PlacementTableStatus({drive}:{drive:Drive}) {
 function PlacementProgress({drive, status}: {drive:Drive; status:string}) {
   const attempts = studentAttemptState(drive);
   const percent = attempts.maximum ? attempts.completed / attempts.maximum * 100 : 0;
+  const reason = drive.interview_termination_reason;
+  const outcome = drive.interview_session_status === 'candidate_ended'
+    ? drive.interview_termination_source === 'proctor' ? 'Interview stopped by monitoring' : 'Interview ended early by you'
+    : reason === 'time_limit_reached' ? 'Interview time finished'
+    : ['internal_error', 'voice_provider_limit', 'stale_runtime'].includes(reason || '') ? 'Interview interrupted by a service issue'
+    : reason === 'connection_lost' ? 'Interview interrupted — connection lost' : '';
   const progressPath = `/placement/call?drive=${encodeURIComponent(drive.id)}&company=${encodeURIComponent(drive.company_name)}&role=${encodeURIComponent(drive.role_title)}`;
 
   return (
@@ -556,11 +562,12 @@ function PlacementProgress({drive, status}: {drive:Drive; status:string}) {
           <strong>{attempts.completed}</strong>
         </div>
         <div>
-          <b>{attempts.completed} completed</b>
+          <b>{attempts.completed} {drive.interview_session_status === 'candidate_ended' ? 'finished · latest ended early' : 'completed'}</b>
           <span>{attempts.current != null ? 1 : 0} in progress</span>
           <span>{attempts.remaining} remaining</span>
         </div>
       </Link>
+      {outcome && <p className="placement-attempt-outcome" role="status">{outcome}. {canAccessPlacementCoach(drive) ? 'Review available feedback in your improvement journey.' : 'Open the opportunity to check your next available action.'}</p>}
     </div>
   );
 }

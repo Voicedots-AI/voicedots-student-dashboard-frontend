@@ -9,12 +9,14 @@ import {
 import { PageHeading } from './ui';
 import { CoachTopNav } from './coach-top-nav';
 import './coach-approved.css';
+import { useCoachCallPath } from './coach-call-link';
 
 type ResourceCategory = 'all' | 'technical' | 'system_design' | 'behavioral' | 'company_banks';
 
 type Resource = { id: string | number; category: string; title: string; description: string; readTime: string; skillTag: string; level: string; actionUrl: string; actionLabel: string };
 
 export function CoachLearningResources({ resources = [], questions = [] }: { resources?: Resource[]; questions?: { question: string; topic?: string; answer_guidance?: string }[] }) {
+  const coachPath = useCoachCallPath();
   const [selectedCategory, setSelectedCategory] = useState<ResourceCategory>('all');
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -37,7 +39,7 @@ export function CoachLearningResources({ resources = [], questions = [] }: { res
       <CoachTopNav activeTab="resources" />
 
       <div style={{ marginBottom: '16px' }}>
-        <Link to="/coach" className="coach-secondary" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '6px 14px', borderRadius: '9999px', fontSize: '12px' }}>
+        <Link to={coachPath} className="coach-secondary" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '6px 14px', borderRadius: '9999px', fontSize: '12px' }}>
           <ArrowLeft size={14} /> Back to AI Coach
         </Link>
       </div>

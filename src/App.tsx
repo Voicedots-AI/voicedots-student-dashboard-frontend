@@ -1,4 +1,5 @@
 import {displayName} from "./display";
+import { CoachCallEntry } from './coach-call-link';
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import {
   ArrowRight,
@@ -567,7 +568,7 @@ export function App() {
             <Route path="/placement/reattempt" element={<StudentImprovementJourney />} />
             <Route path="/placement/progress" element={<StudentImprovementJourney />} />
             <Route path="/placement/readiness" element={<StudentImprovementJourney />} />
-            <Route path="/coach" element={<Navigate to="/placement/plan" replace />} />
+            <Route path="/coach" element={<CoachCallEntry />} />
             <Route path="/coach/plan" element={<Navigate to="/placement/plan" replace />} />
             <Route path="/coach/progress" element={<Navigate to="/placement/progress" replace />} />
             <Route path="/progress" element={<Navigate to="/placement/progress" replace />} />

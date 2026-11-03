@@ -33,7 +33,7 @@ import {
   ChevronRight,
   Download,
 } from "lucide-react";
-import { api, json, request } from "./api";
+import { api, ApiError, json, request } from "./api";
 import { useAuth } from "./auth";
 import { CoachLearningResources } from "./coach-learning-resources";
 import { CoachScheduleReattempt } from "./coach-schedule-reattempt";
@@ -47,6 +47,7 @@ import "./journey-screens.css";
 import "./scorecard-light-theme.css";
 import { LivePlacementOfficerCall } from "./placement-officer-call";
 import { PlacementOfficerAvatar } from "./placement-officer-avatar";
+import { coachCallPath } from './coach-call-link';
 
 export type CompanyDriveOption = {
   id: string;
@@ -432,6 +433,9 @@ export function resolveNehaFemaleVoice(): SpeechSynthesisVoice | null {
 export function StudentImprovementJourney() {
   const location = useLocation();
   const params = new URLSearchParams(location.search);
+  if (location.pathname === '/placement/call' && ['ats','guidance'].includes(params.get('mode') || '')) {
+    return <LivePlacementOfficerCall key={`${params.get('mode')}:${params.get('drive') || ''}:${params.get('source') || ''}:${params.get('plan') || ''}:${params.get('report_session_id') || ''}`} />;
+  }
   if (['1','setup','interview','live'].includes((params.get('screen') || '').toLowerCase()) || ['setup','live','details'].includes((params.get('phase') || '').toLowerCase())) {
     return <PlacementDriveRedirect />;
   }
@@ -1427,7 +1431,9 @@ function ImprovementJourneyScreens() {
       }
     } catch (error) {
       setData(null);
-      setJourneyError((error as Error).message || "Your learning data could not be loaded. Please retry.");
+      setJourneyError(error instanceof ApiError && [404,405].includes(error.status)
+        ? "The improvement journey service is unavailable on this server. This does not change your completed interview or report. Please contact support to enable coaching."
+        : (error as Error).message || "Your learning data could not be loaded. Please retry.");
     } finally {
       setLoading(false);
     }
@@ -1618,7 +1624,7 @@ function ImprovementJourneyScreens() {
     return <section className="journey-container"><CoachTopNav/><h2>Your learning data is not available yet</h2><p role="status">{journeyError || "Complete or prepare an interview through your placement drive to create your assessment records."}</p><button className="button secondary" onClick={() => void loadJourneyData()}>Retry</button><Link className="button primary" to="/placements">View placement drives</Link></section>;
   }
   if (currentScreen === 4 && !data.improvement_plan?.focus_areas?.length) {
-    return <section className="journey-container"><CoachTopNav activeTab="plan"/><h2>No learning plan saved yet</h2><p>Your plan will appear here when one is created from your assessment.</p><Link className="button primary" to={`/placement/call?${searchParams.toString()}`}>Talk to AI Coach</Link></section>;
+    return <section className="journey-container"><CoachTopNav activeTab="plan"/><h2>No learning plan saved yet</h2><p>Your plan will appear here when one is created from your assessment.</p><Link className="button primary" to={coachCallPath(searchParams.toString(), location.pathname)}>Talk to AI Coach</Link></section>;
   }
 
 
@@ -2571,7 +2577,7 @@ function ImprovementJourneyScreens() {
                   <button
                     type="button"
                     className="s2-talk-coach-btn"
-                    onClick={() => navigateTo(2, { showCoach: true })}
+                    onClick={() => navigate(coachCallPath(searchParams.toString(), location.pathname))}
                   >
                     Talk to AI Coach Now
                   </button>
@@ -3357,7 +3363,7 @@ function ImprovementJourneyScreens() {
                               disabled={updatingTaskId === t.id}
                               onClick={() => {
                                 if (t.type === "AI Coach") {
-                                  navigateTo(1, { phase: "details" });
+                                  navigate(coachCallPath(searchParams.toString(), location.pathname));
                                 } else {
                                   handleTaskAction(t);
                                 }

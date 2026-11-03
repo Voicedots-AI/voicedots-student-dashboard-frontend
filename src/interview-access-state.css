@@ -7,4 +7,6 @@
 .interview-access-description p{margin:0 0 12px}
 .interview-access-actions{display:flex;justify-content:center;flex-wrap:wrap;gap:12px;margin-top:26px}
 .interview-access-actions .button{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:44px;border-radius:12px;padding:10px 20px}
+.interview-access-actions .button.primary{background:#0969da;color:#fff;border-color:#0969da}
+.interview-access-actions .button.primary:hover{background:#0759bc}
 @media(max-width:540px){.interview-access-card{padding:32px 20px}.interview-access-actions{flex-direction:column}}

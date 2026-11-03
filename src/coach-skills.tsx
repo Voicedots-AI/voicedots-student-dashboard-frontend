@@ -1,5 +1,6 @@
 import { Link, useSearchParams } from 'react-router-dom';
 import { ErrorMessage, PageHeading, useResource } from './ui';
+import { useCoachCallPath } from './coach-call-link';
 
 type Skill = {
   skill: string;
@@ -28,12 +29,13 @@ type SkillsResponse = {
 };
 
 export function CoachSkills() {
+  const coachPath = useCoachCallPath();
   const [params] = useSearchParams();
   const planId = params.get('plan');
   const resource = useResource<SkillsResponse>(planId ? `/api/student/coach/plans/${encodeURIComponent(planId)}/skills` : null);
   return <div className="coach-skills-page">
     <PageHeading eyebrow="MY PLACEMENT SKILLS" title="What your evidence shows">Review skills for this placement and return to the lesson that can strengthen them.</PageHeading>
-    <Link className="button secondary" to={planId ? `/coach?plan=${encodeURIComponent(planId)}` : '/coach'}>Back to AI Coach</Link>
+    <Link className="button secondary" to={coachPath}>Back to AI Coach</Link>
     {!planId && <section className="panel"><p>Choose a placement plan in AI Coach to see its required skills.</p></section>}
     {resource.loading && planId && <section className="panel" role="status">Loading placement skills…</section>}
     {resource.error && <ErrorMessage message={resource.error} retry={resource.reload} />}

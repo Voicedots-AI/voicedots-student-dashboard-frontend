@@ -14,6 +14,9 @@ export async function requestCoachSpeech(text: string, signal: AbortSignal): Pro
     if (!blob.type.startsWith('audio/')) throw new Error('Coach voice returned an unexpected response. Please retry; if it continues, contact support.');
     return blob;
   } catch (cause) {
+    if (cause instanceof ApiError && (cause.status === 404 || cause.status === 405)) {
+      throw new Error('Coach voice is not available on this server yet. Please contact support. You can still read your feedback; retrying will not fix a missing service.');
+    }
     if (cause instanceof ApiError && (cause.status === 503 || cause.status === 429)) {
       retryAfter = Date.now() + 60000;
       unavailableMessage = cause.message;

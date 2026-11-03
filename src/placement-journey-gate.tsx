@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { api, type Drive, type Report } from './api';
+import { api, ApiError, type Drive, type Report } from './api';
 import { useAuth } from './auth';
 import { canAccessPlacementCoach } from './placement-coach-access';
 import { InterviewAccessState } from './interview-access-state';
@@ -18,19 +18,26 @@ export function PlacementJourneyGate({ children }: { children: ReactNode }) {
     setResult(null);
     Promise.all([
       api<Drive[]>('/api/student/drives', { signal: controller.signal, cache: 'no-store' }),
-      api<{ reports: Report[] }>('/api/student/reports', { signal: controller.signal, cache: 'no-store' }),
+      api<{ reports: Report[] }>('/api/student/reports', { signal: controller.signal, cache: 'no-store' }).catch(() => ({ reports: [] })),
       driveId ? api<{ unlocked: boolean }>(`/api/student/coach/journey-access?drive_id=${encodeURIComponent(driveId)}`, { signal: controller.signal, cache: 'no-store' }) : Promise.resolve({ unlocked: false }),
     ]).then(([drives, data, access]) => {
-      if (!controller.signal.aborted) setResult({ key, selected: drives.find(drive => drive.id === driveId),
-        unlocked: access.unlocked, eligible: drives.filter(drive => canAccessPlacementCoach(drive, data.reports)) });
-    }).catch(() => {
-      if (!controller.signal.aborted) setResult({ key, eligible: [], error: 'We couldn’t verify your interview history. Please try again. Your existing progress is safe.' });
+      const selected = drives.find(drive => drive.id === driveId);
+      const conflict = driveId && selected && !access.unlocked && canAccessPlacementCoach(selected, data.reports);
+      if (!controller.signal.aborted) setResult({ key, selected,
+        unlocked: access.unlocked, eligible: drives.filter(drive => canAccessPlacementCoach(drive, data.reports)),
+        error: conflict ? 'Your drive shows a finished interview, but the coaching service could not match its history. Please contact support with this drive ID: ' + driveId + '. You do not need to repeat the interview to fix this mismatch.' : undefined });
+    }).catch((cause: unknown) => {
+      const message = cause instanceof ApiError && [404,405].includes(cause.status)
+        ? 'The coaching service is not available on this server yet. This does not mean your interview is incomplete. Your report remains available in My Reports. Please contact support to enable the improvement journey.'
+        : cause instanceof ApiError && cause.status === 401 ? 'Your session has expired. Please sign in again to view your progress.'
+        : 'We couldn’t load your interview history. Please check your connection and try again. This does not change your interview status.';
+      if (!controller.signal.aborted) setResult({ key, eligible: [], error: message });
     });
     return () => controller.abort();
   }, [key, revision]);
   const retry = () => setRevision(value => value + 1);
   if (!result || result.key !== key) return <InterviewAccessState title="Checking your interview progress"><p>Please wait while we check your placement drive history.</p></InterviewAccessState>;
-  if (result.error) return <InterviewAccessState title="Unable to check your progress" retry={retry}><p>{result.error}</p></InterviewAccessState>;
+  if (result.error) return <InterviewAccessState title="Your improvement journey is temporarily unavailable" retry={retry}><p>{result.error}</p><p><Link to="/reports">View My Reports</Link></p></InterviewAccessState>;
   if (driveId && result.selected && result.unlocked) return <>{children}</>;
   if (!driveId && result.eligible.length) return <InterviewAccessState title="Choose your placement drive"><p>Your coaching journey belongs to an individual drive. Choose a completed interview to continue.</p>
     {result.eligible.map(drive => { const params = new URLSearchParams(location.search); params.set('drive', drive.id); params.set('company', drive.company_name); params.set('role', drive.role_title);
