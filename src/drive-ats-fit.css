@@ -617,3 +617,38 @@ dialog.modal.opportunity-dialog{--primary:#0969da;--soft:#edf5ff;--border:#e0e7e
 .placement-attempt-outcome{margin:10px 0 0;padding:10px 12px;border:1px solid #bfdbfe;border-radius:10px;background:#eff6ff;color:#245181;font-size:12px;line-height:1.6}
 
 .drive-ats-chips .student-ats-skill-button,.drive-ats-chips .student-ats-skill-label{display:inline-flex;align-items:center;gap:6px;border:1px solid #e8c786;background:#fff5e1;color:#6b4300;border-radius:6px;padding:7px 10px;font:inherit;font-size:12px;white-space:normal;text-align:left}.drive-ats-chips .student-ats-skill-button{cursor:pointer}.drive-ats-chips .student-ats-skill-button:hover:not(:disabled){background:#ffebbd}.drive-ats-chips .student-ats-skill-button:focus-visible{outline:2px solid #7452e8;outline-offset:3px}.drive-ats-chips .student-ats-skill-button:disabled{cursor:default;opacity:.65}
+/* Compact, pane-aware ATS workspace. The standalone assessment is unchanged. */
+.resume-studio .drive-ats-panel.student-ats-studio-compact{overflow-wrap:normal;word-break:normal;scroll-margin-top:calc(var(--rs-workspace-top,160px) + 16px)}
+.resume-studio .student-ats-studio-compact .student-ats-header{align-items:flex-start;flex-wrap:wrap;gap:10px}
+.resume-studio .student-ats-studio-compact .student-ats-header>div{flex:1 1 210px;min-width:0}
+.resume-studio .student-ats-studio-compact .student-ats-header>button{flex-shrink:0}
+.resume-studio .student-ats-studio-compact .student-ats-compact-metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,110px),1fr));gap:8px;margin:14px 0}
+.resume-studio .student-ats-studio-compact .student-ats-compact-metrics>div{min-width:0;padding:10px 12px;border:1px solid var(--line,#e0e7f5);border-radius:8px;background:var(--soft,#f8f7ff)}
+.resume-studio .student-ats-studio-compact .student-ats-compact-metrics dt{font-size:11px;color:var(--muted,#65708f);line-height:1.4}
+.resume-studio .student-ats-studio-compact .student-ats-compact-metrics dd{margin:5px 0 0;font-size:18px;line-height:1.3;font-weight:750;color:var(--ink,#17164d)}
+.resume-studio .student-ats-studio-compact .student-ats-studio-controls{padding:14px;border:1px solid var(--purple-edge,#ddd1ff);border-radius:10px;background:var(--card,#fff)}
+.resume-studio .student-ats-studio-compact .student-ats-studio-controls h4{margin:0;line-height:1.4}
+.resume-studio .student-ats-studio-compact .student-ats-studio-controls h4>span{font-size:12px;font-weight:500;color:var(--muted,#65708f)}
+.resume-studio .student-ats-studio-compact .student-ats-skill-search{display:grid;gap:5px;margin:12px 0;font-size:11px;color:var(--muted,#65708f)}
+.resume-studio .student-ats-studio-compact .student-ats-skill-search input{width:100%;min-width:0;min-height:36px;padding:8px 10px;border:1px solid var(--line,#e0e7f5);border-radius:7px;background:var(--card,#fff);color:var(--ink,#17164d);font:inherit;font-size:12px}
+.resume-studio .student-ats-studio-compact .drive-ats-chips{display:flex;flex-wrap:wrap;align-content:flex-start;gap:7px;max-height:220px;overflow-y:auto;overscroll-behavior-y:contain;padding:3px 3px 6px}
+.resume-studio .student-ats-studio-compact .student-ats-skill-button{max-width:100%;min-height:34px;overflow-wrap:break-word;background:var(--purple-soft,#f4efff);border-color:var(--purple-edge,#ddd1ff);color:var(--purple,#6b3dff);line-height:1.4}
+.resume-studio .student-ats-studio-compact .student-ats-skill-button:disabled{opacity:.7}
+.resume-studio .student-ats-studio-compact .student-ats-studio-controls>p{line-height:1.5;font-size:11px}
+.resume-studio .student-ats-studio-compact .student-ats-full-details{margin-top:14px;border-top:1px solid var(--line,#e0e7f5)}
+.resume-studio .student-ats-studio-compact .student-ats-full-details>summary{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 0;cursor:pointer;list-style:none;font-size:12px;font-weight:700}
+.resume-studio .student-ats-studio-compact .student-ats-full-details>summary::-webkit-details-marker{display:none}
+.resume-studio .student-ats-studio-compact .student-ats-full-details>summary small{display:block;margin-top:3px;font-size:11px;font-weight:400;color:var(--muted,#65708f)}
+.resume-studio .student-ats-studio-compact .student-ats-full-details>summary>svg{flex-shrink:0}
+.resume-studio .student-ats-studio-compact .student-ats-full-details[open]>summary>svg{transform:rotate(180deg)}
+.resume-studio .student-ats-studio-compact .student-ats-body,.resume-studio .student-ats-studio-compact .student-ats-cards{grid-template-columns:minmax(0,1fr)}
+.resume-studio .student-ats-studio-compact .student-ats-cards article{min-height:0}
+.resume-studio .student-ats-studio-compact .student-ats-cards article>div:not(.student-ats-ring){min-width:0;flex:1}
+.resume-studio .student-ats-studio-compact .student-ats-identity{display:grid;grid-template-columns:44px minmax(0,1fr);align-items:start}
+.resume-studio .student-ats-studio-compact .student-ats-identity dl{grid-column:1/-1;display:grid;grid-template-columns:repeat(auto-fit,minmax(90px,1fr));gap:10px;width:100%;margin:0;padding-top:10px;border-top:1px solid var(--line,#e0e7f5)}
+.resume-studio .student-ats-studio-compact .student-ats-identity dl>div{padding:0;border:0;min-width:0}
+.resume-studio .student-ats-studio-compact .student-ats-name p,.resume-studio .student-ats-studio-compact .student-ats-identity dd{overflow-wrap:anywhere}
+.resume-studio .student-ats-studio-compact .student-ats-table{max-width:100%;overflow-x:auto}
+.resume-studio .student-ats-studio-compact .student-ats-table table{min-width:620px}
+.resume-studio .student-ats-studio-compact .student-ats-actions{justify-content:flex-start;margin-top:4px}
+.resume-studio .student-ats-studio-compact .student-ats-skills-complete{padding:12px;border-radius:8px;background:var(--soft,#f3fcf9);line-height:1.5}
