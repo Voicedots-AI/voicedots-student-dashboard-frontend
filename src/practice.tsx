@@ -46,8 +46,6 @@ export function Practice() {
   const [mode, setMode] = useState<"practice" | "placement">(requestedDriveId ? "placement" : "practice");
   const [selectedDriveId, setSelectedDriveId] = useState(requestedDriveId || "");
   const driveId = mode === "placement" ? selectedDriveId : null;
-  const placementATS = usePlacementATS(driveId);
-  const atsQualified = placementATS.eligible;
   const coachCycleId = params.get("coach_cycle");
   const drives = useResource<Drive[]>("/api/student/drives");
   const availableDrives = (drives.data || []).filter((drive) => {
@@ -74,6 +72,10 @@ export function Practice() {
   const [jdBusy, setJdBusy] = useState(false);
   const [jdError, setJdError] = useState("");
   const [context, setContext] = useState<DriveContext | null>(null);
+  const configuredATSMinimum = context?.drive_id === driveId && context?.criteria_ats_fit !== undefined
+    ? context.criteria_ats_fit : selectedDrive?.criteria_ats_fit;
+  const placementATS = usePlacementATS(driveId, configuredATSMinimum);
+  const atsQualified = placementATS.eligible;
   const [contextLoading, setContextLoading] = useState(!!requestedDriveId||!!coachCycleId);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -416,8 +418,9 @@ export function Practice() {
     if (!driveId) return true;
     try {
       const result = await api<{criteria_ats_fit?:number|null;ats_status:string;ats_fit_score:unknown}>(`/api/student/drives/${encodeURIComponent(driveId)}/ats-fit`,{timeoutMs:8000});
-      if (meetsPlacementATSThreshold(evaluatedPlacementScore(result.ats_status,result.ats_fit_score),result.criteria_ats_fit??50)) return true;
-      setError(`ATS Fit must be at least ${result.criteria_ats_fit??50}% to take this interview.`);
+      const minimum = result.criteria_ats_fit !== undefined ? result.criteria_ats_fit ?? 50 : placementATS.minimum;
+      if (meetsPlacementATSThreshold(evaluatedPlacementScore(result.ats_status,result.ats_fit_score),minimum)) return true;
+      setError(`ATS Fit must be at least ${minimum}% to take this interview.`);
     } catch {
       setError("Unable to verify ATS Fit. Please retry before starting the interview.");
     }

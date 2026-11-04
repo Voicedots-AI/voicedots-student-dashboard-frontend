@@ -120,6 +120,8 @@ export type ConfiguredInterviewAgent = {
   description: string;
 };
 export type DriveContext = {
+  criteria_ats_fit?: number | null;
+  criteria_interview_score?: number | null;
   is_locked?: boolean;
   drive_id: string;
   company_name: string;

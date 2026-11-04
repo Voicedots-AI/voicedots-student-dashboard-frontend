@@ -2,7 +2,7 @@ import {useEffect,useState} from "react";
 import {api,ApiError} from "./api";
 import {useAuth} from "./auth";
 import {studentDataCache} from "./student-data-cache";
-import {evaluatedPlacementScore,meetsPlacementATSThreshold} from "./placement-eligibility";
+import {evaluatedPlacementScore,meetsPlacementATSThreshold,placementATSMinimum} from "./placement-eligibility";
 
 type PlacementATSResult = {minimum:number;score:number|null;missing:string[];failed:boolean;status:string;checked:boolean};
 
@@ -39,7 +39,7 @@ export function usePlacementATSPrefetch(driveIds: string[]) {
   }, [studentId, resumeId, idsKey]);
 }
 
-export function usePlacementATS(driveId?: string | null) {
+export function usePlacementATS(driveId?: string | null, configuredMinimum?: number | null) {
   const {identity} = useAuth();
   const studentId = identity?.student.id;
   const resumeId = identity?.student.current_resume_submission_id || "none";
@@ -61,6 +61,10 @@ export function usePlacementATS(driveId?: string | null) {
     poll();
     return()=>window.clearTimeout(timer);
   },[current,cacheKey]);
-  return {minimum:current?.minimum??50,eligible:meetsPlacementATSThreshold(current?.score,current?.minimum??50), score:current?.score ?? null, missing:current?.missing || [], failed:current?.failed || false, checked:current?.checked === true, pending:Boolean(cacheKey) && !current,
+  // Read the drive's current cutoff independently of the cached resume score.
+  // Older ATS endpoints may omit the cutoff; that must not override a drive's
+  // configured 60%, for example, with the legacy 50% default.
+  const minimum = placementATSMinimum(configuredMinimum,current?.minimum);
+  return {minimum,eligible:meetsPlacementATSThreshold(current?.score,minimum), score:current?.score ?? null, missing:current?.missing || [], failed:current?.failed || false, checked:current?.checked === true, pending:Boolean(cacheKey) && !current,
     retry:()=>{studentDataCache.invalidate(cacheKey);setState(null);setVersion(v=>v+1);}};
 }
