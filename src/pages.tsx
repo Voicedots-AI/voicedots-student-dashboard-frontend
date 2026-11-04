@@ -397,8 +397,18 @@ function interviewWindowEnded(end?: string, now = Date.now()) {
 
 function currentDriveState(drive: Drive, now: number): Drive {
   const expired = drive.status === "expired" || drive.interview_status === "expired" || drive.interview_assignment_status === "expired";
-  if (!expired && drive.status !== "closed" && !interviewWindowEnded(drive.window_end_at, now)) return drive;
-  return {...drive, interview_status: expired ? "expired" : "closed", interview_action: "closed"};
+  if (expired || drive.status === "closed" || interviewWindowEnded(drive.window_end_at, now)) {
+    return {...drive, interview_status: expired ? "expired" : "closed", interview_action: "closed"};
+  }
+  const start = Date.parse(drive.window_start_at || "");
+  const end = Date.parse(drive.window_end_at || "");
+  if (Number.isFinite(start) && Number.isFinite(end) && start < end && now >= start && now < end
+      && drive.interview_status === "upcoming") {
+    // The window can open while this page is mounted. Presentation must not
+    // grant an interview action; the context/start APIs still own readiness.
+    return {...drive, interview_status: "open"};
+  }
+  return drive;
 }
 
 function placementGroup(drive: Drive) {
@@ -406,6 +416,11 @@ function placementGroup(drive: Drive) {
   const action = drive.interview_action || "";
   if (drive.is_locked || ["closed", "expired"].includes(status) || status === "completed" || drive.status === "closed") return "closed";
   if (["resume", "start", "retry_preparation"].includes(action) && status !== "upcoming") return "active";
+  if (["open", "in_progress"].includes(status)) return "active";
+  const start = Date.parse(drive.window_start_at || "");
+  const end = Date.parse(drive.window_end_at || "");
+  if (status === "awaiting_assignment" && Number.isFinite(start) && Number.isFinite(end)
+      && start < end && Date.now() >= start && Date.now() < end) return "active";
   if (["upcoming", "awaiting_assignment"].includes(status) || drive.status === "scheduled") return "upcoming";
   return "closed";
 }

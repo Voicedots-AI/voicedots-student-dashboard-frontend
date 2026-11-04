@@ -113,3 +113,24 @@ test('neutral cards show coloured ATS at the top and drive-specific JD gaps upfr
  await expect.poll(()=>page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
  await page.screenshot({path:'test-results/student-card-jd-gaps-mobile.png',fullPage:true});
 });
+
+test('open windows leave upcoming without granting assignment actions', async ({page}) => {
+ await page.clock.install({time:new Date('2026-11-04T09:06:59Z')});
+ await page.clock.pauseAt(new Date('2026-11-04T09:06:59Z'));
+ await mockPerformance(page,{reportRows:[]});
+ const drive={id:'window-drive',company_name:'Window Company',role_title:'Engineer',status:'scheduled',eligibility_status:'eligible',interview_status:'upcoming',interview_action:'blocked',main_resume_available:true,window_start_at:'2026-11-04T14:37:00+05:30',window_end_at:'2026-11-23T00:00:00+05:30'};
+ await page.route('**/api/student/drives',r=>r.fulfill({json:[drive,{...drive,id:'unassigned-drive',company_name:'Assignment Company',interview_status:'awaiting_assignment',interview_action:'not_assigned'}]}));
+ await page.route('**/api/student/drives/*/ats-fit',r=>r.fulfill({json:{ats_status:'evaluated',ats_fit_score:60,skills:[]}}));
+ await page.goto('/placements');
+ const card=page.locator('.drive-card[data-drive-id="window-drive"]');
+ await expect(card.getByText('Scheduled',{exact:true})).toBeVisible();
+ await expect(card.locator('../..')).toContainText('Scheduled & upcoming');
+ await page.clock.fastForward(2000);
+ await expect(card.getByText('Open now',{exact:true})).toBeVisible();
+ await expect(card.locator('../..')).not.toContainText('Scheduled & upcoming');
+ const unassigned=page.locator('.drive-card[data-drive-id="unassigned-drive"]');
+ await expect(unassigned.locator('../..')).not.toContainText('Scheduled & upcoming');
+ await expect(unassigned.getByText('Awaiting assignment',{exact:true})).toBeVisible();
+ await expect(card.getByRole('link',{name:'Start Interview'})).toHaveCount(0);
+ await expect(unassigned.getByRole('link',{name:'Start Interview'})).toHaveCount(0);
+});
