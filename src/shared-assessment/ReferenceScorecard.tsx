@@ -3,7 +3,7 @@ import type {ReactNode} from 'react';
 import './reference-scorecard.css';
 export type ReferenceCompetency={label:string;score:number|null;target:number|null;evidence:string};
 export type ReferenceHighlight={key:string;offset:number|null;timestamp:string;question:string;score:string};
-export type ReferenceScorecardProps={student:Record<string,unknown>;studentId:string;candidatePhoto?:{studentId:string;url:string};candidateProfile?:Record<string,unknown>;role?:unknown;report:{overall_score?:number|null;session_id?:string;completed_at?:string};recordingDuration?:unknown;questionCount:number;executiveSummary?:unknown;readinessScore?:number|null;readinessLabel:string;competencyRows:ReferenceCompetency[];strengthBriefs:string[];growthBriefs:string[];followUpBriefs:string[];evidenceHighlights:ReferenceHighlight[];infoMessage?:ReactNode;onSeek?:(seconds:number)=>void};
+export type ReferenceScorecardProps={student:Record<string,unknown>;studentId:string;candidatePhoto?:{studentId:string;url:string};candidateProfile?:Record<string,unknown>;role?:unknown;report:{overall_score?:number|null;session_id?:string;completed_at?:string};recordingDuration?:unknown;questionCount:number;executiveSummary?:unknown;readinessLabel:string;competencyRows:ReferenceCompetency[];strengthBriefs:string[];growthBriefs:string[];followUpBriefs:string[];evidenceHighlights:ReferenceHighlight[];infoMessage?:ReactNode;onSeek?:(seconds:number)=>void};
 const competencyColors = ["#0dafa0", "#f2b313", "#11b39b", "#f4ad16", "#42b7ec"];
 function CompetencyIcon({ label, index }: { label: string; index: number }) {
   const normalized = label.toLowerCase();
@@ -27,9 +27,16 @@ const show = (value: unknown, fallback = "Not available") =>
 const stamp = (value: unknown) =>
   value ? new Date(String(value)).toLocaleString() : "Not available";
 const durationLabel=(value:unknown)=>{const total=Math.max(0,Math.floor(Number(value)||0)),hours=Math.floor(total/3600),minutes=Math.floor(total%3600/60),seconds=total%60;return hours?`${hours}h ${minutes}m ${seconds}s`:`${minutes}m ${seconds}s`};
-export function ReferenceScorecard({student,studentId,candidatePhoto={studentId:'',url:''},candidateProfile={},role,report,recordingDuration=null,questionCount,executiveSummary,readinessScore=null,readinessLabel,competencyRows,strengthBriefs,growthBriefs,followUpBriefs,evidenceHighlights,infoMessage,onSeek}:ReferenceScorecardProps){
+export function ReferenceScorecard({student,studentId,candidatePhoto={studentId:'',url:''},candidateProfile={},role,report,recordingDuration=null,questionCount,executiveSummary,readinessLabel,competencyRows,strengthBriefs,growthBriefs,followUpBriefs,evidenceHighlights,infoMessage,onSeek}:ReferenceScorecardProps){
  const studentInitials=String(student.full_name||'Candidate').trim().split(/\s+/).slice(0,2).map(part=>part[0]||'').join('').toUpperCase();
  const reviews={length:questionCount};
+ // The seven-competency rubric calls 70/100 Interview Ready. This count
+ // describes saved competency evidence, independently of the optional PRI.
+ const assessedCompetencies=competencyRows.filter(item=>typeof item.score==='number'&&Number.isFinite(item.score)&&item.score>=0&&item.score<=100);
+ const readyCompetencies=assessedCompetencies.filter(item=>item.score!==null&&item.score>=70).length;
+ const readinessAvailable=assessedCompetencies.length>0;
+ const readinessTotal=competencyRows.length;
+ const readinessProgress=readinessAvailable?100*readyCompetencies/readinessTotal:0;
  const scoreWidth=(value:unknown)=>`${Math.max(0,Math.min(100,typeof value==='number'?value:0))}%`;
  return <div className="vd-reference-scorecard"><section id="glance" className="scroll-mt-4 space-y-3.5 rounded-[1.75rem] border border-sky-100 bg-white p-4 shadow-[0_18px_55px_rgba(15,42,82,0.08)] sm:p-5">
         <header className="report-candidate-header grid items-stretch gap-3 xl:grid-cols-[minmax(30rem,2.7fr)_repeat(3,minmax(9rem,1fr))]">
@@ -56,9 +63,11 @@ export function ReferenceScorecard({student,studentId,candidatePhoto={studentId:
           </article>
           <article className="flex min-h-[152px] flex-col rounded-2xl border border-amber-100 bg-[#fff8e8] p-4">
             <p className="text-[13px] font-bold text-[#0b2b59]">Readiness</p>
-            <p className="mt-3 flex items-baseline gap-1 tabular-nums text-[#0b2b59]"><span className="text-[32px] font-extrabold leading-none">{readinessScore == null ? "—" : readinessScore}</span>{readinessScore != null && <span className="text-sm font-semibold">/100</span>}</p>
+            <p className="mt-3 flex items-baseline gap-1 tabular-nums text-[#0b2b59]"><span className="text-[32px] font-extrabold leading-none">{readinessAvailable ? readyCompetencies : "—"}</span>{readinessAvailable && <span className="text-sm font-semibold">/{readinessTotal}</span>}</p>
+            <p className="mt-1 text-xs text-slate-600">Competencies at 70/100 or above</p>
+            {readinessAvailable&&assessedCompetencies.length<readinessTotal&&<p className="mt-1 text-xs text-slate-600">{assessedCompetencies.length}/{readinessTotal} assessed</p>}
             <span className="mt-2 self-start rounded-full bg-amber-200/80 px-2.5 py-0.5 text-xs font-bold text-amber-800">{readinessLabel}</span>
-            <div className="mt-auto pt-3"><div className="h-2 w-full overflow-hidden rounded-full bg-slate-200"><div className="h-full rounded-full bg-amber-400" style={{ width: scoreWidth(readinessScore) }}/></div></div>
+            <div className="mt-auto pt-3"><div className="h-2 w-full overflow-hidden rounded-full bg-slate-200"><div className="h-full rounded-full bg-amber-400" style={{ width: scoreWidth(readinessProgress) }}/></div></div>
           </article>
           <article className="flex min-h-[152px] flex-col items-center rounded-2xl border border-teal-100 bg-[#eafaf8] p-4 text-center">
             <p className="text-[13px] font-bold text-[#0b2b59]">Assessment Scope</p>
