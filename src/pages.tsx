@@ -673,32 +673,35 @@ export function Placements() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [sortOrder, setSortOrder] = useState("soonest");
   const [view, setView] = useState<"cards" | "table">("cards");
-  const selectionRequest = useRef(0);
   const [context, setContext] = useState<DriveContext | null>(null);
-  const [selected, setSelected] = useState<Drive | null>(null);
+  const [selectedRecord, setSelected] = useState<Drive | null>(null);
+  const selected = resource.data?.find(drive => drive.id === selectedRecord?.id) || selectedRecord;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  function closeOpportunity() { selectionRequest.current += 1; setSelected(null); setContext(null); setBusy(false); }
+  function closeOpportunity() { setSelected(null); setContext(null); setBusy(false); }
   async function select(drive: Drive) {
-    const requestId = ++selectionRequest.current;
     setSelected(drive);
     setContext(null);
     setError("");
     setBusy(true);
-    try {
-      const result = await api<DriveContext>(`/api/student/drives/${encodeURIComponent(drive.id)}/interview-context`);
-      if (selectionRequest.current === requestId) setContext(result);
-    } catch (e) {
-      if (selectionRequest.current !== requestId) return;
-      setError(
-        e instanceof ApiError && e.status === 404
-          ? "This opportunity is no longer available. Refresh the placements list to see current opportunities."
-          : (e as Error).message,
-      );
-    } finally {
-      if (selectionRequest.current === requestId) setBusy(false);
-    }
   }
+  useEffect(() => {
+    const id = selected?.id;
+    if (!id) return;
+    const controller = new AbortController();
+    setBusy(true);
+    setError("");
+    void api<DriveContext>(`/api/student/drives/${encodeURIComponent(id)}/interview-context`, {signal:controller.signal})
+      .then(result => { if (!controller.signal.aborted) setContext(result); })
+      .catch(reason => {
+        if (controller.signal.aborted) return;
+        setError(reason instanceof ApiError && reason.status === 404
+          ? "This opportunity is no longer available. Refresh the placements list to see current opportunities."
+          : (reason as Error).message);
+      })
+      .finally(() => { if (!controller.signal.aborted) setBusy(false); });
+    return () => controller.abort();
+  }, [selected?.id, resource.data]);
   useEffect(() => {
     const driveId = searchParams.get("drive");
     const drive = resource.data?.find((item) => item.id === driveId);

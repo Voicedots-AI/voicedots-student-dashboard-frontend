@@ -8,7 +8,7 @@ import {
 import { AlertCircle, ArrowRight, LoaderCircle, Sparkles } from "lucide-react";
 import { Link } from "react-router-dom";
 import { api } from "./api";
-import {cachedStudentResource,studentDataCache} from "./student-data-cache";
+import {cachedStudentResource,liveStudentResource,studentDataCache} from "./student-data-cache";
 
 export function useResource<T>(path: string | null) {
   const [data, setData] = useState<T | null>(()=>path&&cachedStudentResource(path)?studentDataCache.peek<T>(path)??null:null);
@@ -29,12 +29,30 @@ export function useResource<T>(path: string | null) {
     setLoading(saved === undefined);
     setError("");
     setData(saved ?? null);
-    const pending = cached ? studentDataCache.get<T>(path,()=>api<T>(path)) : api<T>(path,{signal:controller.signal});
+    const pending = cached
+      ? liveStudentResource(path)
+        ? studentDataCache.refresh<T>(path,()=>api<T>(path))
+        : studentDataCache.get<T>(path,()=>api<T>(path))
+      : api<T>(path,{signal:controller.signal});
     void pending.then(result=>{if(!controller.signal.aborted)setData(result)})
       .catch(e=>{if(!controller.signal.aborted)setError(e.message)})
       .finally(()=>{if(!controller.signal.aborted)setLoading(false)});
     return () => controller.abort();
   }, [path, version]);
+  useEffect(() => {
+    if (!liveStudentResource(path)) return;
+    const refresh = () => {
+      if (document.visibilityState === "visible") setVersion(value => value + 1);
+    };
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", refresh);
+    const timer = window.setInterval(refresh, 30000);
+    return () => {
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", refresh);
+      window.clearInterval(timer);
+    };
+  }, [path]);
   return { data, loading, error, reload };
 }
 

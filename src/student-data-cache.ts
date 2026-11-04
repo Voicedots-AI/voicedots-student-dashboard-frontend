@@ -11,6 +11,9 @@ export class StudentDataCache {
   peek<T>(key: string): T | undefined { return this.values.get(key) as T | undefined; }
   get<T>(key: string, load: () => Promise<T>): Promise<T> {
     if (this.values.has(key)) return Promise.resolve(this.peek<T>(key)!);
+    return this.refresh(key, load);
+  }
+  refresh<T>(key: string, load: () => Promise<T>): Promise<T> {
     const pending = this.requests.get(key);
     if (pending) return pending as Promise<T>;
     const request = Promise.resolve().then(load).then(value => {
@@ -25,3 +28,7 @@ export const studentDataCache = new StudentDataCache();
 export const cachedStudentResource = (path: string) => [
   '/api/student/dashboard', '/api/student/drives', '/api/student/reports', '/api/student/readiness',
 ].includes(path);
+
+// These resources contain officer-editable drive details, not static session data.
+export const liveStudentResource = (path: string | null) =>
+  path === '/api/student/drives' || path === '/api/student/dashboard';
