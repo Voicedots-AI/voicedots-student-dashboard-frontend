@@ -5,6 +5,7 @@
  */
 
 import { createFeedPhotoVerifier } from "./feed-photo-verifier.js";
+import { createVerificationNarrator, verifyIdentityWithNarration } from "./verification-narrator.js";
 
 const _HTTP_BASE = window.__API_BASE__ || window.location.origin;
 const WS_BASE = _HTTP_BASE.replace(/^http/, "ws");
@@ -228,7 +229,7 @@ let resumePreviouslyStarted = false;
 let busyResumeRetries = 0;
 const MAX_BUSY_RESUME_RETRIES = 8;
 let interviewStopRequested = false;
-const MAX_RECONNECT_ATTEMPTS = 5;
+const MAX_RECONNECT_ATTEMPTS = 24;
 const activePlaybackSources = new Set();
 let aiSpeaking = false;
 let currentAgentRole = "Interviewer"; // restored to ai-role between "Speaking..."/"Listening..." states
@@ -442,41 +443,45 @@ function getPriyaFemaleVoice() {
   return null;
 }
 
-let priyaRemoteVoiceUnavailable = false;
+const priyaNarrator = createVerificationNarrator({
+  fetchAudio: async (text, signal) => {
+    const controller = new AbortController();
+    const abort = () => controller.abort();
+    if (signal.aborted) abort();
+    signal.addEventListener('abort', abort, { once: true });
+    const timeout = setTimeout(abort, 65000);
+    try {
+      const response = await studentFetch(`${_HTTP_BASE}/api/student/interview/verification-speech`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text }), signal: controller.signal,
+      });
+      if (!response.ok || response.status === 204) {
+        const data = await response.json().catch(() => null);
+        const error = new Error(data?.detail?.message || (typeof data?.detail === 'string' ? data.detail : "Priya's voice is unavailable. Select Retry voice."));
+        if ([401,403,404,405].includes(response.status)) error.retryable = false;
+        throw error;
+      }
+      return await response.blob();
+    } finally {
+      clearTimeout(timeout);
+      signal.removeEventListener('abort', abort);
+    }
+  },
+  onSpeaking: speaking => setActivePanelTalking(speaking),
+  onStatus: text => { const status = document.getElementById('pf-voice-status'); if (status) status.textContent = text; },
+  onRetry: (retry, label) => {
+    const button = document.getElementById('pf-voice-retry');
+    if (!button) return;
+    button.hidden = !retry;
+    button.textContent = label || 'Retry voice';
+    button.onclick = retry ? () => { void retry(); } : null;
+  },
+});
+window.addEventListener('pagehide', () => priyaNarrator.cancel());
 
-async function speakPriya(text) {
-  // Use the same canonical Gemini/Kore voice as Priya's live HR round.
-  // A different OS voice must not replace her identity during verification.
-  let objectUrl = null;
-  let player = null;
+function speakPriya(text) {
   activePanelRound = 1;
-  setActivePanelTalking(false);
-  if (!priyaRemoteVoiceUnavailable) {
-  try {
-    const response = await studentFetch(`${_HTTP_BASE}/api/student/interview/verification-speech`, {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text }), signal: AbortSignal.timeout(10000),
-    });
-    if (!response.ok || response.status === 204) throw new Error("Priya voice unavailable");
-    objectUrl = URL.createObjectURL(await response.blob());
-    player = new Audio(objectUrl);
-    await new Promise((resolve, reject) => {
-      const timer = setTimeout(() => { player.pause(); reject(new Error("Priya playback timed out")); }, 20000);
-      player.onplaying = () => setActivePanelTalking(true);
-      player.onended = () => { clearTimeout(timer); resolve(); };
-      player.onerror = () => { clearTimeout(timer); reject(new Error("Priya playback failed")); };
-      player.play().catch(error => { clearTimeout(timer); reject(error); });
-    });
-    return;
-  } catch {
-    priyaRemoteVoiceUnavailable = true;
-    // Continue with visible instructions rather than switching voice identity.
-  } finally {
-    setActivePanelTalking(false);
-    if (player) { player.pause(); player.onplaying = null; player.onended = null; player.onerror = null; }
-    if (objectUrl) URL.revokeObjectURL(objectUrl);
-  }
-  }
+  return priyaNarrator.speak(text);
 }
 
 async function runPriyaFaceVerificationFlow() {
@@ -493,6 +498,7 @@ async function runPriyaFaceVerificationFlow() {
   const questionTextEl = document.getElementById("current-question-text");
 
   if (overlay) overlay.classList.remove("hidden");
+  if (badge) badge.classList.remove('success');
 
   // Helper to wait for head turn or confirm button click
   const waitForPose = (checkPoseFn, maxWaitMs = 12000) => {
@@ -537,9 +543,10 @@ async function runPriyaFaceVerificationFlow() {
   if (dot1) dot1.className = "pf-verify-step-dot active";
   if (dot2) dot2.className = "pf-verify-step-dot";
   if (dot3) dot3.className = "pf-verify-step-dot";
-  if (questionTextEl) questionTextEl.textContent = "Welcome! I'm Priya Sharma. Before we begin, let's complete a quick face verification. Please slowly turn your head to the left.";
+  const welcome = "Welcome! I'm Priya Sharma. Let's complete a quick identity check, then start your interview. Please slowly turn your head to the left.";
+  if (questionTextEl) questionTextEl.textContent = welcome;
 
-  await speakPriya("Welcome! I'm Priya Sharma. Before we begin, let's complete a quick face verification. Please slowly turn your head to the left.");
+  await speakPriya(welcome);
   await waitForPose(() => {
     const ratio = headTurnRatio();
     return ratio !== null && ratio < 0.38;
@@ -554,9 +561,9 @@ async function runPriyaFaceVerificationFlow() {
   if (arrow) arrow.textContent = "→";
   if (verifyText) verifyText.textContent = "Turn Head Right";
   if (dot2) dot2.className = "pf-verify-step-dot active";
-  if (questionTextEl) questionTextEl.textContent = "Great job! Now please slowly turn your head to the right.";
+  if (questionTextEl) questionTextEl.textContent = "Now please slowly turn your head to the right.";
 
-  await speakPriya("Great job! Now please slowly turn your head to the right.");
+  await speakPriya("Now please slowly turn your head to the right.");
   await waitForPose(() => {
     const ratio = headTurnRatio();
     return ratio !== null && ratio > 0.62;
@@ -571,23 +578,36 @@ async function runPriyaFaceVerificationFlow() {
   if (arrow) arrow.textContent = "•";
   if (verifyText) verifyText.textContent = "Look Directly at Camera";
   if (dot3) dot3.className = "pf-verify-step-dot active";
-  if (questionTextEl) questionTextEl.textContent = "Perfect! Now look directly back at the center camera.";
+  if (questionTextEl) questionTextEl.textContent = "Now look straight at the camera and blink naturally.";
 
-  await speakPriya("Perfect! Now look directly back at the center camera.");
+  await speakPriya("Now look straight at the camera and blink naturally.");
   await waitForPose(() => {
     const ratio = headTurnRatio();
     return ratio !== null && ratio >= 0.40 && ratio <= 0.60;
   }, 9000);
 
-  // Step 3 confirmed
-  if (dot3) dot3.className = "pf-verify-step-dot done";
-  if (badge) badge.classList.add("success");
-  if (arrow) arrow.textContent = "✓";
-  if (verifyText) verifyText.textContent = "Face Verified Successfully";
-  if (counterPill) counterPill.textContent = "✓ Verified";
-  if (questionTextEl) questionTextEl.textContent = "Face verified successfully! Thank you. Let's begin your interview now.";
-
-  await speakPriya("Face verified successfully! Thank you. Let's begin your interview now.");
+  // Head-turn guidance is not proof of identity. Announce the server result only.
+  if (verifyText) verifyText.textContent = 'Checking Your Identity';
+  if (counterPill) counterPill.textContent = 'Verifying…';
+  if (questionTextEl) questionTextEl.textContent = 'Please keep looking at the camera while your identity is checked.';
+  await verifyIdentityWithNarration({
+    verify: verifyPreflightIdentity,
+    speak: speakPriya,
+    onFailed: text => {
+      if (verifyText) verifyText.textContent = 'Identity Not Verified';
+      if (counterPill) counterPill.textContent = 'Please retry';
+      if (arrow) arrow.textContent = '!';
+      if (questionTextEl) questionTextEl.textContent = text;
+    },
+    onVerified: text => {
+      if (dot3) dot3.className = 'pf-verify-step-dot done';
+      if (badge) badge.classList.add('success');
+      if (arrow) arrow.textContent = '✓';
+      if (verifyText) verifyText.textContent = 'Identity Verified Successfully';
+      if (counterPill) counterPill.textContent = '✓ Verified';
+      if (questionTextEl) questionTextEl.textContent = text;
+    },
+  });
 
   // Smoothly fade out overlay & restore question card
   await new Promise(r => setTimeout(r, 1200));
@@ -606,7 +626,9 @@ async function startupResponse(response, fallback) {
   return data || {};
 }
 
-function failPanelStartup(message) {
+function failPanelStartup(message, { requiresSetup = false } = {}) {
+  if (prejoinScreen) prejoinScreen.style.display = 'none';
+  if (callScreen) callScreen.style.display = 'block';
   if (callTimerInterval) { clearInterval(callTimerInterval); callTimerInterval = null; }
   if (liveChip) liveChip.style.display = 'none';
   showFatalError(message);
@@ -615,8 +637,9 @@ function failPanelStartup(message) {
   if (rndStatus) rndStatus.textContent = 'Interview not started';
   const action = document.getElementById('error-toast-end');
   if (action) {
-    action.textContent = 'Back to interview setup';
+    action.textContent = requiresSetup ? 'Review interview setup' : 'Retry in this panel';
     action.onclick = () => {
+      if (!requiresSetup) { window.location.reload(); return; }
       const drive = new URLSearchParams(window.location.search).get('drive');
       window.location.assign(`/practice${drive ? `?${new URLSearchParams({drive})}` : ''}`);
     };
@@ -730,9 +753,10 @@ async function startInterviewBackgroundFlow() {
   }
 
 
-    if (!hasLiveTrack('video') || !hasLiveTrack('audio')) {
-      throw new Error('Allow a working camera and microphone, then refresh this panel to retry.');
-    }
+    // A granted device can briefly be muted while Chrome initializes the
+    // shared parent stream. Do not mistake that for denied permissions.
+    await waitForPreflight(() => hasLiveTrack('video') && hasLiveTrack('audio'),
+      'Camera or microphone is not sending a signal. Check browser site permissions and device privacy settings, then retry in this panel.');
     await waitForPreflight(() => candidateVideoEl?.readyState >= 2 && candidateVideoEl.videoWidth > 0,
       'Your camera preview is not ready. Check camera permissions and retry.');
     void startCameraAnalysis();
@@ -745,7 +769,6 @@ async function startInterviewBackgroundFlow() {
     if (!preflight.preflight_id) throw new Error('The server did not return an interview preparation token.');
     preflightId = preflight.preflight_id;
     await runPriyaFaceVerificationFlow();
-    await verifyPreflightIdentity();
     await checkReadiness();
     const screenTrack = screenStream?.getVideoTracks().find(track => track.readyState === 'live');
     const session = await startupResponse(await studentFetch(`${_HTTP_BASE}/api/resume/${currentSubmissionId}/interview`, {
@@ -779,8 +802,9 @@ async function awaitPlacementPreparation(operationId, driveId) {
       const student = getStudentSession();
       if (driveId && student?.id) {
         sessionStorage.setItem(`vd_preparation_${student.id}_${driveId}`, JSON.stringify(result));
-        window.location.replace(`/practice?${new URLSearchParams({ drive: driveId })}`);
-        return null;
+        const error = new Error(result.message || 'Your interview questions are not ready. Review the saved preparation details before retrying.');
+        error.requiresSetup = true;
+        throw error;
       }
       throw new Error(result.message || 'Your resume needs attention before the interview can start. Return to placement drives to continue.');
     }
@@ -801,7 +825,12 @@ document.addEventListener("DOMContentLoaded", async () => {
       if (!identity?.student?.id) throw new Error("Student sign-in required");
       sessionStorage.setItem(STUDENT_SESSION_KEY, JSON.stringify(identity.student));
     } catch {
-      window.location.href = "/login";
+      failPanelStartup("Your sign-in could not be restored. Sign in again to resume this attempt; saved answers are preserved.");
+      const action = document.getElementById("error-toast-end");
+      if (action) {
+        action.textContent = "Sign in to resume";
+        action.onclick = () => { window.location.href = "/login"; };
+      }
       return;
     }
   }
@@ -831,12 +860,12 @@ document.addEventListener("DOMContentLoaded", async () => {
     const ownsEntry = preparationId ? placementConsent?.operationId === preparationId
       : placementConsent?.submissionId === urlParams.get('id');
     if (placementConsent?.version !== 1 || placementConsent.accepted !== true || age < 0 || age > 7200000 || !ownsEntry) {
-      window.location.replace(`/practice?${new URLSearchParams({drive:consentDriveId})}`);
+      failPanelStartup('Interview permissions need confirmation. Review setup to continue this attempt.', {requiresSetup:true});
       return;
     }
     if (!parentPlacementMedia()) {
-      window.location.replace(`/practice?${new URLSearchParams({drive:consentDriveId})}`);
-      return;
+      // A refresh/new tab can lose the in-memory handoff. Recover permissions
+      // in this panel instead of silently sending the candidate to another page.
     }
   }
   currentSubmissionId = urlParams.get("id") || (!preparationId ? sessionStorage.getItem("current_submission_id") : null);
@@ -862,10 +891,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       history.replaceState(null, '', `${window.location.pathname}?${urlParams}`);
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : 'The interview could not be prepared. Please retry from your placement drive.';
-      showFatalError(message);
-      const text = document.getElementById('error-toast-text');
-      if (text) text.textContent = `Your interview has not started. ${message}`;
-      if (rndStatus) rndStatus.textContent = 'Interview not started';
+      failPanelStartup(message, {requiresSetup:Boolean(cause?.requiresSetup)});
       return;
     }
   }
@@ -874,8 +900,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   if (!currentSubmissionId) {
-    alert("No interview session found. Redirecting to student portal...");
-    window.location.href = "/";
+    failPanelStartup('No saved interview was found for this link. Review the placement opportunity to continue.', {requiresSetup:true});
     return;
   }
 
@@ -1205,7 +1230,11 @@ async function checkReadiness() {
       } catch (error) { finish(error); }
     };
     socket.onerror = () => finish(new Error("Could not connect to the interview service. Retry the readiness check."));
-    socket.onclose = () => finish(new Error("Connection check stopped. Check your sign-in and retry."));
+    socket.onclose = event => finish(new Error(
+      event.code === 4401 ? "Your sign-in expired. Sign in again to resume this attempt."
+        : event.code === 4403 ? "Verification or placement access needs attention. Retry verification in this panel."
+        : "The interview connection check was interrupted. Check your network and retry in this panel."
+    ));
   });
 }
 
@@ -1646,6 +1675,8 @@ function updatePrejoinReadiness() {
 
 function bindMediaTrackEnded(track) {
   if (!track) return;
+  if (track.__interviewMonitored) return;
+  track.__interviewMonitored = true;
   track.addEventListener("ended", () => {
     // A device switch removes the old track before stopping it. Ignore that
     // expected ended event instead of treating the replacement as a loss.
@@ -1700,7 +1731,45 @@ function bindMediaTrackEnded(track) {
       "camera_disable_attempt",
       "Camera stopped delivering video.",
     );
+    if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify({type:"required_media_state",media:"camera",state:"lost"}));
   });
+  track.addEventListener("unmute", () => {
+    if (!_isCallScreenActive() || !userMediaStream?.getTracks().includes(track) || track.readyState !== "live") return;
+    if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify({type:"required_media_state",media:track.kind === "video" ? "camera" : "microphone",state:"restored"}));
+  });
+}
+
+function showRequiredMediaDialog(message) {
+  let dialog = document.getElementById("required-media-dialog");
+  if (!dialog) {
+    dialog = document.createElement("dialog");
+    dialog.id = "required-media-dialog";
+    dialog.setAttribute("aria-labelledby", "required-media-title");
+    dialog.style.cssText = "max-width:440px;width:calc(100% - 48px);padding:28px;border:1px solid #bfdbfe;border-radius:20px;color:#163b61;background:white;box-shadow:0 20px 80px #102d5960";
+    dialog.innerHTML = '<h2 id="required-media-title">Interview paused</h2><p role="status"></p><button type="button" style="padding:12px 18px;background:#0969da;color:white;border:0;border-radius:10px">Restore camera / microphone</button>';
+    dialog.addEventListener("cancel", event => event.preventDefault());
+    dialog.querySelector("button").onclick = async () => {
+      const button = dialog.querySelector("button");
+      button.disabled = true;
+      try {
+        if (!hasLiveTrack("video") || userMediaStream?.getVideoTracks()[0]?.muted) await attachDeviceTrack("video", "");
+        if (!hasLiveTrack("audio") || userMediaStream?.getAudioTracks()[0]?.muted) await attachDeviceTrack("audio", "");
+        if (!isScreenSharing) screenShareToggleBtn?.click();
+        if (!hasLiveTrack("video") || !hasLiveTrack("audio")) {
+          dialog.querySelector("p").textContent = "Access is still blocked. Allow camera and microphone in your browser's site settings, then retry. Your saved answers are safe.";
+        }
+      } finally { button.disabled = false; }
+    };
+    const end = document.createElement("button");
+    end.type = "button";
+    end.textContent = "End interview";
+    end.style.cssText = "margin-left:12px;padding:12px;background:white;color:#b91c1c;border:1px solid #fecaca;border-radius:10px";
+    end.onclick = () => { dialog.close(); endInterviewBtn?.click(); };
+    dialog.appendChild(end);
+    document.body.appendChild(dialog);
+  }
+  dialog.querySelector("p").textContent = message;
+  if (!dialog.open) dialog.showModal();
 }
 
 function setupDeviceMonitoring() {
@@ -2668,6 +2737,21 @@ function clearLiveCaption() {
 function setupCallControls() {
   if (callScreen.dataset.controlsBound) return;
   callScreen.dataset.controlsBound = "true";
+  userMediaStream?.getTracks().forEach(bindMediaTrackEnded);
+  window.addEventListener("offline", () => {
+    if (!interviewHasStarted || interviewStopRequested || sessionCompletedCleanly) return;
+    resetPlaybackQueue();
+    aiSpeaking = false;
+    setActivePanelTalking(false);
+    if (rndStatus) rndStatus.textContent = "Offline · reconnecting; saved answers are safe";
+    ws?.close(4000, "network offline");
+  });
+  window.addEventListener("online", () => {
+    if (!reconnectTimer || interviewStopRequested || sessionCompletedCleanly) return;
+    clearTimeout(reconnectTimer);
+    reconnectTimer = null;
+    connectInterviewSocket();
+  });
   // Strict interview: camera and microphone are locked on for the whole
   // session with no user-facing toggle at all (no button to attach a
   // handler to). Only screen-share recovery and ending the call are
@@ -2708,8 +2792,10 @@ function setupCallControls() {
 
   const errorToastEnd = document.getElementById("error-toast-end");
   if (errorToastEnd) {
-    errorToastEnd.textContent = "Return to dashboard";
-    errorToastEnd.addEventListener("click", () => { window.location.href = "/"; });
+    if (!errorToastEnd.onclick) {
+      errorToastEnd.textContent = "Return to dashboard";
+      errorToastEnd.onclick = () => { window.location.href = "/"; };
+    }
   }
 
   // End Interview — custom modal instead of the native browser confirm().
@@ -3153,7 +3239,7 @@ function installMicrophoneProcessor() {
   micProcessor.port.onmessage = (e) => {
     lastMicrophoneFrameAt = Date.now();
     if (!playbackAudioContext || playbackAudioContext.state === "running") microphoneCaptureStatus("");
-    if (!ws || ws.readyState !== WebSocket.OPEN || !interviewHasStarted || micMuted || aiSpeaking) return;
+    if (!ws || ws.readyState !== WebSocket.OPEN || !interviewHasStarted || micMuted) return;
     const pcmData = floatTo16BitPCM(e.data);
     // Bound buffered input so a transport outage cannot queue minutes of stale
     // speech and replay it as the answer to a later question.
@@ -4070,15 +4156,20 @@ function handleControlMessage(payload) {
       break;
 
     case "interview_paused": {
+      resetPlaybackQueue();
+      aiSpeaking = false;
+      setActivePanelTalking(false);
       // Name what was actually lost: camera, microphone or screen sharing.
       const media = { camera_required: "your camera", microphone_required: "your microphone", screen_share_required: "entire-screen sharing" }[payload.reason] || "the required device";
       if (rndStatus) rndStatus.textContent = `Paused — restore ${media}`;
       if (aiRoleEl) aiRoleEl.textContent = "Paused";
       showIntegrityNotice(payload.detail || `Interview paused. Restore ${media} to continue.`);
+      showRequiredMediaDialog(payload.detail || `Restore ${media} to continue. Your saved answers are safe.`);
       break;
     }
 
     case "interview_resumed":
+      document.getElementById("required-media-dialog")?.close();
       if (rndStatus) rndStatus.textContent = "Connected (Live)";
       if (aiRoleEl) aiRoleEl.textContent = currentAgentRole;
       showIntegrityNotice("Everything is connected again. The interview will continue.");
@@ -4106,6 +4197,19 @@ function handleControlMessage(payload) {
       break;
 
     case "error":
+      if (["INTERVIEW_CAPACITY_REACHED", "INTERVIEW_ADMISSION_UNAVAILABLE", "INTERVIEW_LEASE_LOST"].includes(payload.code)) {
+        const message = payload.detail || "Interview connection is temporarily unavailable. Please retry shortly.";
+        if (!interviewHasStarted) {
+          returnToPreflight(message);
+          failPanelStartup(message);
+        } else {
+          // The server pauses this connection; saved answers stay resumable.
+          // onclose performs the existing bounded reconnect, not a new attempt.
+          clearProcessingStatus();
+          if (rndStatus) rndStatus.textContent = message;
+        }
+        break;
+      }
       if (payload.code === "SESSION_ALREADY_ACTIVE" && (interviewHasStarted || resumePreviouslyStarted) && resumingAfterDrop && busyResumeRetries < MAX_BUSY_RESUME_RETRIES) {
         if (rndStatus) rndStatus.textContent = "Restoring your previous interview connection…";
         break; // onclose retries after the previous authenticated runner releases its locks.
@@ -4200,8 +4304,14 @@ function connectInterviewSocket() {
   if (!interviewHasStarted) initialConnectionTimer = setTimeout(() => returnToPreflight("Interview connection timed out. Retry readiness."), 30000);
   socket.binaryType = "arraybuffer";
   let heartbeatTimer = null;
+  let lastReceivedAt = Date.now();
+  let heartbeatSupported = false;
   socket.onopen = () => {
     const heartbeat = () => {
+      if (heartbeatSupported && interviewHasStarted && Date.now() - lastReceivedAt > 20000) {
+        socket.close(4000, "connection heartbeat timed out");
+        return;
+      }
       if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ type: "heartbeat" }));
     };
     heartbeat();
@@ -4209,8 +4319,13 @@ function connectInterviewSocket() {
     if (rndStatus) rndStatus.textContent = reconnectAttempts ? "Reconnecting interview…" : "Authenticating interview…";
   };
   socket.onmessage = (event) => {
+    lastReceivedAt = Date.now();
     if (typeof event.data === "string") {
-      try { handleControlMessage(JSON.parse(event.data)); } catch {}
+      try {
+        const payload = JSON.parse(event.data);
+        if (payload.type === "heartbeat_ack") heartbeatSupported = true;
+        else handleControlMessage(payload);
+      } catch {}
     } else {
       handleBinaryFrame(event.data);
     }
