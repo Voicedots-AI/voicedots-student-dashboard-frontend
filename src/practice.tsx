@@ -3,6 +3,7 @@ import {evaluatedPlacementScore,meetsPlacementATSThreshold} from "./placement-el
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import {
   ArrowRight,
+  AlertCircle,
   Check,
   FileText,
   LoaderCircle,
@@ -85,7 +86,10 @@ export function Practice() {
   const [panelUrl, setPanelUrl] = useState('');
   const launchRequested = useRef(false);
   const permissionRequest = useRef(0);
-  const [permissionToast, setPermissionToast] = useState('');
+  const [permissionToast, setPermissionToast] = useState<{message:string;tone:'success'|'error'} | null>(null);
+  function showPermissionToast(message:string, tone:'success'|'error'='error') {
+    setPermissionToast(message ? {message,tone} : null);
+  }
   const [highlightShare, setHighlightShare] = useState(false);
   const shareButton = useRef<HTMLButtonElement | null>(null);
   const shareHighlightTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -93,7 +97,7 @@ export function Practice() {
   useEffect(() => {
     permissionRequest.current += 1;
     setPermissionBusy(false);
-    setPermissionToast('');
+    setPermissionToast(null);
     setScreenReady(false);
     launchRequested.current = false;
     return () => {
@@ -107,14 +111,14 @@ export function Practice() {
   function requirePermissions() {
     if (!driveId || placementMediaReady(window.__placementPanelMedia, identity!.student.id, driveId)) return true;
     setScreenReady(false);
-    setPermissionToast('Please allow screen sharing, camera and microphone access to continue.');
+    showPermissionToast('Please allow screen sharing, camera and microphone access to continue.');
     setHighlightShare(true);
     shareButton.current?.focus();
     shareButton.current?.scrollIntoView({block:'center',behavior:'smooth'});
     if (shareHighlightTimer.current) clearTimeout(shareHighlightTimer.current);
     shareHighlightTimer.current = setTimeout(() => setHighlightShare(false), 3000);
     if (permissionTimer.current) clearTimeout(permissionTimer.current);
-    permissionTimer.current = setTimeout(() => setPermissionToast(''), 4000);
+    permissionTimer.current = setTimeout(() => setPermissionToast(null), 4000);
     return false;
   }
 
@@ -164,14 +168,14 @@ export function Practice() {
       if (document.fullscreenEnabled && !document.fullscreenElement) {
         await document.documentElement.requestFullscreen().catch(() => {});
       }
-      setPermissionToast('Screen, camera and microphone are ready. Click Start Interview to continue in fullscreen.');
+      showPermissionToast('Screen, camera and microphone are ready. Click Start Interview to continue in fullscreen.', 'success');
     } catch (cause) {
       ownedMedia?.screen.getTracks().forEach(item => item.stop());
       ownedMedia?.camera?.getTracks().forEach(item => item.stop());
       if (requestId !== permissionRequest.current) return;
       if (window.__placementPanelMedia === ownedMedia) releasePlacementPanelMedia();
       setScreenReady(false);
-      setPermissionToast(cause instanceof Error && cause.name !== 'NotAllowedError' ? cause.message : 'Access was not allowed. Enable entire-screen sharing, camera and microphone, then retry.');
+      showPermissionToast(cause instanceof Error && cause.name !== 'NotAllowedError' ? cause.message : 'Access was not allowed. Enable entire-screen sharing, camera and microphone, then retry.');
     } finally { if (requestId === permissionRequest.current) setPermissionBusy(false); }
   }
 
@@ -179,7 +183,7 @@ export function Practice() {
     if (!driveId) return true;
     const media = window.__placementPanelMedia;
     if (!media || media.studentId !== identity!.student.id || media.driveId !== driveId || !media.screen.getVideoTracks().some(track => track.readyState === 'live')) {
-      setPermissionToast('Please allow entire-screen sharing before starting.');
+      showPermissionToast('Please allow entire-screen sharing before starting.');
       return false;
     }
     setPermissionBusy(true);
@@ -193,7 +197,7 @@ export function Practice() {
       await waitForPlacementMedia(media);
       return true;
     } catch {
-      setPermissionToast('Allow fullscreen, camera and microphone access to continue.');
+      showPermissionToast('Allow fullscreen, camera and microphone access to continue.');
       return false;
     } finally { setPermissionBusy(false); }
   }
@@ -203,7 +207,7 @@ export function Practice() {
     if (!placementMediaReady(window.__placementPanelMedia, identity!.student.id, driveId)
         || (document.fullscreenEnabled && !document.fullscreenElement)) {
       launchRequested.current = false;
-      setPermissionToast('Interview is ready. Restore access and click Start or Continue to enter fullscreen.');
+      showPermissionToast('Interview is ready. Restore access and click Start or Continue to enter fullscreen.');
       return;
     }
     savePermissionConsent(submissionId,operationId);
@@ -646,7 +650,7 @@ export function Practice() {
 
   return (
     <div className="interview-practice-page">
-      {permissionToast && <div className="placement-permission-toast" role="alert"><ShieldCheck size={18}/>{permissionToast}</div>}
+      {permissionToast && <div className="placement-permission-toast" data-tone={permissionToast.tone} role={permissionToast.tone === 'error' ? 'alert' : 'status'}>{permissionToast.tone === 'success' ? <Check size={18} aria-hidden="true"/> : <AlertCircle size={18} aria-hidden="true"/>}<span>{permissionToast.message}</span></div>}
       <PageHeading eyebrow="A SAFE SPACE TO FIND YOUR VOICE" title="Let’s get you interview-ready">
         Choose a practice conversation or continue an available placement interview.
       </PageHeading>

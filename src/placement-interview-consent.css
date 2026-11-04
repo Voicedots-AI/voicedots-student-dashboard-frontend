@@ -1,14 +1,16 @@
 .practice-form .placement-primary-action .placement-start-interview{display:inline-flex;align-items:center;justify-content:center;gap:10px;min-height:46px;padding:12px 22px;background:#0969da;border:1px solid #0969da;border-radius:12px;color:#fff;font-size:13px;font-weight:650;box-shadow:0 4px 12px #0969da20}
 .practice-form .placement-primary-action .placement-start-interview:hover:not(:disabled){background:#0759bc;border-color:#0759bc}
-.placement-permission-toast{position:fixed;right:24px;bottom:24px;z-index:1200;display:flex;align-items:center;gap:10px;max-width:calc(100vw - 40px);box-sizing:border-box;padding:14px 18px;border:1px solid #bdd6fa;border-radius:12px;background:#fff;color:#254c79;font-size:13px;line-height:1.5;box-shadow:0 8px 32px #1e4c8b20}
-.placement-permission-toast svg{color:#1769dd;flex-shrink:0}
+.placement-permission-toast{position:fixed;top:max(20px,env(safe-area-inset-top));left:50%;transform:translateX(-50%);z-index:2000;display:flex;align-items:center;gap:10px;width:max-content;max-width:min(640px,calc(100vw - 32px));box-sizing:border-box;padding:14px 18px;border:1px solid;border-radius:12px;font-size:13px;line-height:1.5;font-weight:600;box-shadow:0 8px 32px #19334d20;overflow-wrap:anywhere}
+.placement-permission-toast svg{flex-shrink:0}
+.placement-permission-toast[data-tone="success"]{background:#f0fdf4;border-color:#86efac;color:#166534}
+.placement-permission-toast[data-tone="success"] svg{color:#16a34a}
+.placement-permission-toast[data-tone="error"]{background:#fff1f2;border-color:#f87171;color:#991b1b}
+.placement-permission-toast[data-tone="error"] svg{color:#dc2626}
 .placement-permission-actions{display:flex;align-items:center;flex-wrap:wrap;gap:10px;margin:0 0 18px}
 .placement-permission-actions .button{display:inline-flex;align-items:center;gap:7px;min-height:38px;padding:9px 13px;background:#edf5ff;color:#2163bb;border:1px solid #cbdffa;border-radius:9px;font-size:12px}
 .placement-permission-actions>span{font-size:11px;color:#72849c}
 .placement-interview-frame{position:fixed;inset:0;z-index:1500;width:100%;height:100dvh;border:0;background:#0969da;display:block}
-.placement-permission-toast{background:#fff1f2;border-color:#f87171;color:#991b1b;box-shadow:0 8px 32px #991b1b26;font-weight:600}
-.placement-permission-toast svg{color:#dc2626}
 .placement-permission-actions .permission-required-highlight{border-color:#dc2626;color:#991b1b;background:#fff1f2;outline:3px solid #fecaca;outline-offset:3px;animation:permission-attention 1s ease-in-out 3}
 @keyframes permission-attention{50%{box-shadow:0 0 0 7px #ef444430}}
 @media(prefers-reduced-motion:reduce){.placement-permission-actions .permission-required-highlight{animation:none}}
-@media(max-width:600px){.placement-permission-toast{left:20px;right:20px;bottom:20px}.practice-form .placement-primary-action .placement-start-interview{width:100%}}
+@media(max-width:600px){.placement-permission-toast{top:max(12px,env(safe-area-inset-top));padding:12px 14px}.practice-form .placement-primary-action .placement-start-interview{width:100%}}

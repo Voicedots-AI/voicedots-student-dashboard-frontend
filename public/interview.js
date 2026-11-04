@@ -6,6 +6,8 @@
 
 import { createFeedPhotoVerifier } from "./feed-photo-verifier.js";
 import { createVerificationNarrator, verifyIdentityWithNarration } from "./verification-narrator.js";
+import { checkInterviewReadiness } from "./interview-readiness.js";
+import { acquireInterviewMedia } from "./interview-media.js";
 
 const _HTTP_BASE = window.__API_BASE__ || window.location.origin;
 const WS_BASE = _HTTP_BASE.replace(/^http/, "ws");
@@ -243,6 +245,7 @@ const TOTAL_INTERVIEW_ROUNDS = 4;
 let requiredInterviewRounds = TOTAL_INTERVIEW_ROUNDS;
 const completedRounds = new Set();
 let reportGenerationStarted = false;
+let sessionTimedOut = false;
 let exchangeCount = 0;
 let integrityStrikeCount = 0;
 let integritySequence = 0;
@@ -401,14 +404,14 @@ function startPresencePing() {
 }
 
 let callTimerInterval = null;
-function startCallTimer() {
+function startCallTimer(elapsedSeconds = 0, durationSeconds = Infinity) {
   if (callTimerInterval) clearInterval(callTimerInterval);
-  const startTime = Date.now();
+  const startTime = Date.now() - Math.max(0, elapsedSeconds) * 1000;
   const timerTextEl = document.getElementById("call-timer-text");
   if (!timerTextEl) return;
   timerTextEl.textContent = "00:00";
   callTimerInterval = setInterval(() => {
-    const elapsedSec = Math.floor((Date.now() - startTime) / 1000);
+    const elapsedSec = Math.min(durationSeconds, Math.floor((Date.now() - startTime) / 1000));
     const m = String(Math.floor(elapsedSec / 60)).padStart(2, "0");
     const s = String(elapsedSec % 60).padStart(2, "0");
     timerTextEl.textContent = `${m}:${s}`;
@@ -639,7 +642,7 @@ function failPanelStartup(message, { requiresSetup = false } = {}) {
   if (action) {
     action.textContent = requiresSetup ? 'Review interview setup' : 'Retry in this panel';
     action.onclick = () => {
-      if (!requiresSetup) { window.location.reload(); return; }
+      if (!requiresSetup) { void startInterviewBackgroundFlow(); return; }
       const drive = new URLSearchParams(window.location.search).get('drive');
       window.location.assign(`/practice${drive ? `?${new URLSearchParams({drive})}` : ''}`);
     };
@@ -713,50 +716,33 @@ async function requestPanelScreenAccess() {
   });
 }
 
+let backgroundStartupRunning = false;
 async function startInterviewBackgroundFlow() {
+  if (backgroundStartupRunning || interviewHasStarted) return;
+  backgroundStartupRunning = true;
+  document.getElementById('error-toast')?.classList.remove('show');
   if (prejoinScreen) prejoinScreen.style.display = 'none';
   if (callScreen) callScreen.style.display = 'block';
   if (liveChip) liveChip.style.display = 'none';
   if (rndStatus) rndStatus.textContent = 'Connecting to camera & microphone…';
   try {
-  // 1. Automatically acquire camera and microphone and attach to candidate tile
-  try {
-    const stream = parentPlacementMedia()?.camera || await navigator.mediaDevices.getUserMedia({
-      video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: "user" },
-      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: { ideal: 1 } },
+    await acquireInterviewMedia({
+      handoff: parentPlacementMedia(),
+      acquire: () => navigator.mediaDevices.getUserMedia({
+        video: {width: {ideal: 1280}, height: {ideal: 720}, facingMode: 'user'},
+        audio: {echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: {ideal: 1}},
+      }),
+      attach: stream => {
+        userMediaStream = stream;
+        if (candidateVideoEl) {
+          candidateVideoEl.srcObject = stream;
+          void candidateVideoEl.play().catch(() => {});
+        }
+      },
     });
-    userMediaStream = stream;
-    cameraTrackLive = hasLiveTrack("video");
-    microphoneTrackLive = hasLiveTrack("audio");
-    if (candidateVideoEl) {
-      candidateVideoEl.srcObject = stream;
-      candidateVideoEl.play().catch(() => {});
-    }
-  } catch (err) {
-    console.warn("Direct getUserMedia fallback:", err);
-    try {
-      const res = await acquireMediaStream({
-        video: { width: { ideal: 1280 }, height: { ideal: 720 } },
-        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
-      });
-      userMediaStream = res.stream;
-      cameraTrackLive = res.hasVideo;
-      microphoneTrackLive = res.stream.getAudioTracks().length > 0;
-      if (candidateVideoEl) {
-        candidateVideoEl.srcObject = res.stream;
-        candidateVideoEl.play().catch(() => {});
-      }
-    } catch (mediaErr) {
-      console.error("Camera/Mic access failed:", mediaErr);
-      if (rndStatus) rndStatus.textContent = "Camera/Mic access required";
-    }
-  }
-
-
-    // A granted device can briefly be muted while Chrome initializes the
-    // shared parent stream. Do not mistake that for denied permissions.
-    await waitForPreflight(() => hasLiveTrack('video') && hasLiveTrack('audio'),
-      'Camera or microphone is not sending a signal. Check browser site permissions and device privacy settings, then retry in this panel.');
+    cameraTrackLive = hasLiveTrack('video');
+    microphoneTrackLive = hasLiveTrack('audio');
+    userMediaStream.getTracks().forEach(bindMediaTrackEnded);
     await waitForPreflight(() => candidateVideoEl?.readyState >= 2 && candidateVideoEl.videoWidth > 0,
       'Your camera preview is not ready. Check camera permissions and retry.');
     void startCameraAnalysis();
@@ -785,7 +771,7 @@ async function startInterviewBackgroundFlow() {
     await startInterview(currentSubmissionId);
   } catch (cause) {
     failPanelStartup(cause instanceof Error ? cause.message : 'Interview startup failed. Please retry from your placement drive.');
-  }
+  } finally { backgroundStartupRunning = false; }
 }
 async function awaitPlacementPreparation(operationId, driveId) {
   const until = Date.now() + 180000;
@@ -1210,32 +1196,16 @@ async function checkReadiness() {
     if (!response.ok) throw new Error(data.detail || "Could not prepare this interview.");
     preflightId = data.preflight_id;
   }
-  await new Promise((resolve, reject) => {
-    const socket = new WebSocket(`${WS_BASE}/ws/interview-preflight/${currentSubmissionId}?preflight_id=${encodeURIComponent(preflightId)}`);
-    let settled = false;
-    const finish = error => {
-      if (settled) return;
-      settled = true; clearTimeout(timeout); socket.close();
-      if (error) reject(error); else resolve();
-    };
-    const timeout = setTimeout(() => finish(new Error("Connection check timed out. Retry the readiness check.")), 15000);
-    socket.onmessage = event => {
-      try {
-        const data = JSON.parse(event.data);
-        if (data.type === "ready") { servicesCheckedAt = Date.now(); finish(); }
-        else if (data.type === "error") {
-          if (String(data.detail).includes("expired")) { preflightId = null; preflightChecks.identity = "pending"; }
-          finish(new Error(data.detail || "Interview services are unavailable."));
-        }
-      } catch (error) { finish(error); }
-    };
-    socket.onerror = () => finish(new Error("Could not connect to the interview service. Retry the readiness check."));
-    socket.onclose = event => finish(new Error(
-      event.code === 4401 ? "Your sign-in expired. Sign in again to resume this attempt."
-        : event.code === 4403 ? "Verification or placement access needs attention. Retry verification in this panel."
-        : "The interview connection check was interrupted. Check your network and retry in this panel."
-    ));
-  });
+  try {
+    await checkInterviewReadiness(`${WS_BASE}/ws/interview-preflight/${currentSubmissionId}?preflight_id=${encodeURIComponent(preflightId)}`);
+    servicesCheckedAt = Date.now();
+  } catch (error) {
+    if (String(error.message).toLowerCase().includes('expired')) {
+      preflightId = null;
+      preflightChecks.identity = 'pending';
+    }
+    throw error;
+  }
 }
 
 async function verifyPreflightIdentity() {
@@ -3877,7 +3847,7 @@ function handleControlMessage(payload) {
     // only from here on do queued pending events get flushed.
     case "interview_started":
       if (liveChip) liveChip.style.display = 'inline-flex';
-      if (!callTimerInterval) startCallTimer();
+      startCallTimer(Number(payload.elapsed_seconds) || 0, Number(payload.duration_seconds) || Infinity);
       interviewRecordingEnabled = payload.recording_enabled !== false;
       if (Array.isArray(payload.agents) && payload.agents.length) {
         const animations = new Map(panelAnimations);
@@ -4128,13 +4098,25 @@ function handleControlMessage(payload) {
       showProcessingStatus(payload.detail);
       break;
 
+    case "time_limit_reached":
+      sessionTimedOut = true;
+      if (callTimerInterval) { clearInterval(callTimerInterval); callTimerInterval = null; }
+      resetPlaybackQueue();
+      aiSpeaking = false;
+      micMuted = true;
+      setActivePanelTalking(false);
+      if (rndStatus) rndStatus.textContent = 'Time complete · saving your answers';
+      break;
+
     case "call_ended":
       completionPersistencePending = true;
       // fall through: both events carry the completed-round proof.
     case "session_complete":
       clearProcessingStatus();
+      sessionTimedOut = sessionTimedOut || payload.time_limit_reached === true;
+      if (callTimerInterval) { clearInterval(callTimerInterval); callTimerInterval = null; }
       setRequiredInterviewRounds(payload.required_rounds);
-      if (Number(payload.completed_rounds) === requiredInterviewRounds && completedRounds.size === requiredInterviewRounds) {
+      if (sessionTimedOut || Number(payload.completed_rounds) === requiredInterviewRounds && completedRounds.size === requiredInterviewRounds) {
         sessionCompletedCleanly = true;
         finishAndGenerateReport();
       } else {
@@ -4402,6 +4384,7 @@ async function recoverCompletedSession() {
 }
 
 function stopInterview() {
+  if (callTimerInterval) { clearInterval(callTimerInterval); callTimerInterval = null; }
   supportRetryState = "complete";
   const supportControls = document.getElementById("support-retry-controls");
   if (supportControls) supportControls.hidden = true;
@@ -4468,13 +4451,12 @@ function cleanupInterviewMedia() {
 
 async function finishAndGenerateReport() {
   if (reportGenerationStarted) return;
-  if (!sessionCompletedCleanly || completedRounds.size !== requiredInterviewRounds) {
+  if (!sessionCompletedCleanly || !sessionTimedOut && completedRounds.size !== requiredInterviewRounds) {
     showIncompleteInterview("rounds_missing", completedRounds.size, requiredInterviewRounds);
     return;
   }
   reportGenerationStarted = true;
   stopInterview();
-  void showInterviewExperienceFeedback();
   if (callScreen) callScreen.style.display = "none";
   if (liveChip) liveChip.style.display = "none";
   if (reportScreen) reportScreen.style.display = "flex";
@@ -4550,15 +4532,20 @@ async function loadEvaluationResults() {
       renderEvaluationUnavailable(body.detail || `Request failed (${res.status}).`);
       return;
     }
-    const report = await res.json();
+    await res.json();
     REPORT_STEP_IDS.forEach(markReportStepDone);
-    if (reportScreen) reportScreen.style.display = "none";
-    if (resultsScreen) resultsScreen.style.display = "block";
-    if (hasEvaluableReportData(report)) {
-      renderResults(report);
-      void loadAnswerFeedback(report);
+    if (currentSessionId) {
+      // Use the SAME report/scorecard and Dr. Rajesh coach component as
+      // My Reports. Do not render the legacy static Neha results UI.
+      if (recordingStopTask) await recordingStopTask;
+      const target = `/reports/${encodeURIComponent(currentSessionId)}?from=interview`;
+      try {
+        if (window.parent !== window && window.parent.location.origin === window.location.origin) {
+          window.parent.location.assign(target);
+        } else window.location.assign(target);
+      } catch { window.location.assign(target); }
     } else {
-      renderResponsesSaved(report);
+      renderEvaluationUnavailable('Your report is saved. Open My Reports to view your interview results.');
     }
   } catch (err) {
     console.error("Evaluation error:", err);
