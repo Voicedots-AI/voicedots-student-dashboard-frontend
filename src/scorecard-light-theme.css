@@ -114,3 +114,14 @@
   font-size: 13px;
 }
 :root .s3-modal-card .s3-voice-notice p { margin: 0 0 8px; }
+/* Unassessed competencies remain visible without being presented as failures. */
+.s2-comp-row-item[data-assessed="false"] .s2-comp-bullet-icon{background:#eef2f7;color:#64748b}
+.s2-comp-row-item[data-assessed="false"] .s2-comp-val-label{color:#64748b;min-width:90px;font-size:11px}
+
+/* Primary improvement action: distinct green CTA within the blue coach UI. */
+:root .s3-modal-card .s3-btn-start-plan{background:#059669;border-color:#059669;color:#fff;box-shadow:0 3px 10px #05966926;transition:background-color .18s ease,box-shadow .18s ease,transform .18s ease}
+:root .s3-modal-card .s3-btn-start-plan:hover:not(:disabled){background:#047857;border-color:#047857;box-shadow:0 6px 16px #04785733;transform:translateY(-1px)}
+:root .s3-modal-card .s3-btn-start-plan:active:not(:disabled){background:#065f46;transform:translateY(0);box-shadow:0 2px 6px #04785726}
+:root .s3-modal-card .s3-btn-start-plan:focus-visible{outline:3px solid #6ee7b7;outline-offset:3px}
+:root .s3-modal-card .s3-btn-start-plan:disabled{background:#d1fae5;border-color:#a7f3d0;color:#47715e;box-shadow:none;cursor:not-allowed;transform:none}
+@media(prefers-reduced-motion:reduce){:root .s3-modal-card .s3-btn-start-plan{transition:none}:root .s3-modal-card .s3-btn-start-plan:hover:not(:disabled){transform:none}}

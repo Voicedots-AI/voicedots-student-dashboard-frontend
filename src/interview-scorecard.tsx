@@ -21,6 +21,7 @@ import {
 import { api, ApiError, json, type CandidateSatisfaction, type InterviewReportView } from './api';
 import { requestCoachSpeech } from './coach-voice-audio';
 import { coachCallPath } from './coach-call-link';
+import { reportCompetencies } from './report-competencies';
 
 import { PlacementOfficerAvatar } from './placement-officer-avatar';
 import './journey-screens.css';
@@ -40,7 +41,7 @@ const feedbackQuestions = [
   ['overall_experience', 'Overall, I was satisfied with the interview.'],
 ] as const;
 
-export function InterviewScorecard({ view, sessionId, role }: { view: InterviewReportView; sessionId: string; role?: string; assessedAt?: string; durationSeconds?: number }) {
+export function InterviewScorecard({ view, sessionId, role, company }: { view: InterviewReportView; sessionId: string; role?: string; company?: string|null; assessedAt?: string; durationSeconds?: number }) {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const [openingPlan, setOpeningPlan] = useState(false);
@@ -96,20 +97,16 @@ export function InterviewScorecard({ view, sessionId, role }: { view: InterviewR
   const candidateInitial = candidateName ? candidateName.trim().charAt(0).toUpperCase() : 'A';
   const studentFirstName = candidateName.split(/\s+/)[0] || 'Student';
   const roleTitle = role || 'Your target role';
-  const [companyName,setCompanyName] = useState('Placement interview');
+  const [companyName,setCompanyName] = useState(company || 'Placement interview');
 
   // Competency map
-  const rawBreakdown = view.score_breakdown || {};
-  const competencies = [
-    {name:'Technical Knowledge',keys:['technical_knowledge','technical']},
-    {name:'Problem Solving',keys:['problem_solving','structured_thinking']},
-    {name:'Communication Skills',keys:['communication','communication_skills']},
-    {name:'Confidence & Conduct',keys:['confidence_conduct','confidence']},
-    {name:'Domain Knowledge',keys:['domain_knowledge','domain']},
-  ].flatMap(item => {
-    const score=item.keys.map(key=>rawBreakdown[key]).find(value=>typeof value==='number'&&Number.isFinite(value));
-    return typeof score==='number' ? [{name:item.name,score:Math.max(0,Math.min(100,score)),max:100}] : [];
-  });
+  const allCompetencies = reportCompetencies(view);
+  const competencies = allCompetencies.filter((item):item is typeof item & {score:number}=>item.score!==null);
+  const [discussionBusy,setDiscussionBusy] = useState(false);
+  const [discussionError,setDiscussionError] = useState('');
+  const [discussionHistory,setDiscussionHistory] = useState<Array<{speaker:'student'|'officer';text:string}>>([]);
+  const discussionRequest = useRef<AbortController|null>(null);
+  useEffect(()=>()=>{discussionRequest.current?.abort();},[sessionId]);
   const [scheduleDataByDays,setScheduleDataByDays]=useState<Record<string,{track:string;topic:string;technical:string;communication:string}>>({});
   useEffect(()=>{
     let active=true;
@@ -206,32 +203,46 @@ export function InterviewScorecard({ view, sessionId, role }: { view: InterviewR
   useEffect(() => () => stopCoachVoice(), []);
 
   // Live discussion handler when student interacts or asks Dr. Rajesh
-  const handleDiscussionPrompt = (promptText: string) => {
-    let reply = '';
-    const lower = promptText.toLowerCase();
-    if (lower.includes('85%') || lower.includes('reach') || lower.includes('score')) {
-      reply = `By pacing ${selectedDailyTime} daily over ${selectedTimeline}, we combine 45 mins of architecture reading, 45 mins of coding exercises, and 30 mins of spoken trade-offs to boost your score from ${overallScore}% to 85%+ before your placement drive.`;
-    } else if (lower.includes('weekend') || lower.includes('adjust') || lower.includes('time')) {
-      reply = `Yes! You can redistribute your weekday hours into 3-hour weekend deep-dive sessions. Click 'Re-adjust Goals' at any time to switch to an intensive weekend schedule.`;
-    } else if (lower.includes('communication') || lower.includes('trade-off') || lower.includes('speak')) {
-      reply = `Use the VoiceDots recording drill! Don't just code silently; verbalize your assumptions, space-time trade-offs, and why you picked a certain data structure. Dr. Rajesh will evaluate your pace, clarity, and filler words.`;
-    } else if (lower.includes('schedule') || lower.includes('re-attempt') || lower.includes('mock')) {
-      reply = `I recommend scheduling your Milestone Re-attempt on Day 7 to benchmark your progress, and your final Placement Re-attempt on Day 14.`;
-    } else {
-      reply = `Great question regarding "${promptText}"! For Placement Readiness, focus on consistent daily practice and verbalizing your thought process. This roadmap is specifically calibrated to strengthen your weak areas in Technical Knowledge and Problem Solving.`;
+  const handleDiscussionPrompt = async (promptText: string) => {
+    if (!promptText.trim() || discussionRequest.current) return false;
+    const controller = new AbortController();
+    discussionRequest.current = controller;
+    setDiscussionBusy(true);
+    setDiscussionError('');
+    stopCoachVoice();
+    try {
+      const result = await api<{reply:string;degraded?:boolean}>('/api/student/coach/officer/conversation', {
+        ...json({mode:'guidance',drive_id:callDriveId,report_session_id:sessionId,
+          source:`/reports/${sessionId}`,message:promptText,history:discussionHistory}),
+        signal:controller.signal,timeoutMs:35000,
+      });
+      if (controller.signal.aborted) return false;
+      const reply = result.reply?.trim();
+      if (!reply) throw new Error('The coach returned no reply. Please retry.');
+      setCustomDialogue(reply);
+      setDiscussionHistory(history=>[...history,{speaker:'student' as const,text:promptText},{speaker:'officer' as const,text:reply}].slice(-24));
+      if (result.degraded) setDiscussionError('Detailed coaching is temporarily unavailable. Please retry shortly.');
+      void speakCoachText(reply);
+      return true;
+    } catch (cause) {
+      if (!controller.signal.aborted) setDiscussionError(cause instanceof Error ? cause.message : 'Coaching is unavailable. Please retry.');
+      return false;
+    } finally {
+      if (discussionRequest.current === controller) {
+        discussionRequest.current = null;
+        setDiscussionBusy(false);
+      }
     }
-    setCustomDialogue(reply);
-    speakCoachText(reply);
   };
 
   const defaultDialogueForStep: Record<number, string> = {
     1: `I've reviewed your interview for ${roleTitle}. Your overall score is ${overallScore}/100. ${competencies.length ? `Let's focus on ${[...competencies].sort((a,b)=>a.score-b.score).slice(0,2).map(item=>`${item.name} (${item.score}/100)`).join(' and ')}.` : 'Let’s review the available answer feedback together.'} This is preparation guidance; your placement team manages eligibility.`,
-    2: `To reach placement readiness, how much time can you commit daily, and what is your preparation timeline? I recommend 2 hours daily over 14 days for optimal retention.`,
+    2: `To reach placement readiness, how much time can you commit daily, and what is your preparation timeline? We can choose a realistic schedule around your availability.`,
     3: `Let's use your interview evidence and the requirements for ${roleTitle} to choose focused exercises, topic revision and practice explanations. We can review the saved learning plan and adjust it to your availability.`,
-    4: `Here is your Personalized Daily Learning Schedule! I've structured your roadmap with daily technical exercises, communication drills, and simulated mock interviews.`,
+    4: `Let's review your saved learning schedule and adjust it to your goals and availability. If no schedule is saved yet, we can discuss what would work for you.`,
   };
 
-  const introDialogue = `Hi ${studentFirstName}! I'm Dr. Rajesh, your AI Coach. I've analysed your interview. Your score is ${overallScore} out of 100. I can help you improve and prepare for your next attempt. We can create a personalized improvement plan based on your weak areas. Would you like to start now?`;
+  const introDialogue = `Hi ${studentFirstName}! I'm Dr. Rajesh, your AI Coach. I've reviewed your ${companyName} interview for ${roleTitle}. Your score is ${overallScore} out of 100. ${competencies.length ? `Your priority areas include ${[...competencies].sort((a,b)=>a.score-b.score).slice(0,2).map(item=>`${item.name}, ${item.score} out of 100`).join(' and ')}.` : ''} I can help you improve and prepare for your next attempt. We can create a personalized improvement plan based on your weak areas. Would you like to start now?`;
   const currentDialogue = customDialogue || (coachIntro ? introDialogue : defaultDialogueForStep[activeStep]);
 
   useEffect(() => {
@@ -362,13 +373,13 @@ export function InterviewScorecard({ view, sessionId, role }: { view: InterviewR
           {/* Right: Competency-wise Score */}
           <div className="s2-comp-section">
             <h3 className="s2-comp-title">Competency-wise Score</h3>
-            {!competencies.length && <p className="scorecard-empty-note">Detailed competency scores are not available for this assessment yet.</p>}
+            {!allCompetencies.length && <p className="scorecard-empty-note">Detailed competency scores are not available for this assessment yet.</p>}
             <div className="s2-comp-rows-container">
-              {competencies.map((comp) => {
-                const isHigh = comp.score >= 50;
-                const pct = Math.min(100, Math.max(0, Math.round((comp.score / comp.max) * 100)));
+              {allCompetencies.map((comp) => {
+                const isHigh = comp.score !== null && comp.score >= 50;
+                const pct = comp.score === null ? 0 : Math.round(comp.score);
                 return (
-                  <div key={comp.name} className="s2-comp-row-item">
+                  <div key={comp.name} className="s2-comp-row-item" data-assessed={comp.score !== null}>
                     <div className="s2-comp-label-wrap">
                       <span className={`s2-comp-bullet-icon ${isHigh ? 'dot-green' : 'dot-coral'}`}>
                         {isHigh ? <Check size={11} strokeWidth={3} /> : <span className="s2-bullet-inner-dot" />}
@@ -383,7 +394,7 @@ export function InterviewScorecard({ view, sessionId, role }: { view: InterviewR
                         />
                       </div>
                       <span className="s2-comp-val-label">
-                        {comp.score}/{comp.max}
+                        {comp.score === null ? 'Not assessed' : `${comp.score}/${comp.max}`}
                       </span>
                     </div>
                   </div>
@@ -554,15 +565,16 @@ export function InterviewScorecard({ view, sessionId, role }: { view: InterviewR
                   <h2 className="s3-coach-headline">Hi {studentFirstName}! I'm your AI Coach</h2>
                   <p className="s3-coach-subheadline">Personalized Placement Readiness Guidance</p>
                 </div>
+                {discussionError && <p role="alert" className="s3-voice-notice">{discussionError}</p>}
                 {coachVoiceError && <div role="status" className="s3-voice-notice"><p>{coachVoiceError}</p><button type="button" className="s3-discussion-prompt-chip" disabled={coachVoiceLoading} onClick={() => { setIsVoiceMuted(false); void speakCoachText(currentDialogue, true); }}>Play voice / Retry</button></div>}
 
                 {coachIntro && <div className="s3-intro-conversation">
-                  <p>I've analysed your interview. Your score is <strong>{overallScore}/100</strong>. I can help you improve and prepare for your next attempt.</p>
+                  <p>I've reviewed your {companyName} interview for {roleTitle}. Your score is <strong>{overallScore}/100</strong>. I can help you improve and prepare for your next attempt.</p>
                   <p>We will create a personalized improvement plan based on your weak areas. Would you like to start now?</p>
                   <div className="s3-intro-checklist"><h3>We will work on:</h3>{['Identify your weak areas', 'Provide learning resources', 'Create a daily practice schedule', 'Schedule re-attempt interviews', 'Track your progress'].map(item => <div key={item}><CheckCircle2 size={19} aria-hidden="true"/><span>{item}</span></div>)}</div>
                   <button type="button" className="s3-discussion-prompt-chip" onClick={() => { setCoachIntro(false); setActiveStep(1); setCustomDialogue(null); }}>Discuss my goals and availability</button>
                 </div>}
-                <div className="s3-detailed-conversation" hidden={coachIntro}>
+                <div className="s3-detailed-conversation" hidden={coachIntro} aria-busy={discussionBusy}>
                 {/* 4-Step Breadcrumbs Pagination */}
                 <div className="s3-breadcrumbs-nav-row">
                   <button
@@ -837,14 +849,13 @@ export function InterviewScorecard({ view, sessionId, role }: { view: InterviewR
                     </button>
                   </div>
 
-                  {/* Custom Ask Neha Input Form */}
+                  {/* Discussion grounded in this report's company, frozen JD and assessment. */}
                   <form
                     className="s3-discussion-input-form"
                     onSubmit={(e) => {
                       e.preventDefault();
                       if (discussionInput.trim()) {
-                        handleDiscussionPrompt(discussionInput.trim());
-                        setDiscussionInput('');
+                        void handleDiscussionPrompt(discussionInput.trim()).then(sent=>{if(sent)setDiscussionInput('');});
                       }
                     }}
                   >
@@ -855,8 +866,8 @@ export function InterviewScorecard({ view, sessionId, role }: { view: InterviewR
                       value={discussionInput}
                       onChange={(e) => setDiscussionInput(e.target.value)}
                     />
-                    <button type="submit" className="s3-discussion-send-btn">
-                      Ask Dr. Rajesh →
+                    <button type="submit" className="s3-discussion-send-btn" disabled={discussionBusy}>
+                      {discussionBusy ? "Reviewing your report…" : "Ask Dr. Rajesh →"}
                     </button>
                   </form>
                 </div>
