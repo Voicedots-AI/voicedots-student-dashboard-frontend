@@ -1,4 +1,4 @@
-import {useEffect,useState} from "react";
+import {useEffect,useRef,useState} from "react";
 import {api,ApiError} from "./api";
 import {useAuth} from "./auth";
 import {studentDataCache} from "./student-data-cache";
@@ -17,7 +17,7 @@ function fetchPlacementATS(driveId: string, signal?: AbortSignal): Promise<Place
       ['mandatory','core'].includes((row.priority||row.importance||'').trim().toLowerCase()) &&
       (['NO_EVIDENCE','NO_MATCH','MISSING','WEAK_OR_INFERRED'].includes((row.match_status||'').toUpperCase()))
     ).map(row=>row.skill||row.requirement||'').filter(Boolean) : [];
-    return {minimum:result.criteria_ats_fit??50,score, missing, failed:false, status:result.ats_status, checked: result.ats_status === "evaluated" && Array.isArray(result.skills)};
+    return {minimum:result.criteria_ats_fit??50,score, missing, failed:result.ats_status === "evaluation_failed", status:result.ats_status, checked: result.ats_status === "evaluated" && Array.isArray(result.skills)};
   }).catch((error: unknown) => error instanceof ApiError && error.status === 404
     ? {minimum:50,score:null, missing:[], failed:false, status:"not_assessed", checked:false}
     : {minimum:50,score:null, missing:[], failed:true, status:"failed", checked:false});
@@ -46,6 +46,8 @@ export function usePlacementATS(driveId?: string | null, configuredMinimum?: num
   const cacheKey = studentId && driveId ? `${studentId}:${resumeId}:${driveId}` : "";
   const [state, setState] = useState<{key:string; result:PlacementATSResult} | null>(null);
   const [version, setVersion] = useState(0);
+  const polls = useRef({key:cacheKey, count:0});
+  if (polls.current.key !== cacheKey) polls.current = {key:cacheKey,count:0};
   useEffect(() => {
     if (!cacheKey || !driveId) return;
     let active = true;
@@ -55,9 +57,9 @@ export function usePlacementATS(driveId?: string | null, configuredMinimum?: num
   }, [cacheKey, driveId, version]);
   const current = state?.key === cacheKey ? state.result : studentDataCache.peek<PlacementATSResult>(cacheKey);
   useEffect(()=>{
-    if(current?.status!=="processing")return;
+    if(!current || !['processing','pending','queued'].includes(current.status) || polls.current.count >= 12)return;
     let timer:number;
-    const poll=()=>{timer=window.setTimeout(()=>{if(document.visibilityState==="hidden"){poll();return}studentDataCache.invalidate(cacheKey);setVersion(value=>value+1)},10000)};
+    const poll=()=>{timer=window.setTimeout(()=>{if(document.visibilityState==="hidden"){poll();return}polls.current.count += 1;studentDataCache.invalidate(cacheKey);setVersion(value=>value+1)},10000)};
     poll();
     return()=>window.clearTimeout(timer);
   },[current,cacheKey]);
@@ -65,6 +67,8 @@ export function usePlacementATS(driveId?: string | null, configuredMinimum?: num
   // Older ATS endpoints may omit the cutoff; that must not override a drive's
   // configured 60%, for example, with the legacy 50% default.
   const minimum = placementATSMinimum(configuredMinimum,current?.minimum);
-  return {minimum,eligible:meetsPlacementATSThreshold(current?.score,minimum), score:current?.score ?? null, missing:current?.missing || [], failed:current?.failed || false, checked:current?.checked === true, pending:Boolean(cacheKey) && !current,
-    retry:()=>{studentDataCache.invalidate(cacheKey);setState(null);setVersion(v=>v+1);}};
+  const pending = Boolean(cacheKey) && (!current || ['processing','pending','queued'].includes(current.status));
+  const label = pending ? "Processing…" : current?.failed ? "Assessment unavailable" : current?.status === "resume_not_available" ? "Resume required" : current?.status === "needs_reevaluation" ? "Requirements pending" : current?.score == null ? "Not assessed" : `${current.score}%`;
+  return {label,minimum,eligible:meetsPlacementATSThreshold(current?.score,minimum), score:current?.score ?? null, missing:current?.missing || [], failed:current?.failed || false, checked:current?.checked === true, pending,
+    retry:()=>{polls.current.count=0;studentDataCache.invalidate(cacheKey);setState(null);setVersion(v=>v+1);}};
 }

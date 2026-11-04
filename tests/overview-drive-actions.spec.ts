@@ -134,3 +134,30 @@ test('open windows leave upcoming without granting assignment actions', async ({
  await expect(card.getByRole('link',{name:'Start Interview'})).toHaveCount(0);
  await expect(unassigned.getByRole('link',{name:'Start Interview'})).toHaveCount(0);
 });
+
+test('queued ATS shows processing, refreshes to the real score and stops polling', async ({page}) => {
+ await page.clock.install({time:new Date('2026-11-04T10:00:00Z')});
+ await page.clock.pauseAt(new Date('2026-11-04T10:00:00Z'));
+ await mockPerformance(page,{reportRows:[]});
+ await page.route('**/api/student/drives', r=>r.fulfill({json:[{id:'queued-drive',company_name:'Queue Company',role_title:'Analyst',status:'active',interview_status:'open',interview_action:'blocked',main_resume_available:true}]}));
+ let calls=0;
+ await page.route('**/api/student/drives/queued-drive/ats-fit', r=>r.fulfill({json:++calls===1?{ats_status:'processing',ats_fit_score:null,skills:[]}:{ats_status:'evaluated',ats_fit_score:67,skills:[]}}));
+ await page.goto('/placements');
+ const ats=page.locator('.drive-card[data-drive-id="queued-drive"] .placement-feature-ats');
+ await expect(ats).toContainText('Processing…');
+ await expect(ats).not.toContainText('Not assessed');
+ await page.clock.fastForward(11000);
+ await expect(ats).toContainText('67%');
+ await page.clock.fastForward(60000);
+ expect(calls).toBe(2);
+});
+
+test('failed ATS is shown honestly and does not keep polling', async ({page}) => {
+ await mockPerformance(page,{reportRows:[]});
+ await page.route('**/api/student/drives', r=>r.fulfill({json:[{id:'failed-drive',company_name:'Failure Company',role_title:'Analyst',status:'active',interview_status:'open',interview_action:'blocked',main_resume_available:true}]}));
+ await page.route('**/api/student/drives/failed-drive/ats-fit', r=>r.fulfill({json:{ats_status:'evaluation_failed',ats_fit_score:null,skills:[]}}));
+ await page.goto('/placements');
+ const ats=page.locator('.drive-card[data-drive-id="failed-drive"] .placement-feature-ats');
+ await expect(ats).toContainText('Assessment unavailable');
+ await expect(ats).not.toContainText('Not assessed');
+});

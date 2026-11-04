@@ -487,7 +487,7 @@ function PlacementATSLabel({driveId,minimum}: {driveId:string;minimum?:number|nu
   return <PlacementATSBadge driveId={driveId} ats={ats}/>;
 }
 
-function PlacementDriveActions({drive,reports,eligibilityCheck,atsScore,atsMinimum}: {drive:Drive;reports:Report[];eligibilityCheck?:string;atsScore?:number|null;atsMinimum:number}) {
+function PlacementDriveActions({drive,reports,eligibilityCheck,atsScore,atsMinimum,atsLabel}: {drive:Drive;reports:Report[];eligibilityCheck?:string;atsScore?:number|null;atsMinimum:number;atsLabel:string}) {
   const driveId=drive.id;
   const coachAvailable=canAccessPlacementCoach(drive,reports);
 
@@ -513,7 +513,7 @@ function PlacementDriveActions({drive,reports,eligibilityCheck,atsScore,atsMinim
     return <footer className="placement-drive-footer"><nav className="placement-card-actions" aria-label={`Actions for ${drive.company_name} ${drive.role_title}`}>
       {canInterview?<Link className={`placement-feature placement-feature-interview${eligibleForStart ? " placement-feature-interview-eligible" : ""}`} aria-label={interviewLabel} to={`/practice?drive=${id}`}>{interviewContent}</Link>:<span className="placement-feature placement-feature-unavailable" aria-disabled="true" title={drive.eligibility_reason||unavailableReason}>{interviewContent}</span>}
       <Link className="placement-feature placement-feature-ats" to={`/ats-fit?drive=${id}`} data-ats-tone={atsScore == null ? 'neutral' : atsQualified ? 'green' : 'red'} aria-label={`View ATS Fit${atsScore == null ? '' : `, ${atsScore}%`}`}>
-        <span className="placement-feature-icon"><FileText size={17}/></span><span className="placement-feature-copy"><b>ATS Fit</b><small>{atsScore == null ? 'Not assessed' : `${atsScore}%`}</small></span><ChevronRight size={14}/>
+        <span className="placement-feature-icon"><FileText size={17}/></span><span className="placement-feature-copy"><b>ATS Fit</b><small>{atsLabel}</small></span><ChevronRight size={14}/>
       </Link>
       {report?.session_id&&availableScore?<Link className="placement-feature placement-feature-score" aria-label={`Score Card ${interviewScore}%`} to={`/reports/${encodeURIComponent(report.session_id)}`}><span className="placement-feature-icon"><FileText size={17}/></span><span className="placement-feature-copy"><b>Score Card</b><small>View your results</small><strong>{interviewScore}%</strong></span></Link>:<span className="placement-feature placement-feature-unavailable" aria-disabled="true"><span className="placement-feature-icon"><FileText size={17}/></span><span className="placement-feature-copy"><b>Score Card</b><small>{drive.interview_status==='completed'?'Awaiting result release':'After your interview'}</small></span></span>}
       {coachAvailable && <Link className="placement-feature placement-feature-call" aria-label={`Progress and AI coaching for ${drive.company_name}`} to={`/placement/call?drive=${id}&company=${encodeURIComponent(drive.company_name)}&role=${encodeURIComponent(drive.role_title)}`}><span className="placement-feature-icon"><TrendingUp size={17}/></span><span className="placement-feature-copy"><b>Progress</b><small>Mentor guidance</small></span></Link>}
@@ -608,7 +608,7 @@ export function PlacementDriveHistoryItem({drive:record,reports=[],expanded=true
     <div className="dashboard-history-status"><span className="placement-history-label">Interview status</span><strong>{info.status}</strong>{expanded&&<small>{attempts.completed} completed · {attempts.remaining} remaining</small>}</div>
     <nav className="dashboard-history-actions" aria-label={`Interview actions for ${drive.company_name}`}>
       {canInterview?<Link to={`/practice?drive=${encodeURIComponent(drive.id)}`} aria-label={`${actionLabel} for ${drive.company_name}`}><Mic size={15}/><span>{actionLabel}</span></Link>:<button type="button" disabled title={reason}><Mic size={15}/><span>{actionLabel}</span></button>}
-      <Link className="dashboard-history-ats" data-ats-tone={ats.score===null?'neutral':ats.eligible?'green':'red'} to={`/ats-fit?drive=${encodeURIComponent(drive.id)}`} aria-label={`ATS Fit assessment for ${drive.company_name}`}><FileText size={15}/><span><strong>ATS Fit</strong><small>{ats.score===null?'Not assessed':`${ats.score}%`}</small></span></Link>
+      <Link className="dashboard-history-ats" data-ats-tone={ats.score===null?'neutral':ats.eligible?'green':'red'} to={`/ats-fit?drive=${encodeURIComponent(drive.id)}`} aria-label={`ATS Fit assessment for ${drive.company_name}`}><FileText size={15}/><span><strong>ATS Fit</strong><small>{ats.label}</small></span></Link>
       {latest?.session_id?<Link to={`/reports/${encodeURIComponent(latest.session_id)}`} aria-label={`Scorecard for ${drive.company_name}`}><FileText size={15}/><span>Scorecard</span></Link>:<button type="button" disabled title="Available after your interview result is released"><FileText size={15}/><span>Scorecard</span></button>}
     </nav>
   </article>;
@@ -645,7 +645,7 @@ export function PlacementDriveCard({drive,reports=[],select}: {drive:Drive;repor
                 {drive.placement_decision && !hasPlacementDecision && <PlacementResult value={drive.placement_decision} compact/>}
                 <div className="drive-card-meta"><span>{humanize(drive.job_type || "Job type not set")}</span><span>{info.compensation}</span></div>
                 {drive.main_resume_available === false && <p className="drive-resume-prompt">Upload your Main Resume in <Link to="/profile">My Profile</Link> before starting an interview.</p>}
-                <PlacementDriveActions drive={cardDrive} reports={reports} eligibilityCheck={eligibilityCheck} atsScore={ats.score} atsMinimum={ats.minimum} />
+                <PlacementDriveActions drive={cardDrive} reports={reports} eligibilityCheck={eligibilityCheck} atsScore={ats.score} atsMinimum={ats.minimum} atsLabel={ats.label} />
                 <button type="button" className="button secondary small placement-opportunity-button" onClick={()=>void onSelect(drive)}>View opportunity <ArrowRight size={14}/></button>
                   </>;
                 })()}
