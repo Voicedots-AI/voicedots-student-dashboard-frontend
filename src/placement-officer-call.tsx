@@ -185,7 +185,7 @@ export function LivePlacementOfficerCall() {
     speechRequest.current = controller;
     setPreparingVoice(true);
     try {
-      const blob = await requestCoachSpeech(text, controller.signal);
+      const blob = await requestCoachSpeech(text, controller.signal, identity?.student.id || '');
       if (!mounted.current || epoch !== speechEpoch.current) return;
       const url = URL.createObjectURL(blob);
       audioUrl.current = url;

@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { api, ApiError, json, type CandidateSatisfaction, type InterviewReportView } from './api';
 import { requestCoachSpeech } from './coach-voice-audio';
+import { useAuth } from './auth';
 import { coachCallPath } from './coach-call-link';
 import { reportCompetencies } from './report-competencies';
 
@@ -42,6 +43,7 @@ const feedbackQuestions = [
 ] as const;
 
 export function InterviewScorecard({ view, sessionId, role, company }: { view: InterviewReportView; sessionId: string; role?: string; company?: string|null; assessedAt?: string; durationSeconds?: number }) {
+  const { identity } = useAuth();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const [openingPlan, setOpeningPlan] = useState(false);
@@ -76,7 +78,8 @@ export function InterviewScorecard({ view, sessionId, role, company }: { view: I
   const [activeScheduleDay, setActiveScheduleDay] = useState<string>('1-3');
   const [selectedDailyTime, setSelectedDailyTime] = useState<string>('2h');
   const [selectedTimeline, setSelectedTimeline] = useState<string>('14 Days');
-  const [isVoiceMuted, setIsVoiceMuted] = useState<boolean>(false);
+  // Offer the popup immediately; paid speech starts only after Play voice.
+  const [isVoiceMuted, setIsVoiceMuted] = useState<boolean>(true);
   const [isCoachSpeaking, setIsCoachSpeaking] = useState<boolean>(false);
   const [showSatisfactionDrawer, setShowSatisfactionDrawer] = useState<boolean>(false);
   const [discussionInput, setDiscussionInput] = useState<string>('');
@@ -169,7 +172,7 @@ export function InterviewScorecard({ view, sessionId, role, company }: { view: I
     const controller = new AbortController();
     coachSpeechRequest.current = controller;
     try {
-      const blob = await requestCoachSpeech(text, controller.signal);
+      const blob = await requestCoachSpeech(text, controller.signal, identity?.student.id || '');
       if (controller.signal.aborted) return;
       if (!blob.size) throw new Error('Empty coach audio');
       const url = URL.createObjectURL(blob);
@@ -583,7 +586,6 @@ export function InterviewScorecard({ view, sessionId, role, company }: { view: I
                     onClick={() => {
                       setActiveStep(1);
                       setCustomDialogue(null);
-                      speakCoachText(defaultDialogueForStep[1]);
                     }}
                   >
                     1. Diagnosis
@@ -595,7 +597,6 @@ export function InterviewScorecard({ view, sessionId, role, company }: { view: I
                     onClick={() => {
                       setActiveStep(2);
                       setCustomDialogue(null);
-                      speakCoachText(defaultDialogueForStep[2]);
                     }}
                   >
                     2. Goals &amp; Availability
@@ -607,7 +608,6 @@ export function InterviewScorecard({ view, sessionId, role, company }: { view: I
                     onClick={() => {
                       setActiveStep(3);
                       setCustomDialogue(null);
-                      speakCoachText(defaultDialogueForStep[3]);
                     }}
                   >
                     3. Focus Areas
@@ -619,7 +619,6 @@ export function InterviewScorecard({ view, sessionId, role, company }: { view: I
                     onClick={() => {
                       setActiveStep(4);
                       setCustomDialogue(null);
-                      speakCoachText(defaultDialogueForStep[4]);
                     }}
                   >
                     4. Daily Schedule
@@ -905,7 +904,6 @@ export function InterviewScorecard({ view, sessionId, role, company }: { view: I
                       if (coachIntro) { stopCoachVoice(); setShowCoachPopup(false); return; }
                       setActiveStep(2);
                       setCustomDialogue(null);
-                      speakCoachText(defaultDialogueForStep[2]);
                     }}
                   >
                     {coachIntro ? 'Maybe Later' : 'Re-adjust Goals'}
