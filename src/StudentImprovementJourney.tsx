@@ -1,3 +1,4 @@
+import {StudentJourneyReview} from './student-journey-review';
 import { useState, useEffect, useRef, useMemo } from "react";
 import { Link, useSearchParams, useNavigate, useLocation } from "react-router-dom";
 import {
@@ -433,6 +434,7 @@ export function resolveNehaFemaleVoice(): SpeechSynthesisVoice | null {
 export function StudentImprovementJourney() {
   const location = useLocation();
   const params = new URLSearchParams(location.search);
+  if (params.get('view') === 'review') return <StudentJourneyReview />;
   if (location.pathname === '/placement/call' && ['ats','guidance'].includes(params.get('mode') || '')) {
     return <LivePlacementOfficerCall key={`${params.get('mode')}:${params.get('drive') || ''}:${params.get('source') || ''}:${params.get('plan') || ''}:${params.get('report_session_id') || ''}`} />;
   }
