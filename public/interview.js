@@ -6,11 +6,13 @@
 
 import { createFeedPhotoVerifier } from "./feed-photo-verifier.js";
 import { createVerificationNarrator, verifyIdentityWithNarration } from "./verification-narrator.js";
-import { checkInterviewReadiness } from "./interview-readiness.js";
+import { checkInterviewReadiness } from "./interview-readiness.js?v=startup-diagnostics-20261107";
 import { acquireInterviewMedia } from "./interview-media.js";
+import { createInterviewDiagnostics } from "./interview-diagnostics.js";
 
 const _HTTP_BASE = window.__API_BASE__ || window.location.origin;
 const WS_BASE = _HTTP_BASE.replace(/^http/, "ws");
+const panelDiagnostics = createInterviewDiagnostics();
 
 const STT_SAMPLE_RATE = 16000;
 const TTS_SAMPLE_RATE = 48000;
@@ -56,7 +58,18 @@ async function studentFetch(url, options = {}) {
     if (csrf) headers.set("X-CSRF-Token", csrf);
   }
   request.headers = headers;
-  return fetch(url, request);
+  // Log route categories, never URLs (which may contain verification tokens).
+  const route = String(url).includes('/verification-speech') ? 'verification_speech'
+    : String(url).includes('/preflight') ? 'preflight'
+    : String(url).includes('/interview') ? 'interview_api' : 'student_api';
+  try {
+    const response = await fetch(url, request);
+    if (!response.ok) panelDiagnostics.log('error', 'http_request_failed', {route, httpStatus:response.status});
+    return response;
+  } catch (error) {
+    panelDiagnostics.log('error', 'http_transport_failed', {route, errorName:error?.name});
+    throw error;
+  }
 }
 
 // Elements - Prejoin
@@ -624,7 +637,10 @@ async function startupResponse(response, fallback) {
   const data = await response.json().catch(() => null);
   if (!response.ok) {
     const detail = data?.detail;
-    throw new Error(typeof detail === 'string' ? detail : detail?.message || fallback);
+    const error = new Error(typeof detail === 'string' ? detail : detail?.message || fallback);
+    error.code = detail?.code;
+    panelDiagnostics.log('error', 'startup_response_failed', {httpStatus:response.status, code:error.code});
+    throw error;
   }
   return data || {};
 }
@@ -720,6 +736,7 @@ let backgroundStartupRunning = false;
 async function startInterviewBackgroundFlow() {
   if (backgroundStartupRunning || interviewHasStarted) return;
   backgroundStartupRunning = true;
+  panelDiagnostics.setStage('camera_microphone');
   document.getElementById('error-toast')?.classList.remove('show');
   if (prejoinScreen) prejoinScreen.style.display = 'none';
   if (callScreen) callScreen.style.display = 'block';
@@ -746,17 +763,22 @@ async function startInterviewBackgroundFlow() {
     await waitForPreflight(() => candidateVideoEl?.readyState >= 2 && candidateVideoEl.videoWidth > 0,
       'Your camera preview is not ready. Check camera permissions and retry.');
     void startCameraAnalysis();
+    panelDiagnostics.setStage('screen_access');
     await requestPanelScreenAccess();
     if (recordingConsentEl) recordingConsentEl.checked = true;
     if (rndStatus) rndStatus.textContent = 'Preparing your secure interview session…';
+    panelDiagnostics.setStage('preflight_create');
     const preflight = await startupResponse(await studentFetch(`${_HTTP_BASE}/api/resume/${currentSubmissionId}/preflight`, {
       method:'POST',signal:AbortSignal.timeout(15000),
     }), 'Could not prepare your interview. Refresh this panel to retry.');
     if (!preflight.preflight_id) throw new Error('The server did not return an interview preparation token.');
     preflightId = preflight.preflight_id;
+    panelDiagnostics.setStage('identity_verification');
     await runPriyaFaceVerificationFlow();
+    panelDiagnostics.setStage('service_readiness');
     await checkReadiness();
     const screenTrack = screenStream?.getVideoTracks().find(track => track.readyState === 'live');
+    panelDiagnostics.setStage('session_create');
     const session = await startupResponse(await studentFetch(`${_HTTP_BASE}/api/resume/${currentSubmissionId}/interview`, {
       method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({preflight_id:preflightId,camera:hasLiveTrack('video'),microphone:hasLiveTrack('audio'),
@@ -770,6 +792,7 @@ async function startInterviewBackgroundFlow() {
     await photoVerifier.load(currentSessionId);
     await startInterview(currentSubmissionId);
   } catch (cause) {
+    panelDiagnostics.log('error', 'startup_failed', {code:cause?.code, errorName:cause?.name, closeCode:cause?.closeCode});
     failPanelStartup(cause instanceof Error ? cause.message : 'Interview startup failed. Please retry from your placement drive.');
   } finally { backgroundStartupRunning = false; }
 }
@@ -1197,7 +1220,14 @@ async function checkReadiness() {
     preflightId = data.preflight_id;
   }
   try {
-    await checkInterviewReadiness(`${WS_BASE}/ws/interview-preflight/${currentSubmissionId}?preflight_id=${encodeURIComponent(preflightId)}`);
+    await checkInterviewReadiness(`${WS_BASE}/ws/interview-preflight/${currentSubmissionId}?preflight_id=${encodeURIComponent(preflightId)}&trace_id=${encodeURIComponent(panelDiagnostics.traceId)}`, {
+      log: panelDiagnostics.log,
+      fetchHealth: async () => {
+        const response = await studentFetch(`${_HTTP_BASE}/api/health/ready`, {signal:AbortSignal.timeout(6000)});
+        // Read dependency details even when the expected status is 503.
+        return response.json();
+      },
+    });
     servicesCheckedAt = Date.now();
   } catch (error) {
     if (String(error.message).toLowerCase().includes('expired')) {
@@ -4282,6 +4312,8 @@ function returnToPreflight(message) {
 function connectInterviewSocket() {
   if (interviewStopRequested || sessionCompletedCleanly || integrityEndRequested || !currentSessionId) return;
   const socket = new WebSocket(`${WS_BASE}/ws/interview/${currentSessionId}?preflight_id=${encodeURIComponent(preflightId)}`);
+  panelDiagnostics.setStage('live_socket');
+  panelDiagnostics.log('info', 'live_socket_connecting', {attempt:reconnectAttempts});
   ws = socket;
   if (!interviewHasStarted) initialConnectionTimer = setTimeout(() => returnToPreflight("Interview connection timed out. Retry readiness."), 30000);
   socket.binaryType = "arraybuffer";
@@ -4289,6 +4321,7 @@ function connectInterviewSocket() {
   let lastReceivedAt = Date.now();
   let heartbeatSupported = false;
   socket.onopen = () => {
+    panelDiagnostics.log('info', 'live_socket_open');
     const heartbeat = () => {
       if (heartbeatSupported && interviewHasStarted && Date.now() - lastReceivedAt > 20000) {
         socket.close(4000, "connection heartbeat timed out");
@@ -4305,6 +4338,9 @@ function connectInterviewSocket() {
     if (typeof event.data === "string") {
       try {
         const payload = JSON.parse(event.data);
+        if (['error','capture_error','auth_expired','paused_no_response'].includes(payload.type)) {
+          panelDiagnostics.log('error', 'live_server_error', {code:payload.code || payload.type});
+        }
         if (payload.type === "heartbeat_ack") heartbeatSupported = true;
         else handleControlMessage(payload);
       } catch {}
@@ -4312,8 +4348,9 @@ function connectInterviewSocket() {
       handleBinaryFrame(event.data);
     }
   };
-  socket.onerror = () => console.error("Interview WebSocket error");
+  socket.onerror = () => panelDiagnostics.log('error', 'live_socket_error', {readyState:socket.readyState});
   socket.onclose = (event) => {
+    panelDiagnostics.log('warn', 'live_socket_closed', {closeCode:event.code, wasClean:event.wasClean, attempt:reconnectAttempts});
     clearInterval(heartbeatTimer);
     if (ws !== socket) return;
     ws = null;
