@@ -8,7 +8,7 @@ import { createFeedPhotoVerifier } from "./feed-photo-verifier.js";
 import { createVerificationNarrator, verifyIdentityWithNarration } from "./verification-narrator.js";
 import { checkInterviewReadiness } from "./interview-readiness.js?v=startup-diagnostics-20261107";
 import { acquireInterviewMedia } from "./interview-media.js";
-import { createInterviewDiagnostics } from "./interview-diagnostics.js";
+import { createInterviewDiagnostics } from "./interview-diagnostics.js?v=readiness-compat-20261107";
 
 const _HTTP_BASE = window.__API_BASE__ || window.location.origin;
 const WS_BASE = _HTTP_BASE.replace(/^http/, "ws");

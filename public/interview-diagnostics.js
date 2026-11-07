@@ -10,7 +10,7 @@ export function createInterviewDiagnostics(sink = console) {
     for (const [key, value] of Object.entries(details)) {
       if (allowed.has(key) && ['string', 'number', 'boolean'].includes(typeof value)) record[key] = value;
     }
-    try { (sink[level] || sink.log).call(sink, '[InterviewPanel]', record); } catch { /* Logging must not block an interview. */ }
+    try { (sink[level] || sink.log).call(sink, `[InterviewPanel] ${JSON.stringify(record)}`, record); } catch { /* Logging must not block an interview. */ }
   }
   return {traceId, log, setStage(value) {stage = value; log('info', 'stage_started');}};
 }
