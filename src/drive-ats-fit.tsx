@@ -1,5 +1,6 @@
+import {atsIndicator,atsCutoffLabel} from './shared-assessment/atsCutoff';
 import {ResumePreview} from './resume-preview';
-import {evaluatedPlacementScore,meetsPlacementATSThreshold,placementATSMinimum} from "./placement-eligibility";
+import {evaluatedPlacementScore,placementATSMinimum} from "./placement-eligibility";
 import {Fragment,useCallback,useEffect,useRef,useState} from "react";
 import {Link} from "react-router-dom";
 import {api,apiUrl,request,type Resume,type Drive,type DriveContext} from "./api";
@@ -77,7 +78,7 @@ export function DriveATSFit({driveId,studio=false,onAdd,busy=false,onJob,driveRe
  const evaluated=atsScore!==null;
  const addSkill=async(skill:string)=>{if(!evaluated||!onAdd||busy||addingSkill.current||selected.includes(skill))return;addingSkill.current=true;try{if(await onAdd([skill]))setSelected(value=>value.includes(skill)?value:[...value,skill])}finally{addingSkill.current=false}};
  const atsMinimum=placementATSMinimum(context?.criteria_ats_fit !== undefined ? context.criteria_ats_fit : drive?.criteria_ats_fit,data?.criteria_ats_fit);
- const atsEligible=meetsPlacementATSThreshold(atsScore,atsMinimum);
+ const atsEligible=atsIndicator(atsScore,atsMinimum)==='green';
  const download=()=>{if(!data)return;const url=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:"application/json"}));const a=document.createElement('a');a.href=url;a.download=`${driveId}-ats-assessment.json`;a.click();URL.revokeObjectURL(url)};
  if(!studio)return <section className="shared-student-assessment"><header className="student-ats-header"><div><h3>ATS Fit Assessment</h3><p>Job requirements matched against resume evidence</p></div><button className="button secondary small" onClick={refreshAssessment}>Refresh assessment</button></header>{error?<div role="alert">{error}<button onClick={refreshAssessment}>Retry</button></div>:!data?<p role="status">Loading resume match…</p>:<SharedATSFit key={driveId} data={{...data,criteria_ats_fit:atsMinimum,company_name:data.company_name||drive?.company_name,role_title:data.role_title||drive?.role_title}} student={student||{}} actions={<><button disabled={previewBusy} onClick={()=>void previewResume()}><Eye size={16}/>{previewBusy?"Opening resume…":"Preview resume"}</button><button onClick={download}><Download size={16}/>Download assessment</button><Link to={`/resume-studio?drive=${encodeURIComponent(driveId)}&action=add-skills#add-skills`}>Open in Resume Studio</Link><Link to={`/placement/call?mode=ats&drive=${encodeURIComponent(driveId)}`}>AI Coach</Link></>}/>}{previewError&&<p className="student-resume-preview-error" role="alert">{previewError}</p>}{previewFile&&<ResumePreview file={previewFile} onClose={closePreview} contextLabel="ASSESSMENT RESUME"/>}</section>;
  return <section ref={panelRef} id={studio?"add-skills":undefined} className="drive-ats-panel student-ats-studio-compact" data-ats-eligibility={evaluated?atsEligible?"eligible":"ineligible":"pending"} aria-label="ATS Fit Assessment">
@@ -90,7 +91,7 @@ export function DriveATSFit({driveId,studio=false,onAdd,busy=false,onJob,driveRe
   <details className="student-ats-full-details"><summary><span>View full ATS assessment<small>Requirements, resume evidence and suggestions</small></span><ChevronDown size={17}/></summary><div className="student-ats-full-content">
   <div className="student-ats-identity">
    {student?.photo_url?<img src={apiUrl(student.photo_url)} alt={`${student.full_name} profile`}/>:<span className="student-ats-avatar" aria-label="Photo unavailable">{student?.full_name?.slice(0,1)||"—"}</span>}
-   <div className="student-ats-name"><div><b>{student?.full_name||"Your resume"}</b>{(context?.assignment_status||drive?.interview_assignment_status)&&<span className="student-ats-badge completed">{(context?.assignment_status||drive?.interview_assignment_status)?.replaceAll("_"," ")}</span>}<span className={`student-ats-badge ${evaluated?atsEligible?"ats-qualified":"ats-unqualified":"review"}`}>{evaluated?atsEligible?`Eligible · ATS ≥ ${atsMinimum}%`:`Not eligible · ATS < ${atsMinimum}%`:data.ats_status.replaceAll("_"," ")}</span></div><p>{student?.email||"Email unavailable"}</p></div>
+   <div className="student-ats-name"><div><b>{student?.full_name||"Your resume"}</b>{(context?.assignment_status||drive?.interview_assignment_status)&&<span className="student-ats-badge completed">{(context?.assignment_status||drive?.interview_assignment_status)?.replaceAll("_"," ")}</span>}<span className={`student-ats-badge ${evaluated?atsEligible?"ats-qualified":"ats-unqualified":"review"}`}>{evaluated?atsCutoffLabel(atsScore,atsMinimum):data.ats_status.replaceAll("_"," ")}</span></div><p>{student?.email||"Email unavailable"}</p></div>
    <dl>{[["Program",[student?.department_code,student?.program].filter(Boolean).join(" / ")||"—"],["CGPA",student?.cgpa??"—"],["Graduation",student?.graduation_year??"—"]].map(([title,value])=><div key={title}><dt>{title}</dt><dd>{value}</dd></div>)}</dl>
   </div>
   <div className="student-ats-cards">
