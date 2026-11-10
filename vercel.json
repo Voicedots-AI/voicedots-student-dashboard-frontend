@@ -76,6 +76,10 @@
     {
       "source": "/study-resources",
       "destination": "/index.html"
+    },
+    {
+      "source": "/mentor",
+      "destination": "/index.html"
     }
   ],
   "headers": [
