@@ -1,3 +1,4 @@
+import { LanguageSelect, type InterviewLanguage } from "./interview-language";
 import {usePlacementATS} from "./placement-ats";
 import {evaluatedPlacementScore,meetsPlacementATSThreshold} from "./placement-eligibility";
 import { useEffect, useRef, useState, type FormEvent } from "react";
@@ -65,6 +66,7 @@ export function Practice() {
   const [resumePreview, setResumePreview] = useState<File | null>(null);
   const [role, setRole] = useState(() => sessionStorage.getItem(`${draftKey}:role`) || "");
   const [duration, setDuration] = useState(() => sessionStorage.getItem(`${draftKey}:duration`) || "30");
+  const [language, setLanguage] = useState<InterviewLanguage>("en");
   const [difficulty, setDifficulty] = useState<"dynamic" | "beginner" | "intermediate" | "advanced">(() => {
     const saved = sessionStorage.getItem(`${draftKey}:difficulty`);
     return saved === "beginner" || saved === "intermediate" || saved === "advanced" ? saved : "dynamic";
@@ -469,7 +471,10 @@ export function Practice() {
     body.set("resume", file);
     body.set("target_role", driveId ? context!.role_title : role.trim());
     body.set("interview_time_minutes", String(driveId ? context!.duration_minutes || 30 : duration));
-    if (!driveId) body.set("difficulty_tier", difficulty);
+    if (!driveId) {
+      body.set("difficulty_tier", difficulty);
+      body.set("interview_language", language);
+    }
     body.set("job_description", driveId ? context!.job_description : jd);
     if (driveId) body.set("drive_id", driveId);
     if (coachCycleId) body.set("coach_cycle_id", coachCycleId);
@@ -480,6 +485,7 @@ export function Practice() {
       driveId ? context!.role_title : role.trim(),
       driveId ? context!.duration_minutes : duration,
       driveId ? "drive-locked" : difficulty,
+      ...(driveId || language === "en" ? [] : [language]),
       driveId ? context!.job_description : jd,
       driveId,
     ]);
@@ -737,6 +743,7 @@ export function Practice() {
                       {[5, 10, 30, 45].map((minutes) => <option key={minutes} value={minutes}>{minutes} minutes</option>)}
                     </select>
                   </label>
+                  <LanguageSelect label="Interview language" value={language} onChange={setLanguage} />
                   <label>Interview difficulty
                     <select value={difficulty} onChange={(e) => setDifficulty(e.target.value as typeof difficulty)}>
                       <option value="dynamic">Personalized</option><option value="beginner">Beginner</option><option value="intermediate">Intermediate</option><option value="advanced">Advanced</option>
