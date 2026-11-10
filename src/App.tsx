@@ -1,7 +1,7 @@
 import {displayName} from "./display";
 import { CoachCallEntry } from './coach-call-link';
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import {
+import { Users,
   ArrowRight,
   ArrowUpRight,
   Eye,
@@ -43,6 +43,7 @@ import { Placements, Profile, Reports } from "./pages";
 import { Academics } from "./academics";
 import { StudyResources } from "./study-resources";
 import { StudentErp } from "./student-erp";
+import { StudentMentor } from "./student-mentor";
 import { Calendar } from "./calendar";
 import { Practice } from "./practice";
 import { PhotoVerification } from "./PhotoVerification";
@@ -304,6 +305,7 @@ const nav = [
   { to: "/academics", label: "Marks and attendance", icon: GraduationCap },
   { to: "/question-papers", label: "Question Papers", icon: Library },
   { to: "/erp", label: "My ERP", icon: LayoutGrid },
+  { to: "/mentor", label: "My Mentor", icon: Users },
   { to: "/reports", label: "My reports", icon: FileText },
   { to: "/profile", label: "My profile", icon: UserRound },
 ];
@@ -452,7 +454,7 @@ export function App() {
         <div className="sidebar-content">
         <span className="portal-label">STUDENT WORKSPACE</span>
         <nav aria-label="Student navigation">
-          {nav.map(({ to, label, icon: Icon }) => (
+          {nav.filter(item => item.to !== "/mentor" || auth.identity?.mentor_management_enabled).map(({ to, label, icon: Icon }) => (
             <NavLink key={to} to={to} end={to === "/"} data-tour={`nav:${to}`}>
               <Icon size={19} />
               <span>{label}</span>
@@ -555,6 +557,7 @@ export function App() {
             <Route path="/academics" element={<Academics />} />
             <Route path="/question-papers" element={<StudyResources showPractice />} />
             <Route path="/study-resources" element={<Navigate to="/question-papers" replace />} />
+            <Route path="/mentor" element={<StudentMentor />} />
             <Route path="/erp" element={<StudentErp />} />
             <Route path="/erp/:service" element={<StudentErp />} />
             <Route path="/placement" element={<Navigate to="/placements" replace />} />

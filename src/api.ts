@@ -21,6 +21,7 @@ export type Student = {
   has_readable_resume?: boolean;
 };
 export type Identity = {
+  mentor_management_enabled?: boolean;
   student: Student;
   logo_url?: string;
   primary_color?: string;
