@@ -82,3 +82,21 @@
 .dark .spi-page .dashboard-history-actions>button:disabled { background:#192335; border-color:#304057; color:#9baac0; }
 .dark .spi-page .dashboard-history-actions .dashboard-history-ats[data-ats-tone=green] { background:#173b2e; color:#99e0b7; border-color:#315b47; }
 .dark .spi-page .dashboard-history-actions .dashboard-history-ats[data-ats-tone=red] { background:#3e2532; color:#f3adbc; border-color:#69404d; }
+/* Explicit row and control surfaces override the light reference stylesheet. */
+.dark .spi-page .spi-evidence tbody tr { background:var(--card); }
+.dark .spi-page .spi-evidence tbody tr:nth-child(even) { background:#1b293d; }
+.dark .spi-page .spi-evidence tbody tr:hover { background:#23364d; }
+.dark .spi-page .spi-evidence td { background:transparent; color:var(--text); }
+.dark .spi-page .spi-evidence td:nth-child(4) { color:#f2c66b; }
+.dark .spi-page .spi-play { background:#223954; border-color:#3d6085; color:#aad2ff; }
+.dark .spi-page .spi-play:hover { background:#2c486b; border-color:#7098c6; color:#e4f1ff; }
+.dark .spi-page .placement-history .placement-history-list { background:var(--card); border-color:var(--border); }
+.dark .spi-page .placement-history .placement-history-list>.dashboard-drive-history-row { background:var(--card); }
+.dark .spi-page .placement-history .placement-history-list>.dashboard-drive-history-row:nth-child(even) { background:#192638; }
+.dark .spi-page .placement-history .placement-history-list>.dashboard-drive-history-row:hover { background:#223248; }
+.dark .spi-page .placement-history .placement-summary-eligible { background:#173b2e; border-color:#315b47; color:#99e0b7; }
+.dark .spi-page .placement-history .placement-history-ineligible { background:#3e2532; border-color:#69404d; color:#f3adbc; }
+.dark .spi-page .placement-history .placement-eligibility-pending { background:#273449; border-color:#40526d; color:#c2cee0; }
+.dark .spi-page .roster-expand-control { background:#202d43; border-color:#40526d; color:#c4deff; }
+.dark .spi-page .roster-expand-control:hover:not(:disabled) { background:#2a3b56; border-color:#6a89b1; }
+.dark .spi-page .spi-plan li>span { box-shadow:inset 0 0 0 1px #405775; }
