@@ -47,3 +47,5 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
 );
 
 import "./student-reports.css";
+
+import "./performance-dark.css";

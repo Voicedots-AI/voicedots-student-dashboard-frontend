@@ -124,7 +124,7 @@ function CompactTrend({ points }: { points: TrendPoint[] }) {
   const area = points.length > 1 ? `${line} L${x(points.length - 1)},${y(0)} L${x(0)},${y(0)} Z` : "";
   return <figure className="spi-trend">
     <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`Comparable score trend across ${points.length} ${points.length === 1 ? "interview" : "interviews"}`}>
-      <defs><linearGradient id="spi-trend-fill" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stopColor="#2086eb" stopOpacity=".22"/><stop offset="1" stopColor="#2086eb" stopOpacity="0"/></linearGradient></defs>
+      <defs><linearGradient id="spi-trend-fill" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stopColor="var(--spi-chart-accent, #2086eb)" stopOpacity=".22"/><stop offset="1" stopColor="var(--spi-chart-accent, #2086eb)" stopOpacity="0"/></linearGradient></defs>
       {[0, 50, 100].map(mark => <g className="spi-chart-grid" key={mark}><line x1={left} x2={width - right} y1={y(mark)} y2={y(mark)}/><text x={left - 7} y={y(mark) + 4} textAnchor="end">{mark}</text></g>)}
       {area && <path d={area} fill="url(#spi-trend-fill)"/>}
       {points.length > 1 && <path className="spi-chart-line" d={line}/>}
@@ -188,7 +188,7 @@ export function Performance() {
     </div>
 
     <section className="spi-kpis" aria-label="Performance summary">
-      <article className="spi-card spi-score"><div className="spi-ring" style={{ background: `conic-gradient(#2086eb ${(numeric(latestView.overall_score) ? latestView.overall_score : 0) * 3.6}deg, #e8eef6 0deg)` }}><div><strong>{rounded(latestView.overall_score)}</strong><small>/100</small></div></div><div><h2>Interview Score</h2><p>Overall performance across assessed competencies</p></div></article>
+      <article className="spi-card spi-score"><div className="spi-ring" style={{ background: `conic-gradient(var(--spi-chart-accent, #2086eb) ${(numeric(latestView.overall_score) ? latestView.overall_score : 0) * 3.6}deg, var(--spi-ring-track, #e8eef6) 0deg)` }}><div><strong>{rounded(latestView.overall_score)}</strong><small>/100</small></div></div><div><h2>Interview Score</h2><p>Overall performance across assessed competencies</p></div></article>
       <article className="spi-card"><span className="spi-icon amber"><ChartNoAxesColumnIncreasing/></span><div><h2>Role Readiness</h2><strong className="spi-value">{latestView.readiness || "—"}</strong><p>Latest released assessment</p></div></article>
       <article className="spi-card"><span className="spi-icon green"><TrendingUp/></span><div><h2>Comparable Progress</h2><strong className="spi-value">{comparableChange == null ? "—" : `${comparableChange > 0 ? "+" : ""}${Math.round(comparableChange)} points`}</strong><p>Previous interview with the same role and rubric</p></div></article>
       {latest.evaluation_id && <article className="spi-card spi-scorecard"><span className="spi-icon purple"><FileText/></span><div><h2>Scorecard</h2><Link className="spi-scorecard-id" to={`/reports/${encodeURIComponent(latest.session_id)}`} title={`Evaluation ID: ${latest.evaluation_id}`}>{latest.evaluation_id}</Link><p>Evaluation ID · {date(reportTime(latest))}</p><PerformanceSharing sessionId={latest.session_id}/></div></article>}

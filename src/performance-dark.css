@@ -1,0 +1,84 @@
+/* Student Dashboard only: keep the reference layout and category colors in dark mode. */
+.dark .spi-page {
+  color-scheme: dark;
+  --spi-navy: #e5edf8;
+  --spi-muted: #a8b7cc;
+  --spi-blue: #78b8ff;
+  --spi-chart-accent: #78b8ff;
+  --spi-ring-track: #303e55;
+  --card: #151e2d;
+  --text: #e5edf8;
+  --muted: #a8b7cc;
+  --border: #304057;
+  --soft: #202d43;
+  --surface: var(--card);
+  --surface-alt: #1d2a3e;
+  color: var(--text);
+  background: transparent;
+}
+.dark .spi-page .spi-header h1 { color: #f1f5fd; }
+.dark .spi-page :is(.spi-card,.spi-empty-state,.placement-history) {
+  background: var(--card);
+  border-color: var(--border);
+  box-shadow: 0 3px 12px #00000018;
+}
+.dark .spi-page .spi-context { background: linear-gradient(100deg,#192d48,#1e2940); border-color:#304b6a; color:#cbdcf2; }
+.dark .spi-page .spi-context span + span { border-color:#3b4c65; }
+.dark .spi-page .spi-kpis .spi-score { background:linear-gradient(120deg,#192e49,var(--card) 75%); }
+.dark .spi-page .spi-kpis > article:nth-child(2) { background:linear-gradient(120deg,#322b1d,var(--card) 75%); }
+.dark .spi-page .spi-kpis > article:nth-child(3) { background:linear-gradient(120deg,#17332f,var(--card) 75%); }
+.dark .spi-page .spi-kpis > .spi-scorecard { background:linear-gradient(120deg,#2a2343,var(--card) 75%); }
+.dark .spi-page .spi-ring > div { background:var(--card); }
+.dark .spi-page .spi-ring strong { color:#eef5ff; }
+.dark .spi-page .spi-value { color:#f2c66b; }
+.dark .spi-page .spi-kpis .spi-card:nth-child(3) .spi-value { color:#71d9b6; }
+.dark .spi-page .spi-icon.amber { background:#3b301b; color:#f2c66b; box-shadow:0 0 0 4px #2a251e; }
+.dark .spi-page .spi-icon.green { background:#173e34; color:#74ddbd; box-shadow:0 0 0 4px #192e2c; }
+.dark .spi-page .spi-icon.purple { background:#34274e; color:#c6a6ff; box-shadow:0 0 0 4px #262237; }
+.dark .spi-page .spi-card h2 > svg { color:#a4c5ec; }
+.dark .spi-page .spi-analysis > section:nth-child(2) h2 > svg { color:#78b8ff; }
+.dark .spi-page .spi-analysis > section:nth-child(3) h2 > svg { color:#f2c66b; }
+.dark .spi-page th { background:#20314a; color:#cadcf2; }
+.dark .spi-page td,.dark .spi-page .spi-plan li { border-color:#2c3a50; }
+.dark .spi-page .spi-track { background:#303e55; box-shadow:none; }
+.dark .spi-page .spi-competencies td:nth-child(2) { color:#70dec4; }
+.dark .spi-page .spi-competencies tbody tr:is(:nth-child(7n+2),:nth-child(7n+4)) td:nth-child(2) { color:#f2c66b; }
+.dark .spi-page .spi-competencies tbody tr:nth-child(7n+6) td:nth-child(2) { color:#85cff7; }
+.dark .spi-page .spi-competencies tbody tr:nth-child(7n+7) td:nth-child(2) { color:#b7bbff; }
+.dark .spi-page .spi-note { color:var(--muted)!important; }
+.dark .spi-page .spi-chart-grid line { stroke:#334257; }
+.dark .spi-page :is(.spi-chart-grid text,.spi-chart-date) { fill:#a8b7cc; }
+.dark .spi-page .spi-chart-score { fill:#dbeaff; }
+.dark .spi-page .spi-chart-line { stroke:var(--spi-chart-accent); }
+.dark .spi-page .spi-chart-point circle { fill:var(--spi-chart-accent); stroke:var(--card); }
+.dark .spi-page .spi-insight.green { background:#16352d; border-color:#285046; color:#8ae0c2; }
+.dark .spi-page .spi-insight.amber { background:#352c1d; border-color:#57462b; color:#f2ce86; }
+.dark .spi-page .spi-insight p { background:#ffffff08; color:#d1dceb; }
+.dark .spi-page .spi-insight.green p::before { color:#74ddbd; }
+.dark .spi-page .spi-insight.amber p::before { color:#f2ce86; }
+.dark .spi-page :is(.spi-plan p,.spi-facts dt) { color:#b8c8dc; }
+.dark .spi-page .spi-plan li > span { background:#223954; color:#a3cfff; }
+.dark .spi-page .spi-privacy { color:#b8c8dc!important; }
+.dark .spi-page .spi-play { color:#91c6ff; }
+.dark .spi-page .button.secondary { background:#202d43; color:#d4e4f8; border-color:#40526d; }
+.dark .spi-page .button.secondary:hover:not(:disabled) { background:#2a3b56; border-color:#6a89b1; }
+.dark .spi-page .button.primary,.dark .spi-page .spi-bottom .spi-panel:last-child > .button { background:#2369c2; border-color:#407fd0; color:#fff; }
+.dark .spi-page .button.primary:hover:not(:disabled),.dark .spi-page .spi-bottom .spi-panel:last-child > .button:hover:not(:disabled) { background:#2b78d6; }
+.dark .spi-page > footer { background:#1b2b41; }
+.dark .spi-page .mpi-modal-backdrop { background:#040914b8; }
+.dark .spi-page .perf-share-modal { background:var(--card); color:var(--text); border-color:#40526d; }
+.dark .spi-page .perf-share-modal :is(input,select) { color:var(--text); background:#101a2a; border-color:#40526d; }
+.dark .spi-page .perf-share-row { border-color:var(--border); }
+.dark .spi-page :is(a,button,input,select):focus-visible { outline-color:#b7a0ff; }
+/* Drive history is part of Dashboard, but its status meanings remain unchanged. */
+.dark .spi-page .placement-history .dashboard-drive-history-row { color:var(--text); border-color:var(--border); }
+.dark .spi-page .placement-history .dashboard-drive-history-row:hover { background:#1c293d; }
+.dark .spi-page .placement-history .dashboard-drive-history-row+.dashboard-drive-history-row { border-color:var(--border); }
+.dark .spi-page .placement-history :is(.placement-history-company strong,.placement-history-drive h3,.dashboard-history-status strong) { color:var(--text); }
+.dark .spi-page .placement-history :is(.placement-history-label,.placement-history-drive small,.dashboard-history-status small) { color:var(--muted); }
+.dark .spi-page .placement-history .company-avatar { background:#223954; color:#a3cfff; }
+.dark .spi-page .dashboard-history-actions>a,.dark .spi-page .dashboard-history-actions>button { background:#202d43; border-color:#40526d; color:#d4e4f8; }
+.dark .spi-page .dashboard-history-actions>a:hover { background:#2a3b56; border-color:#6a89b1; }
+.dark .spi-page .dashboard-history-actions>button:disabled { background:#192335; border-color:#304057; color:#9baac0; }
+.dark .spi-page .dashboard-history-actions .dashboard-history-ats[data-ats-tone=green] { background:#173b2e; color:#99e0b7; border-color:#315b47; }
+.dark .spi-page .dashboard-history-actions .dashboard-history-ats[data-ats-tone=red] { background:#3e2532; color:#f3adbc; border-color:#69404d; }
