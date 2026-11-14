@@ -1,5 +1,11 @@
+import MessageEditor, {
+  MessageBody,
+  type MessageDocument,
+} from "./MessageEditor";
+import type { Editor } from "@tiptap/react";
 import {
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type FormEvent,
@@ -26,7 +32,6 @@ import {
   Reply,
   Search,
   Send,
-  Smile,
   Star,
   ThumbsUp,
   Users,
@@ -48,6 +53,7 @@ export type WorkspaceTask = {
   studentName?: string;
   version?: number;
   legacy?: boolean;
+  personal?: boolean;
 };
 export type Attachment = {
   id?: string;
@@ -66,6 +72,7 @@ export type WorkspaceAction = {
   title?: string;
   outcome?: string;
   text?: string;
+  document?: MessageDocument | null;
   due?: string;
   status?: TaskStatus;
   value?: boolean;
@@ -79,6 +86,7 @@ type Message = {
   role: string;
   time: string;
   text: string;
+  document?: MessageDocument | null;
   attachments: Attachment[];
   likes: number;
   liked?: boolean;
@@ -224,6 +232,7 @@ export default function MentoringWorkspace({
   embedded = false,
   activeView,
   onViewChange,
+  renderStudentPhoto,
 }: {
   role?: "mentor" | "student";
   data?: WorkspaceData;
@@ -238,6 +247,7 @@ export default function MentoringWorkspace({
   embedded?: boolean;
   activeView?: string;
   onViewChange?: (view: string) => void;
+  renderStudentPhoto?: (studentId: string, name: string) => ReactNode;
 }) {
   const [sample, setSample] = useState<WorkspaceData | null>(null),
     [loadError, setLoadError] = useState(""),
@@ -247,6 +257,10 @@ export default function MentoringWorkspace({
     [taskTab, setTaskTab] = useState("My Tasks"),
     [search, setSearch] = useState(""),
     [reply, setReply] = useState(""),
+    [replyDocument, setReplyDocument] = useState<MessageDocument | null>(null),
+    [firstMessage, setFirstMessage] = useState(""),
+    [firstDocument, setFirstDocument] = useState<MessageDocument | null>(null),
+    [firstAttachments, setFirstAttachments] = useState<Attachment[]>([]),
     [attachments, setAttachments] = useState<Attachment[]>([]),
     [starred, setStarred] = useState<string[]>([]),
     [notice, setNotice] = useState(""),
@@ -264,16 +278,19 @@ export default function MentoringWorkspace({
       setSearch("");
     }
   }, [activeView]);
+  const workspaceElement = useRef<HTMLElement>(null);
   const objectUrls = useRef<string[]>([]);
   const fileInput = useRef<HTMLInputElement>(null),
-    composer = useRef<HTMLTextAreaElement>(null),
+    composer = useRef<Editor | null>(null),
+    firstFileInput = useRef<HTMLInputElement>(null),
     messageEnd = useRef<HTMLDivElement>(null),
     dialogTitle = useRef<HTMLInputElement>(null);
   const isStudent = role === "student",
     localDemo = import.meta.env.DEV && demo,
     current = localDemo ? sample || empty : data;
   const oversight = Boolean(current.oversightMode);
-  const writable = !oversight && (localDemo || Boolean(onAction && current.canCollaborate));
+  const writable =
+    !oversight && (localDemo || Boolean(onAction && current.canCollaborate));
   async function persist(action: WorkspaceAction) {
     if (!onAction || busy) return null;
     try {
@@ -307,10 +324,10 @@ export default function MentoringWorkspace({
         status,
       });
   }
-  async function chooseFiles(files: File[]) {
+  async function chooseFiles(files: File[], first = false) {
     if (
       files.some((f) => f.size > 2 * 1024 * 1024) ||
-      attachments.length + files.length > 3
+      (first ? firstAttachments : attachments).length + files.length > 3
     ) {
       setNotice("Choose up to three attachments, each no larger than 2 MB.");
       return;
@@ -336,7 +353,10 @@ export default function MentoringWorkspace({
           };
         }),
       );
-      setAttachments((v) => [...v, ...prepared]);
+      (first ? setFirstAttachments : setAttachments)((v) => [
+        ...v,
+        ...prepared,
+      ]);
     } catch (e) {
       setNotice(e instanceof Error ? e.message : "Unable to read files.");
     } finally {
@@ -397,6 +417,13 @@ export default function MentoringWorkspace({
     return () => controller.abort();
   }, [localDemo, retry, role]);
   useEffect(() => {
+    if (newDiscussion) {
+      setFirstMessage("");
+      setFirstDocument(null);
+      setFirstAttachments([]);
+    }
+  }, [newDiscussion]);
+  useEffect(() => {
     if (newTask || newDiscussion || newSession) dialogTitle.current?.focus();
   }, [newTask, newDiscussion, newSession]);
   useEffect(() => {
@@ -446,7 +473,9 @@ export default function MentoringWorkspace({
           .includes(search.toLowerCase())),
   );
   if (taskTab === "Needs Attention") {
-    filtered.sort((a, b) => a.due.localeCompare(b.due) || a.title.localeCompare(b.title));
+    filtered.sort(
+      (a, b) => a.due.localeCompare(b.due) || a.title.localeCompare(b.title),
+    );
   }
   const update = (fn: (value: WorkspaceData) => WorkspaceData) => {
     if (!localDemo) {
@@ -469,6 +498,7 @@ export default function MentoringWorkspace({
     setView("Discussions");
     setThreadId(id);
     setReply("");
+    setReplyDocument(null);
     setAttachments([]);
     const d = current.discussions.find((item) => item.id === id);
     if (!localDemo && writable && d?.unread)
@@ -505,13 +535,19 @@ export default function MentoringWorkspace({
   ];
   async function submitReply(e: FormEvent) {
     e.preventDefault();
-    if (!thread || (!reply.trim() && !attachments.length)) return;
+    if (
+      !thread ||
+      (!reply.trim() && !attachments.length) ||
+      reply.length > 10000
+    )
+      return;
     if (!localDemo) {
       const saved = await persist({
         action: "reply",
         studentId: thread.studentId || "",
         id: thread.id,
         text: reply.trim(),
+        document: replyDocument,
         files: attachments.map((f) => ({
           name: f.name,
           content: f.content || "",
@@ -519,6 +555,7 @@ export default function MentoringWorkspace({
       });
       if (saved) {
         setReply("");
+        setReplyDocument(null);
         setAttachments([]);
       }
       return;
@@ -541,6 +578,7 @@ export default function MentoringWorkspace({
                     minute: "2-digit",
                   }),
                   text: reply.trim(),
+                  document: replyDocument,
                   attachments,
                   likes: 0,
                 },
@@ -550,6 +588,7 @@ export default function MentoringWorkspace({
       ),
     }));
     setReply("");
+    setReplyDocument(null);
     setAttachments([]);
   }
   async function createTask(e: FormEvent<HTMLFormElement>) {
@@ -566,7 +605,7 @@ export default function MentoringWorkspace({
       if (saved) {
         setNewTask(false);
         setTaskTab("My Tasks");
-        setNotice("Task assigned and saved.");
+        setNotice(isStudent ? "Personal task saved. Only you can see it." : "Task assigned and saved.");
       }
       return;
     }
@@ -592,12 +631,23 @@ export default function MentoringWorkspace({
   async function createDiscussion(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const f = new FormData(e.currentTarget);
+    if (
+      (!firstMessage.trim() && !firstAttachments.length) ||
+      firstMessage.length > 10000 ||
+      fileReading
+    )
+      return;
     if (!localDemo) {
       const saved = await persist({
         action: "create_discussion",
         studentId: selectedStudent(f),
         title: String(f.get("title")).trim(),
-        text: String(f.get("message")).trim(),
+        text: firstMessage.trim(),
+        document: firstDocument,
+        files: firstAttachments.map((a) => ({
+          name: a.name,
+          content: a.content || "",
+        })),
       });
       if (saved) {
         setNewDiscussion(false);
@@ -613,7 +663,7 @@ export default function MentoringWorkspace({
         {
           id,
           title: String(f.get("title")).trim(),
-          preview: String(f.get("message")).trim(),
+          preview: firstMessage.trim(),
           time: "Now",
           unread: 0,
           resolved: false,
@@ -623,8 +673,9 @@ export default function MentoringWorkspace({
               author: name,
               role: isStudent ? "Mentee" : "Mentor",
               time: "Now",
-              text: String(f.get("message")).trim(),
-              attachments: [],
+              text: firstMessage.trim(),
+              document: firstDocument,
+              attachments: firstAttachments,
               likes: 0,
             },
           ],
@@ -774,63 +825,107 @@ export default function MentoringWorkspace({
       )}
     </div>
   );
+  useLayoutEffect(()=>{
+    const element=workspaceElement.current;
+    if(!element || !thread || !["Discussions","Communications"].includes(view))return;
+    const parent=element.closest(".dashboard-content");
+    if(parent)parent.scrollTop=0;
+    const fit=()=>{
+      const top=element.getBoundingClientRect().top;
+      const height=window.visualViewport?.height||window.innerHeight;
+      let reserve=12;
+      for(let ancestor=element.parentElement;ancestor&&ancestor!==document.body;ancestor=ancestor.parentElement){
+        const style=getComputedStyle(ancestor);
+        reserve+=(parseFloat(style.paddingBottom)||0)+(parseFloat(style.marginBottom)||0);
+      }
+      element.style.setProperty("--mw-thread-space",`${Math.max(120,height-top-reserve)}px`);
+    };
+    fit();const observer=new ResizeObserver(fit);if(element.parentElement)observer.observe(element.parentElement);
+    window.addEventListener("resize",fit);window.visualViewport?.addEventListener("resize",fit);
+    return()=>{observer.disconnect();window.removeEventListener("resize",fit);window.visualViewport?.removeEventListener("resize",fit);element.style.removeProperty("--mw-thread-space");};
+  },[thread?.id,view]);
   return (
     <section
-      className={`mw-shell ${embedded ? "mw-integrated" : ""}`}
+      ref={workspaceElement}
+      className={`mw-shell ${embedded ? "mw-integrated" : ""} ${thread && ["Discussions","Communications"].includes(view) ? "mw-thread-active" : ""}`}
       onChange={(event) => event.stopPropagation()}
       aria-busy={busy || fileReading}
       aria-label={`${isStudent ? "Mentee" : "Mentor"} collaboration workspace`}
     >
-      {!embedded && <aside className="mw-sidebar">
-        <div className="mw-brand">
-          <span>V</span>VoiceDots
-        </div>
-        <nav aria-label="Mentoring navigation">
-          {menu.map(({ label, icon: Icon }) => (
-            <button
-              key={label}
-              className={view === label ? "active" : ""}
-              onClick={() => {
-                if (label === "Mentees" && onMentees) {
-                  onMentees();
-                  return;
-                }
-                if (label === "My Mentor" && onProfile) {
-                  onProfile();
-                  return;
-                }
-                if (label === "Reports" && onReports) {
-                  onReports();
-                  return;
-                }
-                openView(label);
-              }}
-            >
-              <Icon size={18} />
-              <span>{label}</span>
-            </button>
-          ))}
-        </nav>
-        <div className="mw-user">
-          <Avatar name={name} photo={personPhoto(name)} />
-          <span>
-            <strong>{name}</strong>
-            <small>{isStudent ? "Mentee" : "Mentor"}</small>
-          </span>
-          <ChevronDown size={15} />
-        </div>
-      </aside>}
+      {!embedded && (
+        <aside className="mw-sidebar">
+          <div className="mw-brand">
+            <span>V</span>VoiceDots
+          </div>
+          <nav aria-label="Mentoring navigation">
+            {menu.map(({ label, icon: Icon }) => (
+              <button
+                key={label}
+                className={view === label ? "active" : ""}
+                onClick={() => {
+                  if (label === "Mentees" && onMentees) {
+                    onMentees();
+                    return;
+                  }
+                  if (label === "My Mentor" && onProfile) {
+                    onProfile();
+                    return;
+                  }
+                  if (label === "Reports" && onReports) {
+                    onReports();
+                    return;
+                  }
+                  openView(label);
+                }}
+              >
+                <Icon size={18} />
+                <span>{label}</span>
+              </button>
+            ))}
+          </nav>
+          <div className="mw-user">
+            <Avatar name={name} photo={personPhoto(name)} />
+            <span>
+              <strong>{name}</strong>
+              <small>{isStudent ? "Mentee" : "Mentor"}</small>
+            </span>
+            <ChevronDown size={15} />
+          </div>
+        </aside>
+      )}
       <main className="mw-main">
         {!localDemo && (
           <div className={embedded ? "mw-context-bar" : "mw-demo"}>
-            <span>{current.presentationMode ? <b className="mw-presentation-label">Presentation preview</b> : "MENTORING WORKSPACE"}</span>
-            {onRefresh && <button onClick={onRefresh} disabled={busy}>Refresh</button>}
+            <span>
+              {current.presentationMode ? (
+                <b className="mw-presentation-label">Presentation preview</b>
+              ) : (
+                "MENTORING WORKSPACE"
+              )}
+            </span>
+            {onRefresh && (
+              <button onClick={onRefresh} disabled={busy}>
+                Refresh
+              </button>
+            )}
           </div>
         )}
-        {oversight && <aside className="mw-oversight-note" aria-label="Read-only placement oversight">
-          <Eye size={19}/><div><strong>Placement oversight · Read only</strong>
-          <p>Review mentoring progress and conversations. Replies, task updates and session changes belong to the assigned mentor and student.</p></div>
-        </aside>}
+        {oversight && (
+          <aside
+            className="mw-oversight-note"
+            aria-label="Read-only placement oversight"
+          >
+            <Eye size={19} />
+            <div>
+              <strong>Placement oversight · Read only</strong>
+              <p>
+                Review mentoring progress and conversations. Replies, task
+                updates and session changes belong to the assigned mentor and
+                student.
+              </p>
+            </div>
+          </aside>
+        )}
         {localDemo && (
           <div className="mw-demo">
             <span>
@@ -867,11 +962,19 @@ export default function MentoringWorkspace({
           <>
             <header className="mw-heading">
               <div>
-                <h2>{oversight ? "Mentoring Overview" : isStudent ? "Mentee Dashboard" : "Mentor Dashboard"}</h2>
+                <h2>
+                  {oversight
+                    ? "Mentoring Overview"
+                    : isStudent
+                      ? "Mentee Dashboard"
+                      : "Mentor Dashboard"}
+                </h2>
                 <p>
-                  {oversight ? "Review mentoring across your authorised students." : isStudent
-                    ? "Connect with your mentor · Track tasks · Stay on schedule"
-                    : "Guide, connect and help your mentees move forward."}
+                  {oversight
+                    ? "Review mentoring across your authorised students."
+                    : isStudent
+                      ? "Connect with your mentor · Track tasks · Stay on schedule"
+                      : "Guide, connect and help your mentees move forward."}
                 </p>
               </div>
               <div className="mw-header-actions">
@@ -941,7 +1044,9 @@ export default function MentoringWorkspace({
                       tone: "blue",
                     },
                     {
-                      label: oversight ? "Awaiting Mentor Review" : "Pending Replies",
+                      label: oversight
+                        ? "Awaiting Mentor Review"
+                        : "Pending Replies",
                       value: current.pendingReplies,
                       icon: MessageCircle,
                       tone: "orange",
@@ -1050,12 +1155,8 @@ export default function MentoringWorkspace({
                 {timeline}
               </Card>
               <Card
-                title={
-                  isStudent ? "Recent Updates" : "Recent Discussions"
-                }
-                action={link("View All", () =>
-                  openView("Discussions"),
-                )}
+                title={isStudent ? "Recent Updates" : "Recent Discussions"}
+                action={link("View All", () => openView("Discussions"))}
               >
                 {isStudent
                   ? communicationList || discussionList
@@ -1190,8 +1291,7 @@ export default function MentoringWorkspace({
         {thread && ["Discussions", "Communications"].includes(view) && (
           <div className="mw-thread">
             <button className="mw-back" onClick={() => setThreadId(null)}>
-              <ArrowLeft size={18} /> Discussions <span>›</span>
-              <b>{thread.title}</b>
+              <ArrowLeft size={18} /> Back to discussions
             </button>
             <header className="mw-thread-heading">
               <span className="mw-icon">
@@ -1206,40 +1306,42 @@ export default function MentoringWorkspace({
                   (Mentor)
                 </p>
               </div>
-              {writable && <button
-                className={
-                  (localDemo ? starred.includes(thread.id) : thread.starred)
-                    ? "mw-starred"
-                    : ""
-                }
-                aria-label={
-                  (localDemo ? starred.includes(thread.id) : thread.starred)
-                    ? "Unstar discussion"
-                    : "Star discussion"
-                }
-                aria-pressed={
-                  localDemo
-                    ? starred.includes(thread.id)
-                    : Boolean(thread.starred)
-                }
-                disabled={busy || !writable}
-                onClick={() =>
-                  localDemo
-                    ? setStarred((v) =>
-                        v.includes(thread.id)
-                          ? v.filter((id) => id !== thread.id)
-                          : [...v, thread.id],
-                      )
-                    : void persist({
-                        action: "star",
-                        studentId: thread.studentId || "",
-                        id: thread.id,
-                        value: !thread.starred,
-                      })
-                }
-              >
-                <Star size={18} />
-              </button>}
+              {writable && (
+                <button
+                  className={
+                    (localDemo ? starred.includes(thread.id) : thread.starred)
+                      ? "mw-starred"
+                      : ""
+                  }
+                  aria-label={
+                    (localDemo ? starred.includes(thread.id) : thread.starred)
+                      ? "Unstar discussion"
+                      : "Star discussion"
+                  }
+                  aria-pressed={
+                    localDemo
+                      ? starred.includes(thread.id)
+                      : Boolean(thread.starred)
+                  }
+                  disabled={busy || !writable}
+                  onClick={() =>
+                    localDemo
+                      ? setStarred((v) =>
+                          v.includes(thread.id)
+                            ? v.filter((id) => id !== thread.id)
+                            : [...v, thread.id],
+                        )
+                      : void persist({
+                          action: "star",
+                          studentId: thread.studentId || "",
+                          id: thread.id,
+                          value: !thread.starred,
+                        })
+                  }
+                >
+                  <Star size={18} />
+                </button>
+              )}
               <button
                 aria-label="Discussion information"
                 onClick={() =>
@@ -1250,40 +1352,57 @@ export default function MentoringWorkspace({
               >
                 <MoreHorizontal size={18} />
               </button>
-              {writable && <button
-                className="mw-resolve"
-                disabled={busy || !writable}
-                onClick={() =>
-                  localDemo
-                    ? update((v) => ({
-                        ...v,
-                        discussions: v.discussions.map((d) =>
-                          d.id === thread.id
-                            ? { ...d, resolved: !d.resolved }
-                            : d,
-                        ),
-                      }))
-                    : void persist({
-                        action: "resolve",
-                        studentId: thread.studentId || "",
-                        id: thread.id,
-                        value: !thread.resolved,
-                      })
-                }
-              >
-                <Check size={17} />
-                {thread.resolved ? "Reopen Discussion" : "Mark as Resolved"}
-              </button>}
-              {!writable && <span className="mw-thread-status">{thread.resolved ? "Resolved" : "Open"}</span>}
+              {writable && (
+                <button
+                  className="mw-resolve"
+                  disabled={busy || !writable}
+                  onClick={() =>
+                    localDemo
+                      ? update((v) => ({
+                          ...v,
+                          discussions: v.discussions.map((d) =>
+                            d.id === thread.id
+                              ? { ...d, resolved: !d.resolved }
+                              : d,
+                          ),
+                        }))
+                      : void persist({
+                          action: "resolve",
+                          studentId: thread.studentId || "",
+                          id: thread.id,
+                          value: !thread.resolved,
+                        })
+                  }
+                >
+                  <Check size={17} />
+                  {thread.resolved ? "Reopen Discussion" : "Mark as Resolved"}
+                </button>
+              )}
+              {!writable && (
+                <span className="mw-thread-status">
+                  {thread.resolved ? "Resolved" : "Open"}
+                </span>
+              )}
             </header>
-            <p className="mw-visibility-note"><Eye size={14}/>Authorised placement staff can review this conversation.</p>
+            <p className="mw-visibility-note">
+              <Eye size={14} />
+              Authorised placement staff can review this conversation.
+            </p>
             <div className="mw-messages">
               {thread.messages.map((m) => (
                 <article
                   className={`mw-message ${m.role === "Mentor" ? "from-mentor" : ""}`}
                   key={m.id}
                 >
-                  <Avatar name={m.author} photo={personPhoto(m.author)} />
+                  {m.role === "Mentee" && thread.studentId && renderStudentPhoto
+                    ? renderStudentPhoto(thread.studentId, m.author)
+                    : <Avatar
+                        name={m.author}
+                        photo={m.role === "Mentee" && isStudent
+                          ? current.studentPhoto
+                          : m.role === "Mentor" ? current.mentorPhoto : undefined}
+                      />}
+
                   <div>
                     <div className="mw-bubble">
                       <header>
@@ -1292,7 +1411,7 @@ export default function MentoringWorkspace({
                         </strong>
                         <small>{timeLabel(m.time)}</small>
                       </header>
-                      <p>{m.text}</p>
+                      <MessageBody document={m.document} text={m.text} />
                       {m.attachments.length > 0 && (
                         <div className="mw-attachments">
                           <p>
@@ -1324,53 +1443,61 @@ export default function MentoringWorkspace({
                         </div>
                       )}
                     </div>
-                    {writable && <div className="mw-message-actions">
-                      <button
-                        aria-label={`Like message from ${m.author}`}
-                        disabled={busy || !writable}
-                        onClick={() =>
-                          localDemo
-                            ? update((v) => ({
-                                ...v,
-                                discussions: v.discussions.map((d) =>
-                                  d.id === thread.id
-                                    ? {
-                                        ...d,
-                                        messages: d.messages.map((item) =>
-                                          item.id === m.id
-                                            ? {
-                                                ...item,
-                                                likes: item.likes ? 0 : 1,
-                                              }
-                                            : item,
-                                        ),
-                                      }
-                                    : d,
-                                ),
-                              }))
-                            : void persist({
-                                action: "react",
-                                studentId: thread.studentId || "",
-                                id: thread.id,
-                                messageId: m.id,
-                                value: !m.liked,
-                              })
-                        }
-                      >
+                    {writable && (
+                      <div className="mw-message-actions">
+                        <button
+                          aria-label={`Like message from ${m.author}`}
+                          disabled={busy || !writable}
+                          onClick={() =>
+                            localDemo
+                              ? update((v) => ({
+                                  ...v,
+                                  discussions: v.discussions.map((d) =>
+                                    d.id === thread.id
+                                      ? {
+                                          ...d,
+                                          messages: d.messages.map((item) =>
+                                            item.id === m.id
+                                              ? {
+                                                  ...item,
+                                                  likes: item.likes ? 0 : 1,
+                                                }
+                                              : item,
+                                          ),
+                                        }
+                                      : d,
+                                  ),
+                                }))
+                              : void persist({
+                                  action: "react",
+                                  studentId: thread.studentId || "",
+                                  id: thread.id,
+                                  messageId: m.id,
+                                  value: !m.liked,
+                                })
+                          }
+                        >
+                          <ThumbsUp size={14} />
+                          {m.likes || ""}
+                        </button>
+                        <button
+                          onClick={() => {
+                            setReplyDocument(null);
+                            setReply(`@${m.author} `);
+                            composer.current?.commands.focus();
+                          }}
+                        >
+                          <Reply size={16} />
+                          Reply
+                        </button>
+                      </div>
+                    )}
+                    {!writable && m.likes > 0 && (
+                      <span className="mw-read-reactions">
                         <ThumbsUp size={14} />
-                        {m.likes || ""}
-                      </button>
-                      <button
-                        onClick={() => {
-                          setReply(`@${m.author} `);
-                          composer.current?.focus();
-                        }}
-                      >
-                        <Reply size={16} />
-                        Reply
-                      </button>
-                    </div>}
-                    {!writable && m.likes > 0 && <span className="mw-read-reactions"><ThumbsUp size={14}/>{m.likes}</span>}
+                        {m.likes}
+                      </span>
+                    )}
                   </div>
                 </article>
               ))}
@@ -1381,9 +1508,14 @@ export default function MentoringWorkspace({
               )}
               <div ref={messageEnd} />
             </div>
-            {!writable ? <div className="mw-read-only-footer"><Eye size={17}/>
-              {oversight ? "Read-only review. Only the assigned mentor and mentee can participate in this discussion." : "This conversation is view-only for your account."}
-            </div> : thread.resolved ? (
+            {!writable ? (
+              <div className="mw-read-only-footer">
+                <Eye size={17} />
+                {oversight
+                  ? "Read-only review. Only the assigned mentor and mentee can participate in this discussion."
+                  : "This conversation is view-only for your account."}
+              </div>
+            ) : thread.resolved ? (
               <div className="mw-resolved-note">
                 <CheckCircle2 size={18} />
                 This discussion is resolved. Reopen it to continue the
@@ -1405,19 +1537,34 @@ export default function MentoringWorkspace({
                   type="button"
                   aria-label="Attach files"
                   disabled={!writable || busy || fileReading}
-                  onClick={() => fileInput.current?.click()}
+                  onClick={() => {
+                    if (fileInput.current) {
+                      fileInput.current.accept =
+                        ".pdf,.txt,.png,.jpg,.jpeg,.docx,.pptx,.xlsx";
+                      fileInput.current.click();
+                    }
+                  }}
                 >
                   <Paperclip size={21} />
                 </button>
                 <div>
-                  <textarea
-                    ref={composer}
-                    rows={1}
-                    value={reply}
+                  <MessageEditor
+                    text={reply}
+                    document={replyDocument}
+                    editorRef={composer}
+                    label="Reply message"
+                    onSend={()=>composer.current?.view.dom.closest("form")?.requestSubmit()}
                     disabled={!writable || busy || fileReading}
-                    onChange={(e) => setReply(e.target.value)}
-                    placeholder="Type a reply…"
-                    aria-label="Reply message"
+                    onChange={(text, doc) => {
+                      setReply(text);
+                      setReplyDocument(doc);
+                    }}
+                    onImage={() => {
+                      if (fileInput.current) {
+                        fileInput.current.accept = "image/png,image/jpeg";
+                        fileInput.current.click();
+                      }
+                    }}
                   />
                   {attachments.length > 0 && (
                     <div className="mw-file-chips">
@@ -1437,23 +1584,13 @@ export default function MentoringWorkspace({
                   )}
                 </div>
                 <button
-                  type="button"
-                  aria-label="Add smile emoji"
-                  disabled={!writable || busy || fileReading}
-                  onClick={() => {
-                    setReply((v) => v + " 🙂");
-                    composer.current?.focus();
-                  }}
-                >
-                  <Smile size={20} />
-                </button>
-                <button
                   className="mw-primary"
                   disabled={
                     !writable ||
                     busy ||
                     fileReading ||
-                    (!reply.trim() && !attachments.length)
+                    (!reply.trim() && !attachments.length) ||
+                    reply.length > 10000
                   }
                 >
                   <Send size={17} />
@@ -1499,22 +1636,31 @@ export default function MentoringWorkspace({
               role="tablist"
               aria-label="Task views"
             >
-              {["My Tasks", "Needs Attention", "Schedule (Calendar)", "Completed"].map(
-                (t) => (
-                  <button
-                    role="tab"
-                    aria-selected={taskTab === t}
-                    key={t}
-                    onClick={() => setTaskTab(t)}
-                  >
-                    {t}{t === "Needs Attention" && <span className="mw-attention-count">{attentionCount}</span>}
-                  </button>
-                ),
-              )}
+              {[
+                "My Tasks",
+                "Needs Attention",
+                "Schedule (Calendar)",
+                "Completed",
+              ].map((t) => (
+                <button
+                  role="tab"
+                  aria-selected={taskTab === t}
+                  key={t}
+                  onClick={() => setTaskTab(t)}
+                >
+                  {t}
+                  {t === "Needs Attention" && (
+                    <span className="mw-attention-count">{attentionCount}</span>
+                  )}
+                </button>
+              ))}
             </div>
-            {taskTab === "Needs Attention" && <p className="mw-attention-help">
-              Unfinished tasks due within the next two days, including today. Overdue tasks appear first.
-            </p>}
+            {taskTab === "Needs Attention" && (
+              <p className="mw-attention-help">
+                Unfinished tasks due within the next two days, including today.
+                Overdue tasks appear first.
+              </p>
+            )}
             {taskTab === "Schedule (Calendar)" ? (
               <div className="mw-calendar-view">
                 <label>
@@ -1660,40 +1806,68 @@ export default function MentoringWorkspace({
                       {filtered.map((t) => (
                         <tr key={t.id}>
                           <td>
-                            {writable ? <input
-                              type="checkbox"
-                              aria-label={`Complete ${t.title}`}
-                              checked={t.status === "Completed"}
-                              disabled={!writable || busy || fileReading}
-                              onChange={() =>
-                                taskStatus(
-                                  t,
-                                  t.status === "Completed"
-                                    ? "Pending"
-                                    : "Completed",
-                                )
-                              }
-                            /> : <span className="mw-static-task-state" aria-label={`${t.title}: ${t.status}`}>{t.status === "Completed" ? <CheckCircle2 size={17}/> : <Clock size={17}/>}</span>}
+                            {writable ? (
+                              <input
+                                type="checkbox"
+                                aria-label={`Complete ${t.title}`}
+                                checked={t.status === "Completed"}
+                                disabled={!writable || busy || fileReading}
+                                onChange={() =>
+                                  taskStatus(
+                                    t,
+                                    t.status === "Completed"
+                                      ? "Pending"
+                                      : "Completed",
+                                  )
+                                }
+                              />
+                            ) : (
+                              <span
+                                className="mw-static-task-state"
+                                aria-label={`${t.title}: ${t.status}`}
+                              >
+                                {t.status === "Completed" ? (
+                                  <CheckCircle2 size={17} />
+                                ) : (
+                                  <Clock size={17} />
+                                )}
+                              </span>
+                            )}
                           </td>
                           <td>
                             <strong>{t.title}</strong>
+                            {t.personal && <span className="mw-private-task">Private · Only you</span>}
                             <small>{t.outcome}</small>
                           </td>
                           <td>
                             <span className="mw-table-person">
-                              <Avatar
-                                name={isStudent ? t.assignedBy : t.assignee}
-                                photo={personPhoto(
-                                  isStudent ? t.assignedBy : t.assignee,
-                                )}
-                              />
+                              {!isStudent && t.studentId && renderStudentPhoto
+                                ? renderStudentPhoto(t.studentId, t.assignee)
+                                : <Avatar
+                                    name={isStudent ? t.assignedBy : t.assignee}
+                                    photo={personPhoto(isStudent ? t.assignedBy : t.assignee)}
+                                  />}
+
                               {isStudent ? t.assignedBy : t.assignee}
                             </span>
                           </td>
-                          <td>{dateLabel(t.due)}
-                            {taskTab === "Needs Attention" && <small className={t.due < today ? "mw-due-overdue" : "mw-due-soon"}>
-                              {t.due < today ? "Overdue" : t.due === today ? "Due today" : "Due soon"}
-                            </small>}
+                          <td>
+                            {dateLabel(t.due)}
+                            {taskTab === "Needs Attention" && (
+                              <small
+                                className={
+                                  t.due < today
+                                    ? "mw-due-overdue"
+                                    : "mw-due-soon"
+                                }
+                              >
+                                {t.due < today
+                                  ? "Overdue"
+                                  : t.due === today
+                                    ? "Due today"
+                                    : "Due soon"}
+                              </small>
+                            )}
                           </td>
                           <td>
                             {writable ? (
@@ -1717,7 +1891,7 @@ export default function MentoringWorkspace({
                             )}
                           </td>
                           <td>
-                            <button
+                            {!t.personal && <button
                               aria-label={`${oversight ? "View discussion for" : "Discuss"} ${t.title}`}
                               onClick={() => {
                                 const matching = current.discussions.find(
@@ -1727,6 +1901,7 @@ export default function MentoringWorkspace({
                                 );
                                 if (matching) {
                                   openThread(matching.id);
+                                  setReplyDocument(null);
                                   setReply(`Regarding “${t.title}”: `);
                                 } else
                                   setNotice(
@@ -1734,8 +1909,12 @@ export default function MentoringWorkspace({
                                   );
                               }}
                             >
-                              {oversight ? <Eye size={17}/> : <Reply size={17} />}
-                            </button>
+                              {oversight ? (
+                                <Eye size={17} />
+                              ) : (
+                                <Reply size={17} />
+                              )}
+                            </button>}
                             <button
                               aria-label={`Details for ${t.title}`}
                               onClick={() =>
@@ -1753,7 +1932,8 @@ export default function MentoringWorkspace({
                   </table>
                   {!filtered.length && (
                     <p className="mw-empty">
-                      {search ? "No tasks match your search."
+                      {search
+                        ? "No tasks match your search."
                         : taskTab === "Needs Attention"
                           ? "You're up to date. No overdue tasks or tasks due in the next two days."
                           : current.tasks.length
@@ -1813,7 +1993,7 @@ export default function MentoringWorkspace({
               }
               if (e.key === "Tab") {
                 const list = e.currentTarget.querySelectorAll<HTMLElement>(
-                  "input,textarea,select,button:not(:disabled)",
+                  "input:not([hidden]),textarea,select,button:not(:disabled),[contenteditable=true]",
                 );
                 const first = list[0],
                   last = list[list.length - 1];
@@ -1828,7 +2008,7 @@ export default function MentoringWorkspace({
             }}
           >
             <section
-              className="mw-modal"
+              className={`mw-modal ${newDiscussion ? "mw-discussion-modal" : ""}`}
               role="dialog"
               aria-modal="true"
               aria-labelledby="mw-dialog-title"
@@ -1838,7 +2018,7 @@ export default function MentoringWorkspace({
                   {newSession
                     ? "Schedule a session"
                     : newTask
-                      ? "Create a task"
+                      ? isStudent ? "Create a personal task" : "Create a task"
                       : "Start a discussion"}
                 </h2>
                 <button
@@ -1911,6 +2091,7 @@ export default function MentoringWorkspace({
                   </>
                 ) : newTask ? (
                   <>
+                    {isStudent && <p className="mw-personal-task-note">Only you can see this task. It is not shared with your mentor or placement team.</p>}
                     <label>
                       Expected outcome
                       <textarea
@@ -1935,10 +2116,70 @@ export default function MentoringWorkspace({
                     </label>
                   </>
                 ) : (
-                  <label>
-                    Message
-                    <textarea name="message" required maxLength={5000} />
-                  </label>
+                  <div className="mw-discussion-message">
+                    <span>Message</span>
+                    <MessageEditor
+                      text={firstMessage}
+                      document={firstDocument}
+                      label="Discussion message"
+                      onSend={()=>dialogTitle.current?.form?.requestSubmit()}
+                      disabled={busy || fileReading}
+                      onChange={(text, doc) => {
+                        setFirstMessage(text);
+                        setFirstDocument(doc);
+                      }}
+                      onImage={() => {
+                        if (firstFileInput.current) {
+                          firstFileInput.current.accept =
+                            "image/png,image/jpeg";
+                          firstFileInput.current.click();
+                        }
+                      }}
+                    />
+                    <input
+                      ref={firstFileInput}
+                      type="file"
+                      hidden
+                      multiple
+                      onChange={(e) => {
+                        void chooseFiles(
+                          Array.from(e.target.files || []),
+                          true,
+                        );
+                        e.target.value = "";
+                      }}
+                    />
+                    <button
+                      type="button"
+                      className="mw-discussion-attach"
+                      disabled={busy || fileReading}
+                      onClick={() => {
+                        if (firstFileInput.current) {
+                          firstFileInput.current.accept =
+                            ".pdf,.txt,.png,.jpg,.jpeg,.docx,.pptx,.xlsx";
+                          firstFileInput.current.click();
+                        }
+                      }}
+                    >
+                      <Paperclip size={15} /> Attach files
+                    </button>
+                    <div className="mw-file-chips">
+                      {firstAttachments.map((a, i) => (
+                        <button
+                          type="button"
+                          key={i}
+                          onClick={() =>
+                            setFirstAttachments((v) =>
+                              v.filter((_, j) => i !== j),
+                            )
+                          }
+                        >
+                          {a.name}
+                          <X size={13} />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 )}
                 <footer>
                   <button
@@ -1951,7 +2192,16 @@ export default function MentoringWorkspace({
                   >
                     Cancel
                   </button>
-                  <button className="mw-primary" disabled={busy}>
+                  <button
+                    className="mw-primary"
+                    disabled={
+                      busy ||
+                      fileReading ||
+                      (newDiscussion &&
+                        ((!firstMessage.trim() && !firstAttachments.length) ||
+                          firstMessage.length > 10000))
+                    }
+                  >
                     {busy
                       ? "Saving…"
                       : newSession

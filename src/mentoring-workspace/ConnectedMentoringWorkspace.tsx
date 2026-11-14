@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import MentoringWorkspace, {
   type Attachment,
   type WorkspaceAction,
@@ -47,6 +47,7 @@ export default function ConnectedMentoringWorkspace({
   onReports,
   activeView,
   onViewChange,
+  renderStudentPhoto,
 }: {
   transport: WorkspaceTransport;
   role?: "mentor" | "student";
@@ -55,6 +56,7 @@ export default function ConnectedMentoringWorkspace({
   onReports?: () => void;
   activeView?: string;
   onViewChange?: (view: string) => void;
+  renderStudentPhoto?: (studentId: string, name: string) => ReactNode;
 }) {
   const [data, setData] = useState<WorkspaceData | null>(null),
     [error, setError] = useState(""),
@@ -139,6 +141,7 @@ export default function ConnectedMentoringWorkspace({
       {!data && !error && <p role="status">Loading mentoring workspace…</p>}
       {data && (
         <MentoringWorkspace
+          renderStudentPhoto={renderStudentPhoto}
           role={role}
           embedded
           activeView={activeView}

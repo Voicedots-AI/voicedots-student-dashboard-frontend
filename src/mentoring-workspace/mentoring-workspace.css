@@ -1672,3 +1672,29 @@
 .mw-thread-status{font-size:12px;padding:7px 12px;color:#675584;background:#f0eaf9;border-radius:8px}
 .mw-read-reactions{display:inline-flex;gap:5px;align-items:center;font-size:11px;color:#81748f;margin-top:6px}
 .mw-static-task-state{color:#81748f}
+
+/* Keep the conversation controls in view; only the history scrolls. */
+.mw-shell.mw-integrated.mw-thread-active{height:var(--mw-thread-space,calc(100dvh - 160px));min-height:0;display:flex;flex-direction:column;overflow:hidden}
+.mw-thread-active .mw-main{display:flex;flex-direction:column;flex:1;min-height:0;overflow:hidden}
+.mw-thread-active .mw-context-bar{flex:none;margin-bottom:8px}
+.mw-thread-active .mw-thread{flex:1;min-height:0;height:auto;max-height:none;overflow:hidden}
+.mw-thread-active .mw-back{flex:none;align-self:flex-start;padding:0 0 9px;font-size:12px}
+.mw-thread-active .mw-thread-heading{flex:none;padding:10px 0;gap:9px;align-items:center}
+.mw-thread-active .mw-thread-heading h2{font-size:20px;overflow-wrap:anywhere}
+.mw-thread-active .mw-thread-heading p{margin-top:2px}
+.mw-thread-active .mw-messages{min-height:0;overscroll-behavior:contain;padding:10px 0 6px;overflow-x:hidden}
+.mw-thread-active .mw-message{margin-bottom:10px}
+.mw-thread-active .mw-bubble{padding:9px 13px}
+.mw-thread-active .mw-message-actions{margin-top:3px}
+.mw-thread-active .mw-composer{flex:none;padding-top:9px}
+.mw-thread-active .mw-oversight-banner{flex:none;padding:8px 12px;margin-bottom:8px}
+.sm-page:has(.mw-thread-active){padding-bottom:0;min-width:0;max-width:none}
+.dashboard-content:has(.mw-thread-active){padding-bottom:0;overflow-y:hidden;min-height:0}
+body:has(.mw-thread-active) .dashboard-footer{display:none}
+@media(max-height:750px){.mw-thread-active .mw-context-bar{margin-bottom:3px}.mw-thread-active .mw-thread-heading{padding:6px 0}.mw-thread-active .mw-thread-heading h2{font-size:18px}.mw-thread-active .mw-back{padding-bottom:5px}.mw-thread-active .mw-category{margin:2px 0}.mw-thread-active .mw-thread-heading .mw-icon{width:30px;height:30px}.mw-thread-active .mw-composer{padding-top:6px}}
+@media(max-width:600px){.mw-thread-active .mw-thread-heading{flex-wrap:wrap}.mw-thread-active .mw-thread-heading>div{flex-basis:calc(100% - 42px)}.mw-thread-active .mw-thread-heading>button{min-height:28px;padding:4px 7px}.mw-thread-active .mw-thread-heading .mw-resolve{display:inline-flex}.mw-thread-active .mw-context-bar{font-size:9px}.mw-thread-active .mw-composer{flex-wrap:nowrap;gap:6px}.mw-thread-active .mw-composer>button.mw-primary{padding:8px;font-size:11px}.mw-thread-active .mw-thread-heading h2{font-size:17px}}
+.client-dashboard:has(.mw-thread-active){height:100dvh;min-height:0;overflow:hidden}
+.client-dashboard:has(.mw-thread-active)>div{min-height:0}
+.client-dashboard main:has(.mw-thread-active){min-height:0;overflow-y:hidden}
+
+.mw-private-task{display:inline-block;margin:3px 0;padding:2px 7px;border-radius:6px;color:#6c4aa2;background:#f1ebfa;font-size:10px}.mw-personal-task-note{padding:10px 12px;background:#f6f2ff;border:1px solid #e6def6;border-radius:8px;color:#65507f;font-size:12px;line-height:1.5}
