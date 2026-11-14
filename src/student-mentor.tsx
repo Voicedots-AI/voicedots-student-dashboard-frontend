@@ -1,24 +1,27 @@
-import {useCallback,useEffect,useState} from 'react';
-import {Mail,Users,Target,Flag,RefreshCw,CalendarDays,Star,BarChart3,FileText,GraduationCap,CheckCircle2} from 'lucide-react';
-import {api} from './api';
+import { Navigate, useSearchParams } from 'react-router-dom';
+import StudentMentoringWorkspace from './mentoring-workspace/StudentMentoringWorkspace';
 import './student-mentor.css';
-type Mentor={id:string;name:string;email:string;phone?:string;department:string;designation:string;active:boolean;photo?:string;mentorship_since?:string;students_mentored?:number;plan?:string;notes?:string;updated_at?:string;milestones?:{id:string;title:string;due?:string;done:boolean}[]};
-type Data={mentor:Mentor|null;progress:{readiness:number|null;competency:number|null;dimensions:{name:string;value:number}[]}|null};
-type Report={status?:string;report?:{status?:string;overall_score?:number|null}};
-export function StudentMentor(){
- const [data,setData]=useState<Data|null>(null),[reports,setReports]=useState<Report[]>([]),[error,setError]=useState(''),[loading,setLoading]=useState(true);
- const load=useCallback(async(signal?:AbortSignal)=>{setLoading(true);try{const [mentor,result]=await Promise.all([api<Data>('/api/student/mentor',{signal}),api<{reports:Report[]}>('/api/student/reports',{signal})]);if(signal?.aborted)return;setData(mentor);setReports(result.reports);setError('')}catch(e){if(!signal?.aborted)setError(e instanceof Error?e.message:'Unable to load your mentor.')}finally{if(!signal?.aborted)setLoading(false)}},[]);
- useEffect(()=>{const controller=new AbortController();void load(controller.signal);return()=>controller.abort()},[load]);
- const mentor=data?.mentor,progress=data?.progress;
- const assessed=reports.filter(r=>r.status==='released'&&r.report?.status!=='awaiting_release'&&r.report?.overall_score!=null).length;
- const notReleased=reports.filter(r=>r.report?.status==='awaiting_release'||r.report?.status==='pending_release').length;
- const pending=Math.max(0,reports.length-assessed-notReleased),percent=reports.length?Math.round(assessed/reports.length*100):0;
- const score=(value:number|null|undefined)=>value==null?'Not assessed':`${value}/100`;
- return <div className="sm-page"><header className="sm-heading"><div><h1>My <span>Mentor</span></h1><p>Your faculty mentor, career goals and feedback.</p><div className="sm-toolbar"><button onClick={()=>void load()} disabled={loading}><RefreshCw size={17} className={loading?'sm-spin':''}/>Refresh</button>{mentor&&<span className={`sm-status ${mentor.active?'active':''}`}><i/>{mentor.active?'Active Mentorship':'Inactive Mentorship'}</span>}</div></div><div className="sm-academic-art" aria-hidden="true"><GraduationCap/><span/><span/></div></header>
- {error&&<div className="sm-card" role="alert"><p>{error}</p><button onClick={()=>void load()}>Retry</button></div>}{loading&&!data&&<p role="status">Loading your mentor…</p>}
- {!loading&&!error&&!mentor&&<section className="sm-card sm-empty"><Users/><h2>No mentor assigned yet</h2><p>Your institute will assign a faculty mentor. Their details and guidance will appear here.</p></section>}
- {mentor&&!error&&<><section className="sm-profile"><div className="sm-person"><div className="sm-photo">{mentor.photo?<img src={mentor.photo} alt={`${mentor.name} profile`}/>:<span>{mentor.name.split(/\s+/).slice(0,2).map(v=>v[0]).join('')}</span>}</div><div><p>Faculty – Mentor</p><h2>{mentor.name}</h2><p>{[mentor.designation,mentor.department].filter(Boolean).join(' · ')||'Faculty mentor'}</p><a href={`mailto:${mentor.email}`}><Mail size={16}/>{mentor.email}</a></div></div><div className="sm-profile-metrics"><div><CalendarDays/><span>Mentorship Since<strong>{mentor.mentorship_since?new Date(mentor.mentorship_since).toLocaleDateString('en-IN',{month:'short',year:'numeric'}):'Not recorded'}</strong></span></div><div><Users/><span>Students Mentored<strong>{mentor.students_mentored??'Not recorded'}</strong></span></div><div><Star/><span>Rating (You)<strong className="sm-no-rating">Not rated</strong></span></div></div></section>
- <div className="sm-plan-grid"><section className="sm-card sm-feature"><span className="sm-icon"><Target/></span><div><h2>My Career Plan</h2><p className="sm-preserve">{mentor.plan||'Your mentor has not added a plan yet.'}</p>{mentor.notes&&<><h3>Mentor Feedback</h3><p className="sm-preserve">{mentor.notes}</p></>}{mentor.updated_at&&<small>Updated {new Date(mentor.updated_at).toLocaleDateString('en-IN')}</small>}</div><Target className="sm-feature-art" aria-hidden="true"/></section><section className="sm-card sm-feature"><span className="sm-icon"><Flag/></span><div><h2>Milestones</h2>{mentor.milestones?.length?<ul className="sm-milestones">{mentor.milestones.map(item=><li key={item.id}><CheckCircle2 className={item.done?'done':''} size={17}/><div><strong>{item.title}</strong><small>{item.done?'Completed':'In progress'}{item.due?` · Due ${new Date(item.due).toLocaleDateString('en-IN')}`:''}</small></div></li>)}</ul>:<p>Your mentor has not assigned milestones yet.</p>}</div><Flag className="sm-feature-art" aria-hidden="true"/></section></div>
- <section className="sm-card sm-assessment"><div className="sm-section-heading"><span className="sm-icon"><BarChart3/></span><div><h2>Released Assessment Progress</h2><p>Interview readiness: <b>{score(progress?.readiness)}</b><span className="sm-separator"> · </span>Overall competency: <b>{score(progress?.competency)}</b></p></div></div><div className="sm-assessment-grid"><div className="sm-progress"><div className="sm-ring" style={{background:`conic-gradient(#8b46f4 ${percent}%,#e6d5ff 0)`}}><div><strong>{percent}%</strong><span>Completed</span></div></div><ul>{[['Assessed',assessed,'#08ad53'],['In Progress',pending,'#ffbd42'],['Not Released',notReleased,'#dfc8ff'],['Total Assessments',reports.length,'#d1d5df']].map(([label,value,color])=><li key={String(label)}><i style={{background:String(color)}}/><span>{label}</span><b>{value}</b></li>)}</ul></div><div className="sm-evidence">{progress?.dimensions?.length?<><h3>Released competency evidence</h3>{progress.dimensions.map(item=><div className="sm-dimension" key={item.name}><span>{item.name}</span><progress max={100} value={item.value}/><b>{item.value}/100</b></div>)}</>:<div className="sm-empty"><span className="sm-icon"><FileText/></span><h3>No assessments released yet</h3><p>Uses the same released assessment record as your mentor and institution. Unreleased or missing results are not estimated.</p></div>}</div></div></section><footer className="sm-footer">Built for your next chapter.<strong>VoiceDots</strong></footer></>}
- </div>;
+
+const workspaceViews: Record<string, string> = {
+  dashboard: 'Dashboard',
+  discussions: 'Discussions',
+  tasks: 'Tasks & Schedule',
+};
+
+export function StudentMentor() {
+  const [params, setParams] = useSearchParams();
+  const section = params.get('section') || 'dashboard';
+  if (section === 'communications') return <Navigate to="/mentor?section=discussions" replace />;
+  if (section === 'profile') return <Navigate to="/mentor?section=dashboard" replace />;
+
+  const changeView = (view: string) => {
+    const nextSection = Object.entries(workspaceViews).find(([, label]) => label === view)?.[0] || 'dashboard';
+    setParams(previous => {
+      const next = new URLSearchParams(previous);
+      next.set('section', nextSection);
+      return next;
+    });
+  };
+
+  return <div className="sm-page"><StudentMentoringWorkspace activeView={workspaceViews[section] || 'Dashboard'} onViewChange={changeView}/></div>;
 }

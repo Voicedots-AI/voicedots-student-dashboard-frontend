@@ -8,6 +8,7 @@ import { Users,
   EyeOff,
   KeyRound,
   Mail,
+  MessageSquare,
   ScanFace,
   Sparkles,
   BookOpen,
@@ -310,6 +311,12 @@ const nav = [
   { to: "/profile", label: "My profile", icon: UserRound },
 ];
 
+const mentorNavigation=[
+ {section:'dashboard',label:'Mentee Dashboard',icon:House},
+ {section:'discussions',label:'Discussions',icon:MessageSquare},
+ {section:'tasks',label:'Tasks & Schedule',icon:CalendarDays},
+];
+
 export function App() {
   const auth = useAuth();
   const location = useLocation();
@@ -411,7 +418,7 @@ export function App() {
   if (auth.loading) return <Loading />;
   if (!auth.identity) return <Login />;
   const student = auth.identity.student;
-  const current =
+  const current = (location.pathname==="/mentor"?mentorNavigation.find(item=>item.section===(new URLSearchParams(location.search).get("section")||"dashboard"))?.label:undefined)||
     nav.find((item) => item.to === location.pathname || (item.to === '/erp' && location.pathname.startsWith('/erp/')) || (item.to === '/placements' && location.pathname.startsWith('/placement')))?.label ||
     (location.pathname.startsWith("/reports/") ? "Interview report" : "Student dashboard");
   async function logout() {
@@ -455,10 +462,12 @@ export function App() {
         <span className="portal-label">STUDENT WORKSPACE</span>
         <nav aria-label="Student navigation">
           {nav.filter(item => item.to !== "/mentor" || auth.identity?.mentor_management_enabled).map(({ to, label, icon: Icon }) => (
-            <NavLink key={to} to={to} end={to === "/"} data-tour={`nav:${to}`}>
-              <Icon size={19} />
-              <span>{label}</span>
-            </NavLink>
+            <div key={to}>
+              <NavLink to={to} end={to === "/"} data-tour={`nav:${to}`}>
+                <Icon size={19} /><span>{label}</span>
+              </NavLink>
+              {to==='/mentor'&&location.pathname==='/mentor'&&<div className="student-mentor-subnav" aria-label="Mentoring sections">{mentorNavigation.map(({section,label,icon:ChildIcon})=><NavLink key={section} to={`/mentor?section=${section}`} className={()=>(new URLSearchParams(location.search).get('section')||'dashboard')===section?'selected':''} aria-current={(new URLSearchParams(location.search).get('section')||'dashboard')===section?'page':undefined}><ChildIcon size={16}/><span>{label}</span></NavLink>)}</div>}
+            </div>
           ))}
         </nav>
         <div className="sidebar-tip">
