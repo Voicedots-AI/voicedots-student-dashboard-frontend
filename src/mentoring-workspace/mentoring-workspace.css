@@ -1661,3 +1661,14 @@
 .mw-attention-help{font-size:12px;color:#77718b;margin:14px 0;line-height:1.6}
 .mw-shell .mw-table .mw-due-overdue{color:#c03939}
 .mw-shell .mw-table .mw-due-soon{color:#94620b}
+
+.mw-oversight-note{display:flex;align-items:flex-start;gap:11px;padding:14px 16px;margin:0 0 20px;border:1px solid #ded9ef;background:#f4f1fc;border-radius:12px;color:#514572}
+.mw-oversight-note>svg{flex-shrink:0;margin-top:2px}
+.mw-oversight-note strong{font-size:13px}
+.mw-oversight-note p{margin:5px 0 0;font-size:12px;line-height:1.6;color:#736887}
+.mw-visibility-note{display:flex;align-items:center;gap:7px;font-size:11px;line-height:1.5;color:#81748f;padding:10px 0;margin:0}
+.mw-read-only-footer{display:flex;align-items:center;gap:9px;border-top:1px solid #e6e0ee;padding:16px 0;font-size:12px;color:#746888;line-height:1.6}
+.mw-read-only-footer svg{flex-shrink:0}
+.mw-thread-status{font-size:12px;padding:7px 12px;color:#675584;background:#f0eaf9;border-radius:8px}
+.mw-read-reactions{display:inline-flex;gap:5px;align-items:center;font-size:11px;color:#81748f;margin-top:6px}
+.mw-static-task-state{color:#81748f}

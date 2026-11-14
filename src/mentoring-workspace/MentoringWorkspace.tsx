@@ -16,6 +16,7 @@ import {
   ChevronDown,
   Download,
   FileText,
+  Eye,
   HelpCircle,
   LayoutDashboard,
   MessageCircle,
@@ -106,6 +107,7 @@ export type WorkspaceData = {
   mentees?: { id: string; name: string; mentorName: string; active: boolean }[];
   canAssign?: boolean;
   canCollaborate?: boolean;
+  oversightMode?: boolean;
   menteeCount: number;
   activeDiscussions: number;
   pendingReplies: number;
@@ -270,7 +272,8 @@ export default function MentoringWorkspace({
   const isStudent = role === "student",
     localDemo = import.meta.env.DEV && demo,
     current = localDemo ? sample || empty : data;
-  const writable = localDemo || Boolean(onAction && current.canCollaborate);
+  const oversight = Boolean(current.oversightMode);
+  const writable = !oversight && (localDemo || Boolean(onAction && current.canCollaborate));
   async function persist(action: WorkspaceAction) {
     if (!onAction || busy) return null;
     try {
@@ -824,6 +827,10 @@ export default function MentoringWorkspace({
             {onRefresh && <button onClick={onRefresh} disabled={busy}>Refresh</button>}
           </div>
         )}
+        {oversight && <aside className="mw-oversight-note" aria-label="Read-only placement oversight">
+          <Eye size={19}/><div><strong>Placement oversight · Read only</strong>
+          <p>Review mentoring progress and conversations. Replies, task updates and session changes belong to the assigned mentor and student.</p></div>
+        </aside>}
         {localDemo && (
           <div className="mw-demo">
             <span>
@@ -860,9 +867,9 @@ export default function MentoringWorkspace({
           <>
             <header className="mw-heading">
               <div>
-                <h2>{isStudent ? "Mentee" : "Mentor"} Dashboard</h2>
+                <h2>{oversight ? "Mentoring Overview" : isStudent ? "Mentee Dashboard" : "Mentor Dashboard"}</h2>
                 <p>
-                  {isStudent
+                  {oversight ? "Review mentoring across your authorised students." : isStudent
                     ? "Connect with your mentor · Track tasks · Stay on schedule"
                     : "Guide, connect and help your mentees move forward."}
                 </p>
@@ -920,7 +927,7 @@ export default function MentoringWorkspace({
                   ]
                 : [
                     {
-                      label: "My Mentees",
+                      label: oversight ? "Mentees in Scope" : "My Mentees",
                       value: current.menteeCount,
                       icon: Users,
                       tone: "purple",
@@ -934,7 +941,7 @@ export default function MentoringWorkspace({
                       tone: "blue",
                     },
                     {
-                      label: "Pending Replies",
+                      label: oversight ? "Awaiting Mentor Review" : "Pending Replies",
                       value: current.pendingReplies,
                       icon: MessageCircle,
                       tone: "orange",
@@ -1199,7 +1206,7 @@ export default function MentoringWorkspace({
                   (Mentor)
                 </p>
               </div>
-              <button
+              {writable && <button
                 className={
                   (localDemo ? starred.includes(thread.id) : thread.starred)
                     ? "mw-starred"
@@ -1232,7 +1239,7 @@ export default function MentoringWorkspace({
                 }
               >
                 <Star size={18} />
-              </button>
+              </button>}
               <button
                 aria-label="Discussion information"
                 onClick={() =>
@@ -1243,7 +1250,7 @@ export default function MentoringWorkspace({
               >
                 <MoreHorizontal size={18} />
               </button>
-              <button
+              {writable && <button
                 className="mw-resolve"
                 disabled={busy || !writable}
                 onClick={() =>
@@ -1266,8 +1273,10 @@ export default function MentoringWorkspace({
               >
                 <Check size={17} />
                 {thread.resolved ? "Reopen Discussion" : "Mark as Resolved"}
-              </button>
+              </button>}
+              {!writable && <span className="mw-thread-status">{thread.resolved ? "Resolved" : "Open"}</span>}
             </header>
+            <p className="mw-visibility-note"><Eye size={14}/>Authorised placement staff can review this conversation.</p>
             <div className="mw-messages">
               {thread.messages.map((m) => (
                 <article
@@ -1315,7 +1324,7 @@ export default function MentoringWorkspace({
                         </div>
                       )}
                     </div>
-                    <div className="mw-message-actions">
+                    {writable && <div className="mw-message-actions">
                       <button
                         aria-label={`Like message from ${m.author}`}
                         disabled={busy || !writable}
@@ -1360,7 +1369,8 @@ export default function MentoringWorkspace({
                         <Reply size={16} />
                         Reply
                       </button>
-                    </div>
+                    </div>}
+                    {!writable && m.likes > 0 && <span className="mw-read-reactions"><ThumbsUp size={14}/>{m.likes}</span>}
                   </div>
                 </article>
               ))}
@@ -1371,7 +1381,9 @@ export default function MentoringWorkspace({
               )}
               <div ref={messageEnd} />
             </div>
-            {thread.resolved ? (
+            {!writable ? <div className="mw-read-only-footer"><Eye size={17}/>
+              {oversight ? "Read-only review. Only the assigned mentor and mentee can participate in this discussion." : "This conversation is view-only for your account."}
+            </div> : thread.resolved ? (
               <div className="mw-resolved-note">
                 <CheckCircle2 size={18} />
                 This discussion is resolved. Reopen it to continue the
@@ -1585,7 +1597,7 @@ export default function MentoringWorkspace({
                           {s.time} · with {s.person}
                         </p>
                       </div>
-                      {current.canAssign && onAction && (
+                      {writable && current.canAssign && onAction && (
                         <button
                           disabled={busy}
                           aria-label={`Cancel ${s.title}`}
@@ -1648,7 +1660,7 @@ export default function MentoringWorkspace({
                       {filtered.map((t) => (
                         <tr key={t.id}>
                           <td>
-                            <input
+                            {writable ? <input
                               type="checkbox"
                               aria-label={`Complete ${t.title}`}
                               checked={t.status === "Completed"}
@@ -1661,7 +1673,7 @@ export default function MentoringWorkspace({
                                     : "Completed",
                                 )
                               }
-                            />
+                            /> : <span className="mw-static-task-state" aria-label={`${t.title}: ${t.status}`}>{t.status === "Completed" ? <CheckCircle2 size={17}/> : <Clock size={17}/>}</span>}
                           </td>
                           <td>
                             <strong>{t.title}</strong>
@@ -1706,7 +1718,7 @@ export default function MentoringWorkspace({
                           </td>
                           <td>
                             <button
-                              aria-label={`Discuss ${t.title}`}
+                              aria-label={`${oversight ? "View discussion for" : "Discuss"} ${t.title}`}
                               onClick={() => {
                                 const matching = current.discussions.find(
                                   (d) =>
@@ -1722,7 +1734,7 @@ export default function MentoringWorkspace({
                                   );
                               }}
                             >
-                              <Reply size={17} />
+                              {oversight ? <Eye size={17}/> : <Reply size={17} />}
                             </button>
                             <button
                               aria-label={`Details for ${t.title}`}
