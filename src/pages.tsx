@@ -530,7 +530,7 @@ function placementDriveEligibility(drive:Drive,ats:ReturnType<typeof usePlacemen
 }
 
 function DriveHeader({drive}: {drive:Drive}) {
-  return <div className="drive-card-top"><div className="company-identity"><span className="company-avatar" aria-hidden="true">{(drive.company_name || "C").slice(0,2).toUpperCase()}</span><DriveName id={drive.id} company={drive.company_name} role={drive.role_title} drive={drive}><span className="drive-company-name" title={drive.company_name}>{drive.company_name}</span></DriveName></div></div>;
+  return <div className="drive-card-top"><div className="company-identity"><span className="company-avatar" aria-hidden="true">{(drive.company_name || "C").slice(0,2).toUpperCase()}</span><span className="drive-company-name" title={drive.company_name}>{drive.company_name}</span></div></div>;
 }
 
 function PlacementEligibilitySummary({drive,ats,compact=false,showATS=true}:{drive:Drive;ats:ReturnType<typeof usePlacementATS>;compact?:boolean;showATS?:boolean}) {
@@ -604,7 +604,7 @@ export function PlacementDriveHistoryItem({drive:record,reports=[],expanded=true
   const latest=reports.filter(report=>report.drive_id===drive.id && report.status==='released' && report.report?.status!=='awaiting_release' && typeof report.report?.overall_score==='number')
     .sort((a,b)=>Date.parse(b.completed_at||b.created_at)-Date.parse(a.completed_at||a.created_at))[0];
   return <article className="placement-history-item dashboard-drive-history-row" data-drive-id={drive.id} data-expanded={expanded}>
-    <div className="placement-history-company"><span className="company-avatar" aria-hidden="true">{(drive.company_name||"C").slice(0,2).toUpperCase()}</span><div><span className="placement-history-label">Company</span><DriveName id={drive.id} company={drive.company_name} role={drive.role_title} drive={drive}><strong>{drive.company_name}</strong></DriveName></div></div>
+    <div className="placement-history-company"><span className="company-avatar" aria-hidden="true">{(drive.company_name||"C").slice(0,2).toUpperCase()}</span><div><span className="placement-history-label">Company</span><strong>{drive.company_name}</strong></div></div>
     <div className="placement-history-drive"><span className="placement-history-label">Drive / role</span><h3><DriveName id={drive.id} company={drive.company_name} role={drive.role_title} drive={drive}>{drive.role_title}</DriveName></h3>{expanded&&<small>{info.window}</small>}</div>
     <div className="placement-history-eligibility"><span className={`pill ${qualified&&drive.main_resume_available!==false?"placement-summary-eligible":ats.score!==null?"placement-history-ineligible":"placement-eligibility-pending"}`}>{label}</span></div>
     <div className="dashboard-history-status"><span className="placement-history-label">Interview status</span><strong>{info.status}</strong>{expanded&&<small>{attempts.completed} completed · {attempts.remaining} remaining</small>}</div>
