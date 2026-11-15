@@ -31,7 +31,7 @@ function Summary({id,company,role,drive,close}:{id:string;company?:string|null;r
     {cell("Scorecard",valid(score)&&report?<button type="button" className="ai-scorecard-chip" onClick={()=>go(`/reports/${encodeURIComponent(report.session_id)}`)}>Score {Math.round(score*10)/10}/100<ArrowUpRight size={12}/></button>:<span>{report&&!released?"Awaiting release":"Not assessed"}</span>)}
     {cell("Interview status",<span className={`ai-status ${status==="completed"?"good":status==="in_progress"?"partial":"neutral"}`}>{human(status)}</span>)}
     {cell("Readiness",released&&report?.report?.readiness?human(report.report.readiness):"Not assessed")}
-    {cell("Action",<div className="ai-drive-actions"><button type="button" className="ai-text-button" onClick={()=>go("/profile")}>Resume &amp; biodata</button><button type="button" className="ai-coach-button" onClick={()=>go(`/placement/journey?view=review&drive=${encodeURIComponent(id)}`)}>Progress</button></div>)}
+    {cell("Action",<div className="ai-drive-actions"><button type="button" className="ai-text-button" onClick={()=>go("/profile")}>Resume &amp; biodata</button><button type="button" className="ai-coach-button" onClick={()=>go(`/placement/journey?view=review&drive=${encodeURIComponent(id)}`)}>AI Coach Progress</button></div>)}
    </tr></tbody></table></div>
   </>}
  </AssessmentPopup>;
