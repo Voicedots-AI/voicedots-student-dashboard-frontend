@@ -320,6 +320,14 @@ export default function MentoringWorkspace({
       setSearch("");
     }
   }, [activeView]);
+  // Creation and participant dialogs belong to the current section/tab only.
+  // Close before paint when using the workspace's internal navigation as well.
+  useLayoutEffect(() => {
+    setNewDiscussion(false);
+    setNewTask(false);
+    setNewSession(false);
+    setParticipantsFor(null);
+  }, [activeView, view, taskTab]);
   const workspaceElement = useRef<HTMLElement>(null);
   const objectUrls = useRef<string[]>([]);
   const fileInput = useRef<HTMLInputElement>(null),
