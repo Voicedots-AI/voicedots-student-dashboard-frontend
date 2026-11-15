@@ -1,14 +1,16 @@
+import DriveDetailsLabel from "../drive-assessment/DriveDetailsLabel";
 import {useEffect,useState,type ReactNode} from "react";
 import {useNavigate} from "react-router-dom";
 import {ArrowUpRight} from "lucide-react";
 import {api,type Drive,type DriveContext,type Report} from "../api";
 import {atsCutoff,atsIndicator} from "../shared-assessment/atsCutoff";
+import DriveInformationPanel,{type DriveInformation} from "../drive-assessment/DriveInformationPanel";
 import AssessmentPopup from "../drive-assessment/AssessmentPopup";
-type Match={drive_id?:string;ats_status?:string;ats_fit_score?:number|null;criteria_ats_fit?:number|null};
+type Match={drive_details?:DriveInformation;drive_id?:string;ats_status?:string;ats_fit_score?:number|null;criteria_ats_fit?:number|null};
 function Summary({id,company,role,drive,close}:{id:string;company?:string|null;role?:string|null;drive?:Drive;close:()=>void}) {
  const navigate=useNavigate();
- const [data,setData]=useState<{context:DriveContext;ats:Match;reports:Report[]}|null>(null),[error,setError]=useState(""),[retry,setRetry]=useState(0),[expanded,setExpanded]=useState(false);
- useEffect(()=>{let active=true;setData(null);setError("");void Promise.all([api<DriveContext>(`/api/student/drives/${encodeURIComponent(id)}/interview-context`),api<Match>(`/api/student/drives/${encodeURIComponent(id)}/ats-fit`),api<{reports:Report[]}>("/api/student/reports")]).then(([context,ats,result])=>{if(context.drive_id!==id||ats.drive_id&&ats.drive_id!==id)throw new Error("Drive mismatch");if(active)setData({context,ats,reports:result.reports})}).catch(()=>{if(active)setError("Unable to load this drive assessment. Please retry.")});return()=>{active=false}},[id,retry]);
+ const [data,setData]=useState<{context:DriveContext;ats:Match;reports:Report[];drive?:Drive}|null>(null),[error,setError]=useState(""),[retry,setRetry]=useState(0);
+ useEffect(()=>{let active=true;setData(null);setError("");void Promise.all([api<DriveContext>(`/api/student/drives/${encodeURIComponent(id)}/interview-context`),api<Match>(`/api/student/drives/${encodeURIComponent(id)}/ats-fit`),api<{reports:Report[]}>("/api/student/reports"),api<Drive[]>("/api/student/drives")]).then(([context,ats,result,drives])=>{if(context.drive_id!==id||ats.drive_id&&ats.drive_id!==id)throw new Error("Drive mismatch");if(active)setData({context,ats,reports:result.reports,drive:drives.find(item=>item.id===id)||drive})}).catch(()=>{if(active)setError("Unable to load this drive assessment. Please retry.")});return()=>{active=false}},[id,retry]);
  const go=(path:string)=>{close();navigate(path)};
  const report=data?.reports.filter(row=>row.drive_id===id).sort((a,b)=>(Date.parse(b.completed_at||b.created_at)||0)-(Date.parse(a.completed_at||a.created_at)||0))[0];
  const released=report?.status==="released"&&report.report?.status!=="awaiting_release";
@@ -20,10 +22,10 @@ function Summary({id,company,role,drive,close}:{id:string;company?:string|null;r
  const human=(value:string)=>value.replaceAll("_"," ").replace(/\b\w/g,letter=>letter.toUpperCase());
  const date=(value?:string)=>value?new Date(value).toLocaleDateString("en-IN",{dateStyle:"medium",timeZone:"Asia/Kolkata"}):"Not supplied";
  const cell=(label:string,value:ReactNode)=><td data-label={label}><div className="da-cell-value">{value}</div></td>;
- const description=data?.context.job_description?.trim();
  return <AssessmentPopup title={data?.context.role_title||role||"Placement drive"} company={data?.context.company_name||company} onClose={close}>
   {error?<div className="da-state" role="alert">{error}<button type="button" onClick={()=>setRetry(value=>value+1)}>Retry</button></div>:!data?<p className="da-state" role="status">Loading drive assessment…</p>:<>
-   <section className="da-description"><h3>About this drive</h3><p className={expanded?"":"da-description-excerpt"}>{description||"No description has been recorded for this drive."}</p>{description&&description.length>250&&<button type="button" aria-expanded={expanded} onClick={()=>setExpanded(value=>!value)}>{expanded?"Show less":"Read full description"}</button>}</section>
+   <DriveInformationPanel drive={{...data.drive,...data.ats.drive_details,...data.context,criteria_ats_fit:atsCutoff(data.ats.criteria_ats_fit??drive?.criteria_ats_fit)}}/>
+   <h3 className="da-student-heading">Your assessment</h3>
    <div className="ai-drive-table-wrap"><table className="ai-drive-table"><thead><tr>{["Drive / company","Date range","ATS Fit","Scorecard","Interview status","Readiness","Action"].map(label=><th key={label}>{label}</th>)}</tr></thead><tbody><tr>
     {cell("Drive / company",<strong>{data.context.company_name} {data.context.role_title}</strong>)}
     {cell("Date range",`${date(data.context.interview_window_start_at||drive?.window_start_at)} – ${date(data.context.interview_window_end_at||drive?.window_end_at)}`)}
@@ -33,10 +35,11 @@ function Summary({id,company,role,drive,close}:{id:string;company?:string|null;r
     {cell("Readiness",released&&report?.report?.readiness?human(report.report.readiness):"Not assessed")}
     {cell("Action",<div className="ai-drive-actions"><button type="button" className="ai-text-button" onClick={()=>go("/profile")}>Resume &amp; biodata</button><button type="button" className="ai-coach-button" onClick={()=>go(`/placement/journey?view=review&drive=${encodeURIComponent(id)}`)}>AI Coach Progress</button></div>)}
    </tr></tbody></table></div>
+
   </>}
  </AssessmentPopup>;
 }
 export default function DriveName({id,company,role,children,drive}:{id:string;company?:string|null;role?:string|null;children?:ReactNode;drive?:Drive}) {
  const [open,setOpen]=useState(false);
- return <><button type="button" className="da-name-button" aria-haspopup="dialog" aria-label={`View assessment for ${[company,role].filter(Boolean).join(" · ")}`} onClick={()=>setOpen(true)}>{children||<>{company} · {role}</>}</button>{open&&<Summary id={id} company={company} role={role} drive={drive} close={()=>setOpen(false)}/>}</>;
+ return <><button type="button" className="da-name-button" aria-haspopup="dialog" aria-label={`View drive details for ${[company,role].filter(Boolean).join(" · ")}`} onClick={()=>setOpen(true)}><DriveDetailsLabel>{children||<>{company} · {role}</>}</DriveDetailsLabel></button>{open&&<Summary id={id} company={company} role={role} drive={drive} close={()=>setOpen(false)}/>}</>;
 }
