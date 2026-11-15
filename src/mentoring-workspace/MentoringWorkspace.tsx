@@ -1,5 +1,10 @@
+import ConversationBubble from "./ConversationBubble";
+import DiscussionParticipants, {
+  ParticipantStack,
+  type DiscussionParticipant,
+} from "./DiscussionParticipants";
+import TaskDetail from "./TaskDetail";
 import MessageEditor, {
-  MessageBody,
   type MessageDocument,
 } from "./MessageEditor";
 import type { Editor } from "@tiptap/react";
@@ -17,10 +22,10 @@ import {
   Bell,
   BookOpen,
   CalendarDays,
+  Trash2,
   Check,
   CheckCircle2,
   ChevronDown,
-  Download,
   FileText,
   Eye,
   HelpCircle,
@@ -40,7 +45,12 @@ import {
   Clock,
 } from "lucide-react";
 import "./mentoring-workspace.css";
-export type TaskStatus = "Completed" | "In Progress" | "Pending";
+export type TaskStatus =
+  | "Completed"
+  | "In Progress"
+  | "Submitted"
+  | "Needs Revision"
+  | "Pending";
 export type WorkspaceTask = {
   id: string;
   title: string;
@@ -54,6 +64,8 @@ export type WorkspaceTask = {
   version?: number;
   legacy?: boolean;
   personal?: boolean;
+  requiresReview?: boolean;
+  messages?: Message[];
 };
 export type Attachment = {
   id?: string;
@@ -65,6 +77,10 @@ export type Attachment = {
 };
 export type WorkspaceAction = {
   action: string;
+  audience?: "mentee" | "group";
+  mentorId?: string;
+  allMentees?: boolean;
+  memberIds?: string[];
   studentId: string;
   version?: number;
   id?: string;
@@ -80,9 +96,10 @@ export type WorkspaceAction = {
   endsAt?: string;
   files?: { name: string; content: string }[];
 };
-type Message = {
+export type Message = {
   id: string;
   author: string;
+  authorPhoto?: string;
   role: string;
   time: string;
   text: string;
@@ -91,6 +108,8 @@ type Message = {
   likes: number;
   liked?: boolean;
   createdAt?: string;
+  studentId?: string;
+  kind?: string;
 };
 type Discussion = {
   id: string;
@@ -103,6 +122,11 @@ type Discussion = {
   studentId?: string;
   studentName?: string;
   mentorName?: string;
+  audience?: "mentee" | "group";
+  mentorId?: string;
+  mentorPhoto?: string;
+  memberCount?: number;
+  participants?: DiscussionParticipant[];
   version?: number;
   starred?: boolean;
 };
@@ -112,6 +136,17 @@ export type WorkspaceData = {
   mentorPhoto?: string;
   studentPhoto?: string;
   versions?: Record<string, number>;
+  groupVersions?: Record<string, number>;
+  groups?: {
+    mentorId: string;
+    name: string;
+    studentId: string;
+    memberCount: number;
+    active: boolean;
+    mentorName?: string;
+    mentorPhoto?: string;
+    members?: { id: string; name: string; isSelf?: boolean; photo?: string }[];
+  }[];
   mentees?: { id: string; name: string; mentorName: string; active: boolean }[];
   canAssign?: boolean;
   canCollaborate?: boolean;
@@ -195,7 +230,7 @@ function Status({ value }: { value: TaskStatus }) {
   return (
     <span className={`mw-status ${value.toLowerCase().replace(" ", "-")}`}>
       {value === "Completed" ? <CheckCircle2 size={13} /> : <Clock size={12} />}{" "}
-      {value}
+      {value === "Needs Revision" ? "Changes requested" : value}
     </span>
   );
 }
@@ -255,6 +290,12 @@ export default function MentoringWorkspace({
   const [view, setView] = useState(activeView || "Dashboard"),
     [threadId, setThreadId] = useState<string | null>(null),
     [taskTab, setTaskTab] = useState("My Tasks"),
+    [taskId, setTaskId] = useState<string | null>(null),
+    [participantsFor, setParticipantsFor] = useState<string | null>(null),
+    [discussionMentorId, setDiscussionMentorId] = useState(""),
+    [allDiscussionMentees, setAllDiscussionMentees] = useState(true),
+    [discussionMemberIds, setDiscussionMemberIds] = useState<string[]>([]),
+    [memberSearch, setMemberSearch] = useState(""),
     [search, setSearch] = useState(""),
     [reply, setReply] = useState(""),
     [replyDocument, setReplyDocument] = useState<MessageDocument | null>(null),
@@ -275,6 +316,7 @@ export default function MentoringWorkspace({
     if (activeView && activeView !== view) {
       setView(activeView);
       setThreadId(null);
+      setTaskId(null);
       setSearch("");
     }
   }, [activeView]);
@@ -282,6 +324,7 @@ export default function MentoringWorkspace({
   const objectUrls = useRef<string[]>([]);
   const fileInput = useRef<HTMLInputElement>(null),
     composer = useRef<Editor | null>(null),
+    replyForm = useRef<HTMLFormElement>(null),
     firstFileInput = useRef<HTMLInputElement>(null),
     messageEnd = useRef<HTMLDivElement>(null),
     dialogTitle = useRef<HTMLInputElement>(null);
@@ -294,10 +337,22 @@ export default function MentoringWorkspace({
   async function persist(action: WorkspaceAction) {
     if (!onAction || busy) return null;
     try {
-      return await onAction({
+      const topic = current.discussions.find(
+        (d) => d.id === action.id && d.audience === "group",
+      );
+      const audience = action.audience || topic?.audience;
+      const mentorId = action.mentorId || topic?.mentorId;
+      const saved = await onAction({
         ...action,
-        version: current.versions?.[action.studentId] ?? 0,
+        audience,
+        mentorId,
+        version:
+          audience === "group"
+            ? (current.groupVersions?.[mentorId || ""] ?? 0)
+            : (current.versions?.[action.studentId] ?? 0),
       });
+      setNotice("");
+      return saved;
     } catch (error) {
       setNotice(
         error instanceof Error
@@ -308,7 +363,7 @@ export default function MentoringWorkspace({
     }
   }
   function selectedStudent(form: FormData) {
-    return String(form.get("studentId") || current.mentees?.[0]?.id || "");
+    return String(form.get("studentId") || (isStudent ? current.mentees?.[0]?.id : "") || "");
   }
   function taskStatus(task: WorkspaceTask, status: TaskStatus) {
     if (localDemo)
@@ -417,12 +472,12 @@ export default function MentoringWorkspace({
     return () => controller.abort();
   }, [localDemo, retry, role]);
   useEffect(() => {
-    if (newDiscussion) {
+    if (newDiscussion || newTask) {
       setFirstMessage("");
       setFirstDocument(null);
       setFirstAttachments([]);
     }
-  }, [newDiscussion]);
+  }, [newDiscussion, newTask]);
   useEffect(() => {
     if (newTask || newDiscussion || newSession) dialogTitle.current?.focus();
   }, [newTask, newDiscussion, newSession]);
@@ -440,14 +495,49 @@ export default function MentoringWorkspace({
       : person === current.studentName
         ? current.studentPhoto
         : undefined;
+  const selectedGroup =
+    current.groups?.find((g) => g.mentorId === discussionMentorId) ||
+    current.groups?.find((g) => g.active);
+  useEffect(() => {
+    if (!newDiscussion) return;
+    const group = current.groups?.find((g) => g.active);
+    setDiscussionMentorId(group?.mentorId || "");
+    setAllDiscussionMentees(true);
+    setDiscussionMemberIds(
+      group?.members?.filter((m) => m.isSelf).map((m) => m.id) || [],
+    );
+    setMemberSearch("");
+  }, [newDiscussion]);
+  function toggleDiscussionMember(id: string) {
+    const own =
+      selectedGroup?.members?.filter((m) => m.isSelf).map((m) => m.id) || [];
+    if (allDiscussionMentees) {
+      setAllDiscussionMentees(false);
+      setDiscussionMemberIds([...new Set([...own, id])]);
+      return;
+    }
+    if (own.includes(id)) return;
+    setDiscussionMemberIds((ids) =>
+      ids.includes(id) ? ids.filter((value) => value !== id) : [...ids, id],
+    );
+  }
+  const participantTopic = current.discussions.find(
+    (d) => d.id === participantsFor,
+  );
+  const selectedTask = current.tasks.find((t) => t.id === taskId);
   const thread = current.discussions.find((d) => d.id === threadId),
     name = isStudent ? current.studentName : current.mentorName;
+  const threadWritable = writable && thread?.audience === "group";
   const complete = current.tasks.filter((t) => t.status === "Completed").length;
   const today = new Date().toLocaleDateString("en-CA", {
     timeZone: "Asia/Kolkata",
   });
   const overdue = current.tasks.filter(
-    (t) => t.status !== "Completed" && t.due && t.due < today,
+    (t) =>
+      t.status !== "Completed" &&
+      t.status !== "Submitted" &&
+      t.due &&
+      t.due < today,
   ).length;
   const counts = {
     completed: complete,
@@ -461,7 +551,11 @@ export default function MentoringWorkspace({
   attentionEnd.setUTCDate(attentionEnd.getUTCDate() + 2);
   const attentionThrough = attentionEnd.toISOString().slice(0, 10);
   const needsAttention = (task: WorkspaceTask) =>
-    task.status !== "Completed" && !!task.due && task.due <= attentionThrough;
+    task.status === "Submitted"
+      ? !isStudent
+      : task.status !== "Completed" &&
+        !!task.due &&
+        task.due <= attentionThrough;
   const attentionCount = current.tasks.filter(needsAttention).length;
   const filtered = current.tasks.filter(
     (t) =>
@@ -594,18 +688,39 @@ export default function MentoringWorkspace({
   async function createTask(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const f = new FormData(e.currentTarget);
+    const recipientId = selectedStudent(f);
+    const recipient = current.mentees?.find((mentee) => mentee.id === recipientId && mentee.active);
+    if (!localDemo && !isStudent && !recipient) {
+      setNotice("Choose the mentee who should receive this task.");
+      return;
+    }
+    if (!isStudent && !firstMessage.trim() && !firstAttachments.length) {
+      setNotice("Add task instructions or a reference file before assigning.");
+      return;
+    }
     if (!localDemo) {
       const saved = await persist({
         action: "create_task",
         studentId: selectedStudent(f),
         title: String(f.get("title")).trim(),
-        outcome: String(f.get("outcome")).trim(),
+        outcome: "",
         due: String(f.get("due")),
+        text: firstMessage,
+        document: firstDocument,
+        files: firstAttachments.map((a) => ({
+          name: a.name,
+          content: a.content || "",
+        })),
       });
       if (saved) {
         setNewTask(false);
         setTaskTab("My Tasks");
-        setNotice(isStudent ? "Personal task saved. Only you can see it." : "Task assigned and saved.");
+        setTaskId(saved.id);
+        setNotice(
+          isStudent
+            ? "Personal task saved. Only you can see it."
+            : `Task assigned to ${recipient?.name || "the selected mentee"}.`,
+        );
       }
       return;
     }
@@ -616,7 +731,7 @@ export default function MentoringWorkspace({
         {
           id: crypto.randomUUID(),
           title: String(f.get("title")).trim(),
-          outcome: String(f.get("outcome")).trim(),
+          outcome: "",
           due: String(f.get("due")),
           status: "Pending",
           assignee: String(f.get("assignee") || v.studentName),
@@ -640,7 +755,11 @@ export default function MentoringWorkspace({
     if (!localDemo) {
       const saved = await persist({
         action: "create_discussion",
-        studentId: selectedStudent(f),
+        audience: "group",
+        mentorId: selectedGroup?.mentorId || "",
+        studentId: selectedGroup?.studentId || selectedStudent(f),
+        allMentees: allDiscussionMentees,
+        memberIds: allDiscussionMentees ? [] : discussionMemberIds,
         title: String(f.get("title")).trim(),
         text: firstMessage.trim(),
         document: firstDocument,
@@ -802,52 +921,77 @@ export default function MentoringWorkspace({
   ) : null;
   const discussionList = (
     <div className="mw-recent">
-      {current.discussions.length ? (
-        current.discussions.slice(0, 3).map((d) => (
-          <button key={d.id} onClick={() => openThread(d.id)}>
-            <span className="mw-icon">
-              <MessageCircle size={20} />
-            </span>
-            <span>
-              <strong>{d.title}</strong>
-              <small>{d.preview}</small>
-            </span>
-            <span>
-              <small>{timeLabel(d.time)}</small>
-              {d.unread > 0 && <b className="mw-unread">{d.unread}</b>}
-            </span>
-          </button>
-        ))
+      {current.discussions.filter((d) => d.audience === "group").length ? (
+        current.discussions
+          .filter((d) => d.audience === "group")
+          .slice(0, 3)
+          .map((d) => (
+            <button key={d.id} onClick={() => openThread(d.id)}>
+              <span className="mw-icon">
+                <MessageCircle size={20} />
+              </span>
+              <span>
+                <strong>{d.title}</strong>
+                <small>{d.preview}</small>
+              </span>
+              <span>
+                <small>{timeLabel(d.time)}</small>
+                {d.unread > 0 && <b className="mw-unread">{d.unread}</b>}
+              </span>
+            </button>
+          ))
       ) : (
         <p className="mw-empty">
-          Your mentor–mentee conversations will appear here.
+          Group topics from your mentoring cohort will appear here.
         </p>
       )}
     </div>
   );
-  useLayoutEffect(()=>{
-    const element=workspaceElement.current;
-    if(!element || !thread || !["Discussions","Communications"].includes(view))return;
-    const parent=element.closest(".dashboard-content");
-    if(parent)parent.scrollTop=0;
-    const fit=()=>{
-      const top=element.getBoundingClientRect().top;
-      const height=window.visualViewport?.height||window.innerHeight;
-      let reserve=12;
-      for(let ancestor=element.parentElement;ancestor&&ancestor!==document.body;ancestor=ancestor.parentElement){
-        const style=getComputedStyle(ancestor);
-        reserve+=(parseFloat(style.paddingBottom)||0)+(parseFloat(style.marginBottom)||0);
+  useLayoutEffect(() => {
+    const element = workspaceElement.current;
+    if (
+      !element ||
+      !(selectedTask && view === "Tasks & Schedule") &&
+      !(thread && ["Discussions", "Communications"].includes(view))
+    )
+      return;
+    const parent = element.closest(".dashboard-content");
+    if (parent) parent.scrollTop = 0;
+    const fit = () => {
+      const top = element.getBoundingClientRect().top;
+      const height = window.visualViewport?.height || window.innerHeight;
+      let reserve = 12;
+      for (
+        let ancestor = element.parentElement;
+        ancestor && ancestor !== document.body;
+        ancestor = ancestor.parentElement
+      ) {
+        const style = getComputedStyle(ancestor);
+        reserve +=
+          (parseFloat(style.paddingBottom) || 0) +
+          (parseFloat(style.marginBottom) || 0);
       }
-      element.style.setProperty("--mw-thread-space",`${Math.max(120,height-top-reserve)}px`);
+      element.style.setProperty(
+        "--mw-thread-space",
+        `${Math.max(120, height - top - reserve)}px`,
+      );
     };
-    fit();const observer=new ResizeObserver(fit);if(element.parentElement)observer.observe(element.parentElement);
-    window.addEventListener("resize",fit);window.visualViewport?.addEventListener("resize",fit);
-    return()=>{observer.disconnect();window.removeEventListener("resize",fit);window.visualViewport?.removeEventListener("resize",fit);element.style.removeProperty("--mw-thread-space");};
-  },[thread?.id,view]);
+    fit();
+    const observer = new ResizeObserver(fit);
+    if (element.parentElement) observer.observe(element.parentElement);
+    window.addEventListener("resize", fit);
+    window.visualViewport?.addEventListener("resize", fit);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", fit);
+      window.visualViewport?.removeEventListener("resize", fit);
+      element.style.removeProperty("--mw-thread-space");
+    };
+  }, [thread?.id, selectedTask?.id, view]);
   return (
     <section
       ref={workspaceElement}
-      className={`mw-shell ${embedded ? "mw-integrated" : ""} ${thread && ["Discussions","Communications"].includes(view) ? "mw-thread-active" : ""}`}
+      className={`mw-shell ${embedded ? "mw-integrated" : ""} ${(thread && ["Discussions", "Communications"].includes(view)) || (selectedTask && view === "Tasks & Schedule") ? "mw-thread-active" : ""}`}
       onChange={(event) => event.stopPropagation()}
       aria-busy={busy || fileReading}
       aria-label={`${isStudent ? "Mentee" : "Mentor"} collaboration workspace`}
@@ -1225,11 +1369,11 @@ export default function MentoringWorkspace({
                 <h2>{view}</h2>
                 <p>
                   {view === "Discussions"
-                    ? "Share updates, ask questions and keep feedback together."
+                    ? "Group topics for your mentor and fellow mentees: placement drives, AI news and career ideas."
                     : "Mentoring updates and conversations in one place."}
                 </p>
               </div>
-              {writable && (
+              {writable && Boolean(current.groups?.length) && (
                 <button
                   className="mw-primary"
                   disabled={busy}
@@ -1262,6 +1406,17 @@ export default function MentoringWorkspace({
                     </span>
                     <span>
                       <strong>{d.title}</strong>
+                      {d.audience === "group" && (
+                        <span className="mw-discussion-summary-people">
+                          <ParticipantStack
+                            participants={d.participants || []}
+                          />
+                          <small>
+                            {d.participants?.length || d.memberCount}{" "}
+                            participants · {d.mentorName}
+                          </small>
+                        </span>
+                      )}
                       <small>{d.preview}</small>
                     </span>
                     <span>
@@ -1280,8 +1435,7 @@ export default function MentoringWorkspace({
                   <MessageCircle />
                   <h3>No conversations yet</h3>
                   <p>
-                    Start a discussion with your mentor or an assigned mentee to
-                    share updates and feedback.
+                    Start a discussion with your mentor and selected mentees.
                   </p>
                 </div>
               )}
@@ -1299,14 +1453,39 @@ export default function MentoringWorkspace({
               </span>
               <div>
                 <h2>{thread.title}</h2>
-                <span className="mw-category">Mentor–Mentee Discussion</span>
-                <p>
-                  {thread.studentName || current.studentName} (Mentee){" "}
-                  <span>·</span> {thread.mentorName || current.mentorName}{" "}
-                  (Mentor)
-                </p>
+                <div className="mw-thread-meta">
+                <span className="mw-category">
+                  {thread.audience === "group"
+                    ? "Mentoring Group"
+                    : "Private conversation history"}
+                </span>
+                {thread.audience === "group" ? (
+                  <button
+                    type="button"
+                    className="mw-thread-people"
+                    disabled={!thread.participants?.length}
+                    aria-label={`View ${thread.participants?.length || thread.memberCount} discussion participants`}
+                    aria-haspopup="dialog"
+                    onClick={() => setParticipantsFor(thread.id)}
+                  >
+                    <ParticipantStack
+                      participants={thread.participants || []}
+                    />
+                    <span>
+                      {thread.participants?.length || thread.memberCount}{" "}
+                      participants
+                    </span>
+                    <ChevronDown size={14} />
+                  </button>
+                ) : (
+                  <p>
+                    {thread.studentName || current.studentName} (Mentee) ·{" "}
+                    {thread.mentorName || current.mentorName} (Mentor)
+                  </p>
+                )}
+                </div>
               </div>
-              {writable && (
+              {threadWritable && (
                 <button
                   className={
                     (localDemo ? starred.includes(thread.id) : thread.starred)
@@ -1323,7 +1502,7 @@ export default function MentoringWorkspace({
                       ? starred.includes(thread.id)
                       : Boolean(thread.starred)
                   }
-                  disabled={busy || !writable}
+                  disabled={busy || !threadWritable}
                   onClick={() =>
                     localDemo
                       ? setStarred((v) =>
@@ -1352,10 +1531,10 @@ export default function MentoringWorkspace({
               >
                 <MoreHorizontal size={18} />
               </button>
-              {writable && (
+              {threadWritable && !isStudent && (
                 <button
                   className="mw-resolve"
-                  disabled={busy || !writable}
+                  disabled={busy || !threadWritable}
                   onClick={() =>
                     localDemo
                       ? update((v) => ({
@@ -1378,7 +1557,7 @@ export default function MentoringWorkspace({
                   {thread.resolved ? "Reopen Discussion" : "Mark as Resolved"}
                 </button>
               )}
-              {!writable && (
+              {!threadWritable && (
                 <span className="mw-thread-status">
                   {thread.resolved ? "Resolved" : "Open"}
                 </span>
@@ -1393,61 +1572,38 @@ export default function MentoringWorkspace({
                 <article
                   className={`mw-message ${m.role === "Mentor" ? "from-mentor" : ""}`}
                   key={m.id}
+                  id={`mw-msg-${m.id}`}
                 >
-                  {m.role === "Mentee" && thread.studentId && renderStudentPhoto
-                    ? renderStudentPhoto(thread.studentId, m.author)
-                    : <Avatar
-                        name={m.author}
-                        photo={m.role === "Mentee" && isStudent
+                  {m.role === "Mentee" &&
+                  (m.studentId || thread.studentId) &&
+                  renderStudentPhoto ? (
+                    renderStudentPhoto(
+                      m.studentId || thread.studentId!,
+                      m.author,
+                    )
+                  ) : (
+                    <Avatar
+                      name={m.author}
+                      photo={
+                        m.authorPhoto ||
+                        (m.role === "Mentee" &&
+                        isStudent &&
+                        (!m.studentId || m.author === current.studentName)
                           ? current.studentPhoto
-                          : m.role === "Mentor" ? current.mentorPhoto : undefined}
-                      />}
+                          : m.role === "Mentor"
+                            ? thread.mentorPhoto || current.mentorPhoto
+                            : undefined)
+                      }
+                    />
+                  )}
 
                   <div>
-                    <div className="mw-bubble">
-                      <header>
-                        <strong>
-                          {m.author} ({m.role})
-                        </strong>
-                        <small>{timeLabel(m.time)}</small>
-                      </header>
-                      <MessageBody document={m.document} text={m.text} />
-                      {m.attachments.length > 0 && (
-                        <div className="mw-attachments">
-                          <p>
-                            <Paperclip size={13} />
-                            Attachments ({m.attachments.length})
-                          </p>
-                          <div>
-                            {m.attachments.map((a, i) => (
-                              <button
-                                key={i}
-                                onClick={() => void downloadFile(a)}
-                              >
-                                <span
-                                  className={`mw-file ${a.name.endsWith(".pptx") ? "ppt" : ""}`}
-                                >
-                                  <FileText size={18} />
-                                  <small>
-                                    {a.name.split(".").pop()?.toUpperCase()}
-                                  </small>
-                                </span>
-                                <span>
-                                  <strong>{a.name}</strong>
-                                  <small>{a.size}</small>
-                                </span>
-                                <Download size={16} />
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                    {writable && (
+                    <ConversationBubble message={m} onDownload={downloadFile} />
+                    {threadWritable && (
                       <div className="mw-message-actions">
                         <button
                           aria-label={`Like message from ${m.author}`}
-                          disabled={busy || !writable}
+                          disabled={busy || !threadWritable}
                           onClick={() =>
                             localDemo
                               ? update((v) => ({
@@ -1492,7 +1648,7 @@ export default function MentoringWorkspace({
                         </button>
                       </div>
                     )}
-                    {!writable && m.likes > 0 && (
+                    {!threadWritable && m.likes > 0 && (
                       <span className="mw-read-reactions">
                         <ThumbsUp size={14} />
                         {m.likes}
@@ -1508,21 +1664,22 @@ export default function MentoringWorkspace({
               )}
               <div ref={messageEnd} />
             </div>
-            {!writable ? (
+            {!threadWritable ? (
               <div className="mw-read-only-footer">
                 <Eye size={17} />
                 {oversight
-                  ? "Read-only review. Only the assigned mentor and mentee can participate in this discussion."
-                  : "This conversation is view-only for your account."}
+                  ? "Read-only review. Only the selected participants can participate in this discussion."
+                  : "This previous one-to-one conversation remains private and view-only."}
               </div>
             ) : thread.resolved ? (
               <div className="mw-resolved-note">
                 <CheckCircle2 size={18} />
-                This discussion is resolved. Reopen it to continue the
-                conversation.
+                {isStudent
+                  ? "This topic is resolved. Your mentor can reopen it."
+                  : "This topic is resolved. Reopen it to continue the conversation."}
               </div>
             ) : (
-              <form className="mw-composer" onSubmit={submitReply}>
+              <form ref={replyForm} className="mw-composer" onSubmit={submitReply}>
                 <input
                   ref={fileInput}
                   type="file"
@@ -1536,11 +1693,11 @@ export default function MentoringWorkspace({
                 <button
                   type="button"
                   aria-label="Attach files"
-                  disabled={!writable || busy || fileReading}
+                  disabled={!threadWritable || busy || fileReading}
                   onClick={() => {
                     if (fileInput.current) {
                       fileInput.current.accept =
-                        ".pdf,.txt,.png,.jpg,.jpeg,.docx,.pptx,.xlsx";
+                        ".pdf,.txt,.py,.java,.cpp,.c,.js,.ts,.png,.jpg,.jpeg,.docx,.pptx,.xlsx";
                       fileInput.current.click();
                     }
                   }}
@@ -1553,8 +1710,8 @@ export default function MentoringWorkspace({
                     document={replyDocument}
                     editorRef={composer}
                     label="Reply message"
-                    onSend={()=>composer.current?.view.dom.closest("form")?.requestSubmit()}
-                    disabled={!writable || busy || fileReading}
+                    onSend={()=>replyForm.current?.requestSubmit()}
+                    disabled={!threadWritable || busy || fileReading}
                     onChange={(text, doc) => {
                       setReply(text);
                       setReplyDocument(doc);
@@ -1586,7 +1743,7 @@ export default function MentoringWorkspace({
                 <button
                   className="mw-primary"
                   disabled={
-                    !writable ||
+                    !threadWritable ||
                     busy ||
                     fileReading ||
                     (!reply.trim() && !attachments.length) ||
@@ -1600,7 +1757,23 @@ export default function MentoringWorkspace({
             )}
           </div>
         )}
-        {view === "Tasks & Schedule" && (
+        {view === "Tasks & Schedule" && selectedTask && (
+          <TaskDetail
+            task={selectedTask}
+            renderMessagePhoto={(message) =>
+              message.role === "Mentee" && (message.studentId || selectedTask.studentId) && renderStudentPhoto
+                ? renderStudentPhoto(message.studentId || selectedTask.studentId!, message.author)
+                : <Avatar name={message.author} photo={message.authorPhoto || (message.role === "Mentor" ? current.mentorPhoto : isStudent ? current.studentPhoto : undefined)} />
+            }
+            isStudent={isStudent}
+            writable={writable}
+            busy={busy}
+            onBack={() => setTaskId(null)}
+            onAction={persist}
+            onDownload={downloadFile}
+          />
+        )}
+        {view === "Tasks & Schedule" && !selectedTask && (
           <>
             <header className="mw-heading">
               <div className="mw-title-icon">
@@ -1657,8 +1830,9 @@ export default function MentoringWorkspace({
             </div>
             {taskTab === "Needs Attention" && (
               <p className="mw-attention-help">
-                Unfinished tasks due within the next two days, including today.
-                Overdue tasks appear first.
+                {isStudent
+                  ? "Unfinished assignments due within the next two days. Submitted work stays with your mentor for review."
+                  : "Assignments due soon and student submissions awaiting your review."}
               </p>
             )}
             {taskTab === "Schedule (Calendar)" ? (
@@ -1795,7 +1969,7 @@ export default function MentoringWorkspace({
                         <th>
                           <Check size={14} />
                         </th>
-                        <th>Task / Expected Outcome</th>
+                        <th>Task</th>
                         <th>{isStudent ? "Assigned By" : "Assigned To"}</th>
                         <th>Expected Completion</th>
                         <th>Status</th>
@@ -1806,7 +1980,7 @@ export default function MentoringWorkspace({
                       {filtered.map((t) => (
                         <tr key={t.id}>
                           <td>
-                            {writable ? (
+                            {writable && !t.requiresReview ? (
                               <input
                                 type="checkbox"
                                 aria-label={`Complete ${t.title}`}
@@ -1822,31 +1996,37 @@ export default function MentoringWorkspace({
                                 }
                               />
                             ) : (
-                              <span
-                                className="mw-static-task-state"
-                                aria-label={`${t.title}: ${t.status}`}
-                              >
-                                {t.status === "Completed" ? (
-                                  <CheckCircle2 size={17} />
-                                ) : (
-                                  <Clock size={17} />
-                                )}
-                              </span>
+                              <input type="checkbox" checked={t.status === "Completed"} disabled aria-label={`${t.title}: ${t.status}`} />
                             )}
                           </td>
                           <td>
-                            <strong>{t.title}</strong>
-                            {t.personal && <span className="mw-private-task">Private · Only you</span>}
-                            <small>{t.outcome}</small>
+                            <button
+                              className="mw-open-task"
+                              onClick={() => setTaskId(t.id)}
+                            >
+                              {t.title}
+                            </button>
+                            {t.personal && (
+                              <span className="mw-private-task">
+                                Private · Only you
+                              </span>
+                            )}
+                            <small>{t.messages?.find((message) => message.kind === "reference")?.text}</small>
                           </td>
                           <td>
                             <span className="mw-table-person">
-                              {!isStudent && t.studentId && renderStudentPhoto
-                                ? renderStudentPhoto(t.studentId, t.assignee)
-                                : <Avatar
-                                    name={isStudent ? t.assignedBy : t.assignee}
-                                    photo={personPhoto(isStudent ? t.assignedBy : t.assignee)}
-                                  />}
+                              {!isStudent &&
+                              t.studentId &&
+                              renderStudentPhoto ? (
+                                renderStudentPhoto(t.studentId, t.assignee)
+                              ) : (
+                                <Avatar
+                                  name={isStudent ? t.assignedBy : t.assignee}
+                                  photo={personPhoto(
+                                    isStudent ? t.assignedBy : t.assignee,
+                                  )}
+                                />
+                              )}
 
                               {isStudent ? t.assignedBy : t.assignee}
                             </span>
@@ -1870,7 +2050,7 @@ export default function MentoringWorkspace({
                             )}
                           </td>
                           <td>
-                            {writable ? (
+                            {writable && !t.requiresReview ? (
                               <select
                                 disabled={busy}
                                 className={`mw-task-select ${t.status.toLowerCase().replace(" ", "-")}`}
@@ -1891,40 +2071,46 @@ export default function MentoringWorkspace({
                             )}
                           </td>
                           <td>
-                            {!t.personal && <button
-                              aria-label={`${oversight ? "View discussion for" : "Discuss"} ${t.title}`}
-                              onClick={() => {
-                                const matching = current.discussions.find(
-                                  (d) =>
-                                    !d.resolved &&
-                                    (localDemo || d.studentId === t.studentId),
-                                );
-                                if (matching) {
-                                  openThread(matching.id);
-                                  setReplyDocument(null);
-                                  setReply(`Regarding “${t.title}”: `);
-                                } else
-                                  setNotice(
-                                    "No discussion is available for this task yet.",
-                                  );
-                              }}
-                            >
-                              {oversight ? (
-                                <Eye size={17} />
-                              ) : (
-                                <Reply size={17} />
-                              )}
-                            </button>}
                             <button
-                              aria-label={`Details for ${t.title}`}
-                              onClick={() =>
-                                setNotice(
-                                  `${t.title} — ${t.outcome || "No additional outcome recorded."} Assigned by ${t.assignedBy}. Due: ${dateLabel(t.due)}.`,
-                                )
-                              }
+                              aria-label={`Open task ${t.title}`}
+                              onClick={() => setTaskId(t.id)}
+                            >
+                              <Reply size={17} />
+                            </button>
+                            {writable && !t.legacy && (!isStudent || t.personal) && <>
+                            <button
+                              aria-label={`Actions for ${t.title}`}
+                              {...{ popovertarget: `task-actions-${t.id}` }}
+                              onClick={(event) => {
+                                const rect = event.currentTarget.getBoundingClientRect();
+                                const menu = document.getElementById(`task-actions-${t.id}`);
+                                if (menu) {
+                                  menu.style.left = `${Math.max(8, Math.min(rect.right - 210, window.innerWidth - 218))}px`;
+                                  menu.style.top = `${Math.min(rect.bottom + 5, window.innerHeight - 160)}px`;
+                                }
+                              }}
                             >
                               <MoreHorizontal size={19} />
                             </button>
+                            <div id={`task-actions-${t.id}`} {...{ popover: "auto" }} className="mw-task-action-menu" aria-label={`Task actions for ${t.title}`}>
+                              {writable && !t.legacy && (!isStudent || t.personal) ? (
+                                <button className="mw-delete-task" disabled={busy} onClick={async (event) => {
+                                  event.currentTarget.parentElement?.hidePopover();
+                                  if (!window.confirm(`Delete “${t.title}”? This removes the task and its conversation from both portals. This cannot be undone from the portal.`)) return;
+                                  if (localDemo) {
+                                    update((value) => ({ ...value, tasks: value.tasks.filter((task) => task.id !== t.id) }));
+                                  } else {
+                                    const saved = await persist({ action: "delete_task", studentId: t.studentId || "", id: t.id });
+                                    if (!saved) return;
+                                  }
+                                  if (taskId === t.id) setTaskId(null);
+                                  setNotice("Task deleted.");
+                                }}>
+                                  <Trash2 size={15} /> Delete task
+                                </button>
+                              ) : <p className="mw-task-menu-note">{t.personal ? "Only you manage this task." : "The assigned mentor manages this task."}</p>}
+                            </div>
+                            </>}
                           </td>
                         </tr>
                       ))}
@@ -1982,6 +2168,13 @@ export default function MentoringWorkspace({
             </div>
           </>
         )}
+        {participantTopic?.participants && (
+          <DiscussionParticipants
+            title={participantTopic.title}
+            participants={participantTopic.participants}
+            onClose={() => setParticipantsFor(null)}
+          />
+        )}
         {(newTask || newDiscussion || newSession) && (
           <div
             className="mw-modal-backdrop"
@@ -2008,7 +2201,7 @@ export default function MentoringWorkspace({
             }}
           >
             <section
-              className={`mw-modal ${newDiscussion ? "mw-discussion-modal" : ""}`}
+              className={`mw-modal ${newDiscussion ? "mw-discussion-modal" : newTask ? "mw-task-modal" : ""}`}
               role="dialog"
               aria-modal="true"
               aria-labelledby="mw-dialog-title"
@@ -2018,7 +2211,9 @@ export default function MentoringWorkspace({
                   {newSession
                     ? "Schedule a session"
                     : newTask
-                      ? isStudent ? "Create a personal task" : "Create a task"
+                      ? isStudent
+                        ? "Create a personal task"
+                        : "Create a task"
                       : "Start a discussion"}
                 </h2>
                 <button
@@ -2041,10 +2236,121 @@ export default function MentoringWorkspace({
                       : createDiscussion
                 }
               >
-                {!localDemo && !isStudent && (
+                {!localDemo && newDiscussion && (
+                  <div className="mw-audience-picker">
+                    <div className="mw-audience-label mw-members-label">
+                      Mentees{" "}
+                      <small>
+                        {allDiscussionMentees
+                          ? `All ${selectedGroup?.members?.length || 0} mentees`
+                          : `${discussionMemberIds.length} selected`}
+                      </small>
+                    </div>
+                    {(selectedGroup?.members?.length || 0) > 6 && (
+                      <label className="mw-member-search">
+                        <Search size={15} />
+                        <input
+                          aria-label="Search mentees"
+                          placeholder="Search mentees"
+                          value={memberSearch}
+                          onChange={(e) => setMemberSearch(e.target.value)}
+                        />
+                      </label>
+                    )}
+                    <div
+                      className="mw-people-chips mw-member-chips"
+                      role="group"
+                      aria-label="Choose discussion mentees"
+                    >
+                      <button
+                        type="button"
+                        className={
+                          allDiscussionMentees
+                            ? "selected mw-all-mentees"
+                            : "mw-all-mentees"
+                        }
+                        aria-pressed={allDiscussionMentees}
+                        onClick={() => setAllDiscussionMentees(true)}
+                      >
+                        <span className="mw-audience-all-icon">
+                          <Users size={18} />
+                        </span>
+                        <span>All mentees</span>
+                        <span
+                          className={`mw-chip-check ${allDiscussionMentees ? "is-selected" : ""}`}
+                          aria-hidden="true"
+                        >
+                          <Check size={14} />
+                        </span>
+                      </button>
+                      {selectedGroup?.members
+                        ?.filter((member) =>
+                          member.name
+                            .toLowerCase()
+                            .includes(memberSearch.toLowerCase()),
+                        )
+                        .map((member) => (
+                          <button
+                            type="button"
+                            key={member.id}
+                            className={
+                              allDiscussionMentees ||
+                              discussionMemberIds.includes(member.id)
+                                ? "selected"
+                                : ""
+                            }
+                            aria-pressed={
+                              allDiscussionMentees ||
+                              discussionMemberIds.includes(member.id)
+                            }
+                            disabled={
+                              Boolean(member.isSelf) && !allDiscussionMentees
+                            }
+                            onClick={() => toggleDiscussionMember(member.id)}
+                          >
+                            {renderStudentPhoto ? (
+                              renderStudentPhoto(member.id, member.name)
+                            ) : (
+                              <Avatar
+                                name={member.name}
+                                photo={
+                                  member.photo ||
+                                  (member.isSelf
+                                    ? current.studentPhoto
+                                    : undefined)
+                                }
+                              />
+                            )}
+                            <span className="mw-chip-name" title={member.name}>
+                              {member.name}
+                              {member.isSelf ? " (You)" : ""}
+                            </span>
+                            <span
+                              className={`mw-chip-check ${allDiscussionMentees || discussionMemberIds.includes(member.id) ? "is-selected" : ""}`}
+                              aria-hidden="true"
+                            >
+                              <Check size={14} />
+                            </span>
+                          </button>
+                        ))}
+                      {selectedGroup?.members?.length === 0 && (
+                        <small className="mw-no-members">
+                          No assigned mentees available.
+                        </small>
+                      )}
+                    </div>
+                    <input
+                      type="hidden"
+                      name="mentorId"
+                      value={selectedGroup?.mentorId || ""}
+                    />
+                  </div>
+                )}
+                {!newDiscussion && !localDemo && !isStudent && (
                   <label>
                     Assigned mentee
-                    <select name="studentId" required>
+                    <select name="studentId" required defaultValue="">
+                      <option value="" disabled>Choose a mentee</option>
                       {current.mentees
                         ?.filter((m) => m.active)
                         .map((m) => (
@@ -2091,15 +2397,12 @@ export default function MentoringWorkspace({
                   </>
                 ) : newTask ? (
                   <>
-                    {isStudent && <p className="mw-personal-task-note">Only you can see this task. It is not shared with your mentor or placement team.</p>}
-                    <label>
-                      Expected outcome
-                      <textarea
-                        name="outcome"
-                        placeholder="Describe what success looks like"
-                        maxLength={1000}
-                      />
-                    </label>
+                    {isStudent && (
+                      <p className="mw-personal-task-note">
+                        Only you can see this task. It is not shared with your
+                        mentor or placement team.
+                      </p>
+                    )}
                     {localDemo && !isStudent && (
                       <label>
                         Assign to
@@ -2110,10 +2413,81 @@ export default function MentoringWorkspace({
                         />
                       </label>
                     )}
-                    <label>
-                      Expected completion
+                    <label className="mw-task-due-field">
+                      Due date
                       <input name="due" type="date" required />
                     </label>
+                    <div className="mw-task-create-files">
+                      <span>
+                        {isStudent
+                          ? "Private notes & files"
+                          : "Instructions & references"}
+                      </span>
+                      <MessageEditor
+                        text={firstMessage}
+                        document={firstDocument}
+                        label="Task instructions"
+                        onSend={() =>
+                          dialogTitle.current?.form?.requestSubmit()
+                        }
+                        disabled={busy || fileReading}
+                        onChange={(text, doc) => {
+                          setFirstMessage(text);
+                          setFirstDocument(doc);
+                        }}
+                        onImage={() => {
+                          if (firstFileInput.current) {
+                            firstFileInput.current.accept =
+                              "image/png,image/jpeg";
+                            firstFileInput.current.click();
+                          }
+                        }}
+                      />
+                      <input
+                        ref={firstFileInput}
+                        type="file"
+                        hidden
+                        multiple
+                        onChange={(e) => {
+                          void chooseFiles(
+                            Array.from(e.target.files || []),
+                            true,
+                          );
+                          e.target.value = "";
+                        }}
+                      />
+                      <button
+                        type="button"
+                        className="mw-discussion-attach"
+                        disabled={busy || fileReading}
+                        onClick={() => {
+                          if (firstFileInput.current) {
+                            firstFileInput.current.accept =
+                              ".pdf,.txt,.py,.java,.cpp,.c,.js,.ts,.png,.jpg,.jpeg,.docx,.pptx,.xlsx";
+                            firstFileInput.current.click();
+                          }
+                        }}
+                      >
+                        <Paperclip size={15} />
+                        Attach references
+                      </button>
+                      <div className="mw-file-chips">
+                        {firstAttachments.map((a, i) => (
+                          <button
+                            key={i}
+                            type="button"
+                            onClick={() =>
+                              setFirstAttachments((v) =>
+                                v.filter((_, j) => j !== i),
+                              )
+                            }
+                          >
+                            {a.name}
+                            <X size={13} />
+                          </button>
+                        ))}
+                      </div>
+                    </div>
                   </>
                 ) : (
                   <div className="mw-discussion-message">
@@ -2122,7 +2496,7 @@ export default function MentoringWorkspace({
                       text={firstMessage}
                       document={firstDocument}
                       label="Discussion message"
-                      onSend={()=>dialogTitle.current?.form?.requestSubmit()}
+                      onSend={() => dialogTitle.current?.form?.requestSubmit()}
                       disabled={busy || fileReading}
                       onChange={(text, doc) => {
                         setFirstMessage(text);
@@ -2156,7 +2530,7 @@ export default function MentoringWorkspace({
                       onClick={() => {
                         if (firstFileInput.current) {
                           firstFileInput.current.accept =
-                            ".pdf,.txt,.png,.jpg,.jpeg,.docx,.pptx,.xlsx";
+                            ".pdf,.txt,.py,.java,.cpp,.c,.js,.ts,.png,.jpg,.jpeg,.docx,.pptx,.xlsx";
                           firstFileInput.current.click();
                         }
                       }}
@@ -2197,9 +2571,13 @@ export default function MentoringWorkspace({
                     disabled={
                       busy ||
                       fileReading ||
+                      (newTask && !isStudent && !firstMessage.trim() && !firstAttachments.length) ||
                       (newDiscussion &&
                         ((!firstMessage.trim() && !firstAttachments.length) ||
-                          firstMessage.length > 10000))
+                          firstMessage.length > 10000 ||
+                          !selectedGroup ||
+                          (!allDiscussionMentees &&
+                            !discussionMemberIds.length)))
                     }
                   >
                     {busy

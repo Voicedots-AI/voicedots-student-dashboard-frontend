@@ -14,7 +14,8 @@ export default defineConfig(({ mode }) => {
   const runtimeConfig = `window.__API_BASE__ = ${JSON.stringify(apiBase)};\n`;
   return {
     envDir,
-    plugins: [react(), {
+    optimizeDeps: { include: ["@tiptap/core", "@tiptap/pm/state", "@tiptap/pm/view"] },
+  plugins: [react(), {
       name: "student-api-runtime-config",
       generateBundle() {
         this.emitFile({ type: "asset", fileName: "student-api-config.js", source: runtimeConfig });

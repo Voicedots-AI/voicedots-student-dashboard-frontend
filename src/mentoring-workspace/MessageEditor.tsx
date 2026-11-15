@@ -1,3 +1,6 @@
+import { Extension } from "@tiptap/core";
+import { Plugin } from "@tiptap/pm/state";
+import { Decoration, DecorationSet } from "@tiptap/pm/view";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
@@ -30,7 +33,28 @@ import katex from "katex";
 import "katex/dist/katex.min.css";
 import "./message-editor.css";
 export type MessageDocument = JSONContent;
+const tagPattern = /@[\p{L}\p{N}_]+(?:[ \t]+[\p{Lu}][\p{L}\p{N}_]*)*/gu;
+function coloredTags(text: string) {
+  return text.split(/(@[\p{L}\p{N}_]+(?:[ \t]+[\p{Lu}][\p{L}\p{N}_]*)*)/gu).map((part, index) =>
+    part.startsWith("@") ? <span className="mw-mention" key={index}>{part}</span> : part);
+}
+const TagHighlight = Extension.create({
+  name: "tagHighlight",
+  addProseMirrorPlugins() {
+    return [new Plugin({ props: { decorations(state) {
+      const decorations: Decoration[] = [];
+      state.doc.descendants((node, position) => {
+        if (!node.isText || !node.text) return;
+        for (const match of node.text.matchAll(tagPattern)) {
+          decorations.push(Decoration.inline(position + match.index!, position + match.index! + match[0].length, { class: "mw-mention" }));
+        }
+      });
+      return DecorationSet.create(state.doc, decorations);
+    } } })];
+  },
+});
 const extensions = () => [
+  TagHighlight,
   StarterKit.configure({
     heading: false,
     blockquote: false,
@@ -42,17 +66,14 @@ const extensions = () => [
     types: ["paragraph"],
     alignments: ["left", "center", "right"],
   }),
-
 ];
 function plainDocument(text: string): JSONContent {
   return {
     type: "doc",
-    content: text
-      .split("\n")
-      .map((line) => ({
-        type: "paragraph",
-        content: line ? [{ type: "text", text: line }] : [],
-      })),
+    content: text.split("\n").map((line) => ({
+      type: "paragraph",
+      content: line ? [{ type: "text", text: line }] : [],
+    })),
   };
 }
 // Render the bounded JSON schema as React elements. Plain legacy messages stay plain text.
@@ -66,7 +87,7 @@ export function MessageBody({
   const render = (node: MessageDocument, key: number): React.ReactNode => {
     const children = node.content?.map((child, index) => render(child, index));
     if (node.type === "text") {
-      let value: React.ReactNode = node.text || "";
+      let value: React.ReactNode = coloredTags(node.text || "");
       for (const mark of node.marks || []) {
         if (mark.type === "bold") value = <strong>{value}</strong>;
         else if (mark.type === "italic") value = <em>{value}</em>;
@@ -127,7 +148,7 @@ export function MessageBody({
       {document?.type === "doc" ? (
         document.content?.map((node, index) => render(node, index))
       ) : (
-        <p>{text}</p>
+        <p>{coloredTags(text)}</p>
       )}
     </div>
   );
@@ -259,12 +280,18 @@ export default function MessageEditor({
   onSend?: () => void;
 }) {
   const emojiAnchor = useRef<HTMLDivElement>(null);
+  const expandedSurface = useRef<HTMLDivElement>(null);
+  const expandedHeight = useRef(140);
+  const expandedRef = useRef(false);
+  const emojiRef = useRef(false);
   const [expanded, setExpanded] = useState(false),
     [emoji, setEmoji] = useState(false);
-  const sendRef=useRef(onSend);
-  sendRef.current=onSend;
-  const disabledRef=useRef(disabled);
-  disabledRef.current=disabled;
+  const sendRef = useRef(onSend);
+  sendRef.current = onSend;
+  expandedRef.current = expanded;
+  emojiRef.current = emoji;
+  const disabledRef = useRef(disabled);
+  disabledRef.current = disabled;
   const editor = useEditor({
     extensions: extensions(),
     content: document || plainDocument(text),
@@ -272,12 +299,18 @@ export default function MessageEditor({
     immediatelyRender: false,
     shouldRerenderOnTransaction: true,
     editorProps: {
-      handleKeyDown: (_view,event)=>{
-        if(event.key!=="Enter" || event.isComposing || event.keyCode===229)return false;
-        if(event.shiftKey)return false;
-        if(!sendRef.current)return false;
+      handleKeyDown: (_view, event) => {
+        if (event.key !== "Enter" || event.isComposing || event.keyCode === 229)
+          return false;
+        if (event.shiftKey) return false;
+        if (!sendRef.current) return false;
         event.preventDefault();
-        if(!disabledRef.current)sendRef.current();
+        if (!disabledRef.current) {
+          if (expandedRef.current) {
+            setExpanded(false);
+            requestAnimationFrame(() => sendRef.current?.());
+          } else sendRef.current();
+        }
         return true;
       },
       attributes: {
@@ -329,15 +362,47 @@ export default function MessageEditor({
   }, [editor, text, document]);
   useEffect(() => {
     if (!expanded) return;
-    const close = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        e.stopPropagation();
-        setExpanded(false);
+    const previousOverflow = window.document.body.style.overflow;
+    window.document.body.style.overflow = "hidden";
+    const focus = requestAnimationFrame(() => editor?.commands.focus());
+    const close = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopPropagation();
+        if (emojiRef.current) setEmoji(false);
+        else setExpanded(false);
+      }
+      if (event.key === "Tab" && !emojiRef.current) {
+        const nodes = expandedSurface.current?.querySelectorAll<HTMLElement>(
+          'button:not(:disabled),input:not([hidden]),[contenteditable="true"]',
+        );
+        if (!nodes?.length) return;
+        const first = nodes[0],
+          last = nodes[nodes.length - 1];
+        if (event.shiftKey && window.document.activeElement === first) {
+          event.preventDefault();
+          last.focus();
+        } else if (!event.shiftKey && window.document.activeElement === last) {
+          event.preventDefault();
+          first.focus();
+        }
       }
     };
     window.addEventListener("keydown", close, true);
-    return () => window.removeEventListener("keydown", close, true);
-  }, [expanded]);
+    return () => {
+      cancelAnimationFrame(focus);
+      window.document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", close, true);
+      requestAnimationFrame(() => editor?.commands.focus());
+    };
+  }, [expanded, editor]);
+  function toggleExpanded() {
+    if (!expanded)
+      expandedHeight.current =
+        editor?.view.dom.closest(".mw-message-editor")?.getBoundingClientRect()
+          .height || 140;
+    setExpanded((value) => !value);
+  }
   const tool = (
     name: string,
     icon: React.ReactNode,
@@ -356,7 +421,7 @@ export default function MessageEditor({
       {icon}
     </button>
   );
-  return (
+  const editorContent = (
     <div className={`mw-message-editor ${expanded ? "is-expanded" : ""}`}>
       <div
         className="mw-format-toolbar"
@@ -464,16 +529,73 @@ export default function MessageEditor({
         {tool(
           expanded ? "Exit expanded editor" : "Expand editor",
           expanded ? <Minimize2 size={16} /> : <Maximize2 size={16} />,
-          () => setExpanded((v) => !v),
+          toggleExpanded,
         )}
       </div>
       <EditorContent editor={editor} />
       <footer className="mw-editor-hint">
-        <span>{onSend ? "Enter to send · Shift+Enter for a new line" : "Enter for a new line"}</span>
+        <span>
+          {onSend
+            ? "Enter to send · Shift+Enter for a new line"
+            : "Enter for a new line"}
+        </span>
         <span className={text.length > 10000 ? "mw-editor-error" : ""}>
           {text.length.toLocaleString()} / 10,000
         </span>
       </footer>
     </div>
+  );
+  if (!expanded) return editorContent;
+  return (
+    <>
+      <div
+        className="mw-expanded-placeholder"
+        aria-hidden="true"
+        style={{ height: expandedHeight.current }}
+      />
+      {createPortal(
+        <div className="mw-editor-overlay">
+          <div
+            ref={expandedSurface}
+            className="mw-shell mw-expanded-editor-surface"
+            role="dialog"
+            aria-modal="true"
+            aria-label={`${label} expanded editor`}
+          >
+            <header className="mw-expanded-topbar">
+              <strong>{label}</strong>
+              <button
+                type="button"
+                aria-label="Close expanded editor"
+                onClick={() => setExpanded(false)}
+              >
+                <X size={19} />
+              </button>
+            </header>
+            {editorContent}
+            <footer className="mw-expanded-actions">
+              <span>Esc to return</span>
+              <button type="button" onClick={() => setExpanded(false)}>
+                Done
+              </button>
+              {onSend && (
+                <button
+                  type="button"
+                  className="mw-primary"
+                  disabled={disabled || text.length > 10000}
+                  onClick={() => {
+                    setExpanded(false);
+                    requestAnimationFrame(() => sendRef.current?.());
+                  }}
+                >
+                  Send
+                </button>
+              )}
+            </footer>
+          </div>
+        </div>,
+        window.document.body,
+      )}
+    </>
   );
 }

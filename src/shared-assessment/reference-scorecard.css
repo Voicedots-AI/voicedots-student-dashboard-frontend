@@ -590,3 +590,30 @@
           .vd-reference-scorecard #glance > div > section table th:first-child { width: 22%; }
           .vd-reference-scorecard #glance > div > section table th:last-child { width: 16%; }
         }
+
+/* Keep scorecard intrinsic table/text widths inside the available portal width. */
+.vd-reference-scorecard{width:100%;max-width:100%;min-width:0}
+.vd-reference-scorecard #glance{width:100%;max-width:100%;min-width:0}
+.vd-reference-scorecard #glance>*,.vd-reference-scorecard .report-candidate-header>article{min-width:0;max-width:100%}
+.vd-reference-scorecard .report-candidate-header dl,.vd-reference-scorecard .report-candidate-header dl>div{min-width:0;overflow-wrap:anywhere}
+.vd-reference-scorecard .report-candidate-header dd{white-space:normal;overflow-wrap:anywhere;word-break:break-word}
+.vd-reference-scorecard .overflow-x-auto{max-width:100%;min-width:0;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch}
+@media(max-width:1279px){
+ .vd-reference-scorecard .report-candidate-header{grid-template-columns:minmax(0,1fr)}
+}
+@media(max-width:600px){
+ .vd-reference-scorecard #glance{padding:12px;border-radius:14px}
+ .vd-reference-scorecard .report-candidate-header{gap:10px}
+ .vd-reference-scorecard .report-candidate-header>article{padding:12px;min-height:0}
+ .vd-reference-scorecard .report-candidate-header>article:first-child>div{gap:12px}
+ .vd-reference-scorecard .report-candidate-header img,.vd-reference-scorecard .report-candidate-header [aria-label$="initials"]{width:76px;height:96px;flex-shrink:0}
+ .vd-reference-scorecard .report-candidate-header h1{font-size:22px;line-height:1.2;overflow-wrap:break-word}
+ .vd-reference-scorecard .report-candidate-header dl{font-size:11px;line-height:1.65}
+ .vd-reference-scorecard #glance h2{font-size:18px;line-height:1.35}
+ .vd-reference-scorecard #glance>section,.vd-reference-scorecard #glance>article{max-width:100%;min-width:0}
+ .vd-reference-scorecard #glance>.grid>article,.vd-reference-scorecard #glance>.grid>section{min-width:0;max-width:100%}
+}
+@media(max-width:360px){.vd-reference-scorecard .report-candidate-header img,.vd-reference-scorecard .report-candidate-header [aria-label$="initials"]{width:58px;height:76px}.vd-reference-scorecard .report-candidate-header h1{font-size:20px}}
+
+@media(min-width:601px) and (max-width:1279px){.vd-reference-scorecard .report-candidate-header{grid-template-columns:repeat(2,minmax(0,1fr))}.vd-reference-scorecard .report-candidate-header>article:first-child,.vd-reference-scorecard .report-candidate-header>article:last-child{grid-column:1/-1}}
+@media(max-width:600px){.vd-reference-scorecard #glance>.grid{grid-template-columns:minmax(0,1fr)}}

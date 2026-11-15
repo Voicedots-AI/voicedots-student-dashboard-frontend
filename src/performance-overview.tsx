@@ -1,3 +1,4 @@
+import DriveName from "./drive-description/DriveName";
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import {
@@ -173,7 +174,7 @@ function PerformanceBody({ data }: { data: PerformanceData }) {
             <dt>{AXIS_LABELS[axis] ?? axis.replace(/_/g, " ")}{weight != null && <small> · {weight}% weight</small>}</dt>
             <dd><Meter value={score} label={axis.replace(/_/g, " ")} /><span>{score == null ? "—" : Math.round(score)}</span></dd>
           </div>)}</dl>
-          {data.readiness.drives.length ? <ul className="perf-drive-scores">{data.readiness.drives.map(drive => <li key={drive.drive_id}><span>{drive.company_name}</span><small>{drive.role_title}</small><strong>{drive.best_score == null ? "—" : Math.round(drive.best_score)}</strong></li>)}</ul> : null}
+          {data.readiness.drives.length ? <ul className="perf-drive-scores">{data.readiness.drives.map(drive => <li key={drive.drive_id}><DriveName id={drive.drive_id} company={drive.company_name} role={drive.role_title}><span>{drive.company_name}</span><small>{drive.role_title}</small></DriveName><strong>{drive.best_score == null ? "—" : Math.round(drive.best_score)}</strong></li>)}</ul> : null}
         </>}
       </section>
     </div>
