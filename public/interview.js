@@ -5,7 +5,7 @@
  */
 
 import { createFeedPhotoVerifier } from "./feed-photo-verifier.js";
-import { createVerificationNarrator, verifyIdentityWithNarration } from "./verification-narrator.js";
+import { createVerificationNarrator, verifyIdentityWithNarration } from "./verification-narrator.js?v=written-guidance-20261116";
 import { checkInterviewReadiness } from "./interview-readiness.js?v=startup-diagnostics-20261107";
 import { acquireInterviewMedia } from "./interview-media.js";
 import { createInterviewDiagnostics } from "./interview-diagnostics.js?v=readiness-compat-20261107";
@@ -485,6 +485,12 @@ const priyaNarrator = createVerificationNarrator({
   },
   onSpeaking: speaking => setActivePanelTalking(speaking),
   onStatus: text => { const status = document.getElementById('pf-voice-status'); if (status) status.textContent = text; },
+  onRead: read => {
+    const button = document.getElementById('pf-voice-read');
+    if (!button) return;
+    button.hidden = !read;
+    button.onclick = read;
+  },
   onRetry: (retry, label) => {
     const button = document.getElementById('pf-voice-retry');
     if (!button) return;
@@ -660,7 +666,9 @@ function failPanelStartup(message, { requiresSetup = false } = {}) {
     action.onclick = () => {
       if (!requiresSetup) { void startInterviewBackgroundFlow(); return; }
       const drive = new URLSearchParams(window.location.search).get('drive');
-      window.location.assign(`/practice${drive ? `?${new URLSearchParams({drive})}` : ''}`);
+      const setupWindow = window.parent !== window && window.parent.location.origin === window.location.origin
+        ? window.parent : window;
+      setupWindow.location.assign(`/practice${drive ? `?${new URLSearchParams({drive})}` : ''}`);
     };
   }
 }

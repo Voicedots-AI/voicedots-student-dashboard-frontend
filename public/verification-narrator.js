@@ -12,18 +12,20 @@ export async function verifyIdentityWithNarration({ verify, speak, onVerified, o
   await speak(text);
 }
 
-/** One narrator for pre-interview guidance. No silent fallback or voice switch. */
+/** One narrator for pre-interview guidance. Candidates can explicitly switch to written instructions for a cue. */
 export function createVerificationNarrator({
   fetchAudio,
   onSpeaking = () => {},
   onStatus = () => {},
   onRetry = () => {},
+  onRead = () => {},
   makePlayer = url => new Audio(url),
   createUrl = blob => URL.createObjectURL(blob),
   revokeUrl = url => URL.revokeObjectURL(url),
   playbackTimeout = 60000,
 }) {
   let current = null;
+  let writtenInstructions = false;
 
   function cancel() {
     if (!current) return;
@@ -36,6 +38,7 @@ export function createVerificationNarrator({
 
   function speak(text) {
     cancel();
+    if (writtenInstructions) return Promise.resolve();
     return new Promise((resolve, reject) => {
       let player = null;
       let url = null;
@@ -62,6 +65,7 @@ export function createVerificationNarrator({
       function cleanup() {
         clearPlayer();
         onRetry(null);
+        onRead(null);
       }
 
       function failed(error) {
@@ -81,6 +85,15 @@ export function createVerificationNarrator({
           ? "Select Play Priya's voice to enable sound and continue."
           : error?.message || "Priya's voice could not play. Select Retry voice to continue.");
         // Keep already-generated audio when the browser only needs a click.
+        onRead(() => {
+          if (!active()) return;
+          writtenInstructions = true;
+          current = null;
+          controller.abort();
+          cleanup();
+          onStatus('');
+          resolve();
+        });
         onRetry(attempt, blocked ? "Play Priya's voice" : 'Retry voice');
       }
 
@@ -88,6 +101,7 @@ export function createVerificationNarrator({
         if (!active() || busy) return;
         busy = true;
         onRetry(null);
+        onRead(null);
         onStatus(player ? "Starting Priya's voice…" : "Preparing Priya's voice…");
         try {
           if (!player) {
