@@ -7,6 +7,8 @@ import { InterviewAccessState } from './interview-access-state';
 
 const ReleasedJourneyReport = createContext<Report | undefined>(undefined);
 export const useReleasedJourneyReport = () => useContext(ReleasedJourneyReport);
+const JourneyDrive = createContext<Drive | undefined>(undefined);
+export const useJourneyDrive = () => useContext(JourneyDrive);
 
 /** Never mount journey screens (or their requests) before checking this student's drive. */
 export function PlacementJourneyGate({ children }: { children: ReactNode }) {
@@ -43,7 +45,11 @@ export function PlacementJourneyGate({ children }: { children: ReactNode }) {
   const retry = () => setRevision(value => value + 1);
   if (!result || result.key !== key) return <InterviewAccessState title="Checking your interview progress"><p>Please wait while we check your placement drive history.</p></InterviewAccessState>;
   if (result.error) return <InterviewAccessState title="Your improvement journey is temporarily unavailable" retry={retry}><p>{result.error}</p><p><Link to="/reports">View My Reports</Link></p></InterviewAccessState>;
-  if (driveId && result.selected && result.unlocked) return <ReleasedJourneyReport.Provider value={result.report}>{children}</ReleasedJourneyReport.Provider>;
+  if (driveId && result.selected && result.unlocked) return (
+    <JourneyDrive.Provider value={result.selected}>
+      <ReleasedJourneyReport.Provider value={result.report}>{children}</ReleasedJourneyReport.Provider>
+    </JourneyDrive.Provider>
+  );
   if (!driveId && result.eligible.length) return <InterviewAccessState title="Choose your placement drive"><p>Your coaching journey belongs to an individual drive. Choose a completed interview to continue.</p>
     {result.eligible.map(drive => { const params = new URLSearchParams(location.search); params.set('drive', drive.id); params.set('company', drive.company_name); params.set('role', drive.role_title);
       return <p key={drive.id}><Link to={`${location.pathname}?${params}`}>{drive.company_name} · {drive.role_title}</Link></p>; })}

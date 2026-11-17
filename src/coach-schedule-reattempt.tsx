@@ -1,8 +1,6 @@
 import { useState, useEffect } from 'react';
 import {
-  Calendar,
   Check,
-  Plus,
   Clock,
   ChevronDown,
   ChevronLeft,
@@ -16,6 +14,7 @@ import { useAuth } from './auth';
 import { api, json } from './api';
 import { Link, useSearchParams } from 'react-router-dom';
 import { CoachTopNav } from './coach-top-nav';
+import { useJourneyDrive, useReleasedJourneyReport } from './placement-journey-gate';
 import './coach-approved.css';
 
 type Attempt = {
@@ -214,6 +213,15 @@ function CustomCalendarPicker({
 export function CoachScheduleReattempt() {
   const [params] = useSearchParams();
   const driveId = params.get('drive') || '';
+  const drive = useJourneyDrive();
+  const report = useReleasedJourneyReport();
+  const drivePath = `/placements?${new URLSearchParams({ drive: driveId })}`;
+  const remaining = drive?.interview_attempts_remaining;
+  const completed = drive?.interview_completed_attempts;
+  const windowEnded = !!drive?.window_end_at && Date.parse(drive.window_end_at) <= Date.now();
+  const closed = windowEnded || drive?.status === 'closed' || ['closed', 'expired'].includes(drive?.interview_status || '');
+  const canSchedule = !!drive && !closed && !drive.is_locked && drive.eligibility_status !== 'ineligible' &&
+    (remaining == null || remaining > 0) && ['start', 'retry_preparation'].includes(drive.interview_action || '');
   const auth = useAuth();
   const student = auth.identity?.student;
 
@@ -224,9 +232,9 @@ export function CoachScheduleReattempt() {
 
   // Settings State
   const [settings, setSettings] = useState<InterviewSettings>({
-    role_title: 'Software Engineer',
-    interview_type: 'Full Technical + HR',
-    mode: 'AI Avatar Interview',
+    role_title: '',
+    interview_type: '',
+    mode: '',
   });
   const [savingSettings, setSavingSettings] = useState(false);
 
@@ -410,26 +418,6 @@ export function CoachScheduleReattempt() {
     }
   }
 
-  const attempt1 = plan?.attempts.find(a => a.attempt_number === 1) || {
-    attempt_number: 1,
-    status: 'not_scheduled',
-    score: null,
-    max_score: 100,
-    date: null,
-  };
-
-  const attempt2 = plan?.attempts.find(a => a.attempt_number === 2) || {
-    attempt_number: 2,
-    status: 'not_scheduled',
-    date: null,
-    time: null,
-  };
-
-  const attempt3 = plan?.attempts.find(a => a.attempt_number === 3) || {
-    attempt_number: 3,
-    status: 'not_scheduled',
-  };
-
   const roles = plan?.options?.roles || ['Software Engineer', 'Frontend Developer', 'Backend Developer', 'Full Stack Developer', 'Data Analyst'];
   const interviewTypes = plan?.options?.interview_types || ['Full Technical + HR', 'Technical Only', 'HR & Cultural Fit', 'System Design + Coding'];
   const modes = plan?.options?.modes || ['AI Avatar Interview', 'Audio Interview', 'Text & Code Interview'];
@@ -498,119 +486,48 @@ export function CoachScheduleReattempt() {
           </div>
         ) : !plan?.attempts.length ? (
           <section className="journey-preview">
-            <h3>{error ? 'Could not load your re-attempt plan' : 'No re-attempt booked yet'}</h3>
+            <h3>{error ? 'Booking status unavailable' : closed ? 'Interview window closed' : remaining === 0 ? 'No attempts remaining' : 'No re-attempt booking on file'}</h3>
+            {drive && <p>{[drive.company_name, drive.role_title].filter(Boolean).join(' · ')}</p>}
+            {completed != null && <p>{completed} completed {completed === 1 ? 'attempt' : 'attempts'}</p>}
+            {remaining != null && <p>{remaining} {remaining === 1 ? 'attempt' : 'attempts'} remaining under this drive’s rules</p>}
+            {report && <p>
+              <Link to={`/reports/${encodeURIComponent(report.session_id)}`}>
+                {report.attempt_number ? `Attempt ${report.attempt_number} result` : 'Latest released result'}
+              </Link>
+              {report.report?.overall_score != null && <span> · {report.report.overall_score}/100</span>}
+            </p>}
             {error && <p role="status">{error}</p>}
-            <h4>Example preparation plan</h4>
-            <ol>
-              <li>Review feedback from your previous interview.</li>
-              <li>Practice one improved answer and complete a mock interview.</li>
-              <li>Check your placement drive for an available slot.</li>
-            </ol>
-            {error ? <button className="coach-secondary" onClick={() => window.location.reload()}>Retry</button>
-              : <Link to="/placements">Check placement drives</Link>}
+            {error && <button className="coach-secondary" onClick={() => window.location.reload()}>Retry booking status</button>}
+            <p><Link to={drivePath}>{canSchedule ? 'Continue to interview setup' : 'View this placement drive'}</Link></p>
           </section>
         ) : (
           <div className="reattempt-content-grid">
             {/* Left Column: 3 Attempt Cards + Bottom Banner */}
             <div className="reattempt-left-col">
               <div className="reattempt-cards-row">
-                {/* Attempt 1 Card: Completed */}
-                <div className="reattempt-card attempt-completed">
-                  <div className="reattempt-card-header">
-                    <span className="reattempt-card-title">Attempt 1</span>
-                    <span className={`reattempt-status-chip ${attempt1.status === 'completed' ? 'completed' : 'not-scheduled'}`}>{attempt1.status === 'completed' ? 'Completed' : 'Not completed'}</span>
-                  </div>
-
-                  <div className="reattempt-card-body">
-                    <div className="reattempt-icon-circle green-circle">
-                      <Check size={28} strokeWidth={3} />
+                {plan.attempts.map(attempt => {
+                  const completed = attempt.status === 'completed';
+                  const scheduled = attempt.status === 'scheduled';
+                  return <article key={attempt.attempt_number} className="reattempt-card">
+                    <div className="reattempt-card-header">
+                      <span className="reattempt-card-title">Attempt {attempt.attempt_number}</span>
+                      <span className={`reattempt-status-chip ${completed ? 'completed' : scheduled ? 'scheduled' : 'not-scheduled'}`}>
+                        {completed ? 'Completed' : scheduled ? 'Scheduled' : 'Not scheduled'}
+                      </span>
                     </div>
-
-                    <div className="reattempt-score-box">
-                      <span className="score-value">{attempt1.score ?? '—'}</span>
-                      <span className="score-max"> / {attempt1.max_score ?? 100}</span>
-                    </div>
-
-                    <div className="reattempt-date-label">
-                      {attempt1.date || 'No completion date'}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Attempt 2 Card: Scheduled (Solid Blue Theme) */}
-                <div className="reattempt-card attempt-scheduled">
-                  <div className="reattempt-card-header">
-                    <span className="reattempt-card-title">Attempt 2</span>
-                    <span className="reattempt-status-chip scheduled">{attempt2.status === 'scheduled' ? 'Scheduled' : 'Not scheduled'}</span>
-                  </div>
-
-                  <div className="reattempt-card-body">
-                    <div className="reattempt-icon-circle blue-circle purple-circle">
-                      <Calendar size={26} strokeWidth={2.2} />
-                    </div>
-
-                    <div className="reattempt-datetime-box">
-                      <span className="datetime-date">{attempt2.date || 'Choose a date'}</span>
-                      <span className="datetime-time">{attempt2.time || 'Time not set'}</span>
-                    </div>
-
-                    <button
-                      type="button"
-                      className="reattempt-action-btn reschedule-btn"
-                      onClick={() => openScheduleModal(2)}
-                    >
-                      Reschedule
-                    </button>
-                  </div>
-                </div>
-
-                {/* Attempt 3 Card: Not Scheduled (Solid Blue Theme) */}
-                <div className="reattempt-card attempt-not-scheduled">
-                  <div className="reattempt-card-header">
-                    <span className="reattempt-card-title">Attempt 3</span>
-                    <span className={`reattempt-status-chip ${attempt3.status === 'scheduled' ? 'scheduled' : 'not-scheduled'}`}>
-                      {attempt3.status === 'scheduled' ? 'Scheduled' : 'Not Scheduled'}
-                    </span>
-                  </div>
-
-                  <div className="reattempt-card-body">
-                    <div className="reattempt-icon-circle blue-soft-circle purple-soft-circle">
-                      {attempt3.status === 'scheduled' ? (
-                        <Calendar size={26} strokeWidth={2.2} />
-                      ) : (
-                        <Plus size={28} strokeWidth={2.6} />
+                    <div className="reattempt-card-body">
+                      {completed && attempt.score != null && <strong>{attempt.score} / {attempt.max_score ?? 100}</strong>}
+                      {attempt.date && <span>{[attempt.date, attempt.time].filter(Boolean).join(' · ')}</span>}
+                      {!completed && canSchedule && attempt.attempt_number === drive?.interview_next_attempt_number && [2, 3].includes(attempt.attempt_number) && (
+                        <button type="button" className="reattempt-action-btn reschedule-btn" onClick={() => openScheduleModal(attempt.attempt_number)}>
+                          {scheduled ? 'Reschedule' : 'Schedule attempt'}
+                        </button>
                       )}
                     </div>
-
-                    {attempt3.status === 'scheduled' ? (
-                      <>
-                        <div className="reattempt-datetime-box">
-                          <span className="datetime-date">{attempt3.date}</span>
-                          <span className="datetime-time">{attempt3.time}</span>
-                        </div>
-                        <button
-                          type="button"
-                          className="reattempt-action-btn reschedule-btn"
-                          onClick={() => openScheduleModal(3)}
-                        >
-                          Reschedule
-                        </button>
-                      </>
-                    ) : (
-                      <div className="reattempt-schedule-now-box">
-                        <button
-                          type="button"
-                          className="reattempt-schedule-now-btn"
-                          onClick={() => openScheduleModal(3)}
-                        >
-                          Schedule Now
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                </div>
+                  </article>;
+                })}
               </div>
-
+              <p><Link to={drivePath}>View this placement drive</Link></p>
               {/* Bottom Coach Prep Notice Banner */}
               <div className="reattempt-coach-tip-banner">
                 <span className="reattempt-tip-icon">
@@ -718,7 +635,7 @@ export function CoachScheduleReattempt() {
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <span className="modal-title-dot" />
                 <h3>
-                  {modalAttemptNumber === 2 && attempt2.status === 'scheduled'
+                  {plan?.attempts.some(attempt => attempt.attempt_number === modalAttemptNumber && attempt.status === 'scheduled')
                     ? 'Reschedule Attempt 2'
                     : `Schedule Attempt ${modalAttemptNumber}`}
                 </h3>
