@@ -22,6 +22,7 @@ import { api, ApiError, json, type CandidateSatisfaction, type InterviewReportVi
 import { requestCoachSpeech } from './coach-voice-audio';
 import { useAuth } from './auth';
 import { coachCallPath } from './coach-call-link';
+import { CoachTopNav } from './coach-top-nav';
 import { reportCompetencies } from './report-competencies';
 
 import { PlacementOfficerAvatar } from './placement-officer-avatar';
@@ -44,7 +45,7 @@ const feedbackQuestions = [
 
 export function InterviewScorecard({ view, sessionId, role, company }: { view: InterviewReportView; sessionId: string; role?: string; company?: string|null; assessedAt?: string; durationSeconds?: number }) {
   const { identity } = useAuth();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const [openingPlan, setOpeningPlan] = useState(false);
   const [planError, setPlanError] = useState('');
@@ -68,10 +69,17 @@ export function InterviewScorecard({ view, sessionId, role, company }: { view: I
   // Score calculations
   const rawScore = view.overall_score;
   const overallScore = rawScore != null ? Math.round(Math.max(0, Math.min(100, rawScore))) : 0;
-  const isBelowThreshold = rawScore != null && overallScore < INSTITUTION_SCORE_THRESHOLD;
-
-  // AI Coach conversation pop-up offered automatically when student scores below institution threshold
-  const [showCoachPopup, setShowCoachPopup] = useState<boolean>(isBelowThreshold);
+  const showCoachPopup = searchParams.get('view') === 'coach';
+  const setShowCoachPopup = (open: boolean) => {
+    const next = new URLSearchParams(searchParams);
+    if (open) {
+      next.set('view', 'coach');
+      next.delete('question');
+    } else {
+      next.delete('view');
+    }
+    setSearchParams(next, { replace: !open });
+  };
   const [coachIntro, setCoachIntro] = useState(true);
   // Step Pagination: 1: Diagnosis, 2: Goals & Availability, 3: Focus Areas, 4: Daily Schedule (Default 4 to show roadmap immediately)
   const [activeStep, setActiveStep] = useState<1 | 2 | 3 | 4>(4);
@@ -491,7 +499,7 @@ export function InterviewScorecard({ view, sessionId, role, company }: { view: I
                 className="s2-talk-coach-btn"
                 onClick={() => {
                   stopCoachVoice();
-                  navigate(coachCallPath(callParams.toString(), `/reports/${encodeURIComponent(sessionId)}`, {report_session_id:sessionId}));
+                  setShowCoachPopup(true);
                 }}
               >
                 Talk to AI Coach Now
@@ -523,12 +531,14 @@ export function InterviewScorecard({ view, sessionId, role, company }: { view: I
             }
           }}
         >
-          <div className={`s3-modal-card ${coachIntro ? 's3-reference-intro' : ''}`}>
+          <div className={`s3-modal-card ${coachIntro ? 's3-reference-intro' : ''}`} role="dialog" aria-modal="true" aria-labelledby="scorecard-coach-title" onKeyDown={event => {
+            if (event.key === 'Escape') { stopCoachVoice(); setShowCoachPopup(false); }
+          }}>
             {/* Top Window Bar */}
             <div className="s3-top-window-bar">
               <div className="s3-top-title-group">
                 <span className="s3-top-badge-box">3</span>
-                <span className="s3-top-title-text">AI Coach Pop-up – Start Conversation</span>
+                <span className="s3-top-title-text" id="scorecard-coach-title">AI Coach</span>
               </div>
               <div className="s3-top-meta-group">
                 <div className="s3-candidate-pill-badge">
@@ -545,6 +555,7 @@ export function InterviewScorecard({ view, sessionId, role, company }: { view: I
                     setShowCoachPopup(false);
                   }}
                   aria-label="Close AI Coach Window"
+                  autoFocus
                 >
                   ✕
                 </button>
@@ -552,6 +563,9 @@ export function InterviewScorecard({ view, sessionId, role, company }: { view: I
             </div>
 
             {/* Window Body Grid: Left Avatar Card + Right Discussion & Schedule */}
+            {callDriveId && <div className="s3-journey-navigation">
+              <CoachTopNav activeTab="coach" driveId={callDriveId} sessionId={sessionId} />
+            </div>}
             <div className="s3-window-body-grid">
               {/* Left Column: AI Coach Avatar Visual & Voice Controls */}
               <div className="s3-avatar-card-column">
@@ -900,7 +914,7 @@ export function InterviewScorecard({ view, sessionId, role, company }: { view: I
                 </div>
                 {/* Bottom Action Buttons: Save & Start Day 1 Learning Plan -> and Re-adjust Goals */}
                 <div className="s3-bottom-actions-row">
-                  {!coachIntro && <Link className="s3-btn-readjust" to={coachCallPath(callParams.toString(), `/reports/${encodeURIComponent(sessionId)}`, {report_session_id:sessionId})} onClick={() => { stopCoachVoice(); setShowCoachPopup(false); }}><PhoneCall size={16} /> Call AI Coach Now</Link>}
+                  {!coachIntro && <Link className="s3-btn-readjust" to={coachCallPath(callParams.toString(), `/reports/${encodeURIComponent(sessionId)}`, {report_session_id:sessionId})} onClick={stopCoachVoice}><PhoneCall size={16} /> Call AI Coach Now</Link>}
                   <button
                     type="button"
                     disabled={openingPlan || discussionBusy || !callDriveId}
@@ -914,7 +928,6 @@ export function InterviewScorecard({ view, sessionId, role, company }: { view: I
                           ...json({ drive_id: callDriveId, report_session_id: sessionId }),
                         });
                         stopCoachVoice();
-                        setShowCoachPopup(false);
                         navigate(`/placement/plan?${callParams.toString()}`);
                       } catch (cause) {
                         setPlanError(cause instanceof ApiError && [404,405].includes(cause.status)

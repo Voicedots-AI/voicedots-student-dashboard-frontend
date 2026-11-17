@@ -3242,12 +3242,19 @@ function ImprovementJourneyScreens() {
             {planSaveError && <p role="alert">{planSaveError}</p>}
 
             <div className="s4-cards-list">
-              {(planAreas.length ? planAreas : practiceExamples).map((item: {focus: string; activity: string}) => (
+              {(planAreas.length ? planAreas : practiceExamples).map((item: {focus: string; activity: string; priority?: string; target_score?: number}, index: number) => (
                 <article key={item.focus} className="s4-topic-card">
-                  <div className="s4-topic-info">
-                    <h3 className="s4-topic-title">{item.focus}</h3>
-                    <p className="s4-topic-desc">{item.activity}</p>
+                  <div className="s4-topic-left">
+                    <span className="s4-topic-icon-box" data-tone={index % 4}><BookOpen size={22} aria-hidden="true" /></span>
+                    <div className="s4-topic-info">
+                      <h3 className="s4-topic-title">{item.focus}</h3>
+                      <p className="s4-topic-desc">{item.activity}</p>
+                    </div>
                   </div>
+                  {(item.priority || Number.isFinite(item.target_score)) && <dl className="s4-topic-right">
+                    {item.priority && <div><dt>Priority</dt><dd>{item.priority}</dd></div>}
+                    {Number.isFinite(item.target_score) && <div><dt>Target score</dt><dd>{item.target_score}/100</dd></div>}
+                  </dl>}
                 </article>
               ))}
             </div>
@@ -3372,9 +3379,11 @@ function ImprovementJourneyScreens() {
               <ul>{practiceExamples.map(item => <li key={item.focus}>{item.activity}</li>)}</ul>
               <Link to={coachCallPath(searchParams.toString(), location.pathname)}>Create a schedule with AI Coach</Link>
             </section>}
-            {scheduleTasks.length > 0 && <p className="journey-preview journey-notes">
-              <strong>{scheduleTasks.filter(task => task.status === "Completed").length} of {scheduleTasks.length}</strong> scheduled activities completed
-            </p>}
+            {scheduleTasks.length > 0 && <div className="journey-preview journey-notes journey-schedule-progress">
+              <label htmlFor="scheduled-learning-progress">Scheduled activities completed</label>
+              <strong>{scheduleTasks.filter(task => task.status === "Completed").length} of {scheduleTasks.length}</strong>
+              <progress id="scheduled-learning-progress" value={scheduleTasks.filter(task => task.status === "Completed").length} max={scheduleTasks.length}/>
+            </div>}
             {/* Bottom Actions */}
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "28px", paddingTop: "20px", borderTop: "1px solid #f1f5f9" }}>
               <button type="button" className="vd-btn-secondary" onClick={() => navigateTo(4)}>

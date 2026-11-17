@@ -14,8 +14,10 @@ export const useJourneyDrive = () => useContext(JourneyDrive);
 export function PlacementJourneyGate({ children }: { children: ReactNode }) {
   const { identity } = useAuth();
   const location = useLocation();
-  const driveId = new URLSearchParams(location.search).get('drive') || '';
-  const key = `${identity?.student.id || ''}:${driveId}`;
+  const params = new URLSearchParams(location.search);
+  const driveId = params.get('drive') || '';
+  const requestedSession = params.get('report_session_id');
+  const key = `${identity?.student.id || ''}:${driveId}:${requestedSession || ''}`;
   const [result, setResult] = useState<{ key: string; eligible: Drive[]; selected?: Drive; unlocked?: boolean; report?: Report; error?: string } | null>(null);
   const [revision, setRevision] = useState(0);
   useEffect(() => {
@@ -28,8 +30,9 @@ export function PlacementJourneyGate({ children }: { children: ReactNode }) {
     ]).then(([drives, data, access]) => {
       const selected = drives.find(drive => drive.id === driveId);
       const conflict = driveId && selected && !access.unlocked && canAccessPlacementCoach(selected, data.reports);
-      const report = data.reports.filter(item => item.drive_id === driveId && item.status === 'released' && item.session_id && item.report)
-        .sort((a, b) => Date.parse(b.completed_at || b.created_at) - Date.parse(a.completed_at || a.created_at))[0];
+      const reports = data.reports.filter(item => item.drive_id === driveId && item.status === 'released' && item.session_id && item.report)
+        .sort((a, b) => Date.parse(b.completed_at || b.created_at) - Date.parse(a.completed_at || a.created_at));
+      const report = reports.find(item => item.session_id === requestedSession) ?? reports[0];
       if (!controller.signal.aborted) setResult({ key, selected,
         unlocked: access.unlocked, report, eligible: drives.filter(drive => canAccessPlacementCoach(drive, data.reports)),
         error: conflict ? 'Your drive shows a finished interview, but the coaching service could not match its history. Please contact support with this drive ID: ' + driveId + '. You do not need to repeat the interview to fix this mismatch.' : undefined });

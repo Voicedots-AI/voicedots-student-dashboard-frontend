@@ -359,4 +359,33 @@ dialog.modal.coach-contribution-dialog{position:fixed;inset:0;margin:auto;width:
 .journey-skill { display: grid; grid-template-columns: 1fr auto; gap: .4rem 1rem; }
 .journey-skill span { text-transform: capitalize; }
 .journey-skill progress { grid-column: 1 / -1; width: 100%; height: .65rem; accent-color: #2563eb; }
-.coach-top-navbar:has(.coach-nav-btn:nth-child(9)) { flex-wrap: wrap; }
+.coach-top-navbar {
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid #d6e6f7;
+  border-radius: 14px;
+  background: #edf6ff;
+}
+.coach-top-navbar .coach-nav-btn { min-height: 38px; }
+.s3-journey-navigation { padding: 8px 16px 0; }
+.s3-journey-navigation .coach-top-navbar { margin: 0; max-height: 22vh; overflow: auto; }
+.coach-approved-page .s-portal-screen-header,
+.coach-approved-page .reattempt-top-header {
+  background: #e5f2ff;
+  border: 1px solid #cddff5;
+  border-radius: 14px;
+}
+.s4-topic-icon-box { color: #1553b7; background: #e6efff; box-shadow: none !important; }
+.s4-topic-icon-box[data-tone="1"] { color: #0c7857; background: #e1f7ed; }
+.s4-topic-icon-box[data-tone="2"] { color: #6841a5; background: #f1e9ff; }
+.s4-topic-icon-box[data-tone="3"] { color: #a34222; background: #ffede6; }
+.s4-topic-right { margin: 0; }
+.s4-topic-right dt { font-size: .75rem; color: #64748b; }
+.s4-topic-right dd { margin: .25rem 0 0; font-weight: 650; }
+.journey-schedule-progress { display: grid; grid-template-columns: 1fr auto; gap: .5rem 1rem; }
+.journey-schedule-progress progress { grid-column: 1 / -1; width: 100%; accent-color: #07865f; }
+@media (max-width: 560px) {
+  .coach-top-navbar .coach-nav-btn { flex: 1 1 auto; }
+  .s4-topic-card { flex-wrap: wrap; }
+}
