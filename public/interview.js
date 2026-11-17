@@ -6,7 +6,7 @@
 
 import { createFeedPhotoVerifier } from "./feed-photo-verifier.js";
 import { createVerificationNarrator, verifyIdentityWithNarration } from "./verification-narrator.js?v=device-guidance-20261117";
-import { checkInterviewReadiness } from "./interview-readiness.js?v=startup-diagnostics-20261107";
+import { checkInterviewReadiness } from "./interview-readiness.js?v=question-recovery-20261117";
 import { acquireInterviewMedia } from "./interview-media.js";
 import { createInterviewDiagnostics } from "./interview-diagnostics.js?v=readiness-compat-20261107";
 
@@ -672,7 +672,7 @@ async function startupResponse(response, fallback) {
   return data || {};
 }
 
-function failPanelStartup(message, { requiresSetup = false } = {}) {
+function failPanelStartup(message, { requiresSetup = false, prepareQuestions = false } = {}) {
   if (prejoinScreen) prejoinScreen.style.display = 'none';
   if (callScreen) callScreen.style.display = 'block';
   if (callTimerInterval) { clearInterval(callTimerInterval); callTimerInterval = null; }
@@ -683,14 +683,47 @@ function failPanelStartup(message, { requiresSetup = false } = {}) {
   if (rndStatus) rndStatus.textContent = 'Interview not started';
   const action = document.getElementById('error-toast-end');
   if (action) {
-    action.textContent = requiresSetup ? 'Review interview setup' : 'Retry in this panel';
+    action.textContent = prepareQuestions ? 'Prepare interview questions' : requiresSetup ? 'Review interview setup' : 'Retry in this panel';
     action.onclick = () => {
+      if (prepareQuestions) { void recoverInterviewQuestions(action); return; }
       if (!requiresSetup) { void startInterviewBackgroundFlow(); return; }
       const drive = new URLSearchParams(window.location.search).get('drive');
       const setupWindow = window.parent !== window && window.parent.location.origin === window.location.origin
         ? window.parent : window;
       setupWindow.location.assign(`/practice${drive ? `?${new URLSearchParams({drive})}` : ''}`);
     };
+  }
+}
+
+async function recoverInterviewQuestions(action) {
+  action.disabled = true;
+  action.textContent = 'Preparing questions…';
+  try {
+    const response = await studentFetch(`${_HTTP_BASE}/api/student/interview/${encodeURIComponent(currentSubmissionId)}/prepare`, {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({proceed_without_optional: false}), signal: AbortSignal.timeout(15000),
+    });
+    const result = await response.json();
+    const drive = new URLSearchParams(window.location.search).get('drive');
+    if (['needs_clarification', 'resume_reupload_required'].includes(result.status)) {
+      const student = getStudentSession();
+      if (student?.id) sessionStorage.setItem(`vd_preparation_${student.id}_${drive || 'practice'}`, JSON.stringify(result));
+      failPanelStartup('Review your saved resume details before preparing these questions.', {requiresSetup: true});
+      return;
+    }
+    if (!response.ok) throw new Error(result.detail?.message || (typeof result.detail === 'string' ? result.detail : 'Question preparation could not start.'));
+    const prepared = result.status === 'in_progress' && result.operation_id
+      ? await awaitPlacementPreparation(result.operation_id, drive) : result;
+    if (prepared.status !== 'ready' || prepared.submission_id !== currentSubmissionId) {
+      throw new Error('Question preparation did not return a ready interview.');
+    }
+    if (rndStatus) rndStatus.textContent = 'Questions prepared. Select Retry to start your interview.';
+    failPanelStartup('Question preparation finished. Select Retry to continue with this attempt.');
+  } catch (cause) {
+    panelDiagnostics.log('error', 'question_recovery_failed', {code: cause?.code, errorName: cause?.name});
+    failPanelStartup(cause instanceof Error ? cause.message : 'Question preparation could not finish.', {requiresSetup: true});
+  } finally {
+    action.disabled = false;
   }
 }
 
@@ -822,7 +855,10 @@ async function startInterviewBackgroundFlow() {
     await startInterview(currentSubmissionId);
   } catch (cause) {
     panelDiagnostics.log('error', 'startup_failed', {code:cause?.code, errorName:cause?.name, closeCode:cause?.closeCode});
-    failPanelStartup(cause instanceof Error ? cause.message : 'Interview startup failed. Please retry from your placement drive.');
+    const prepareQuestions = cause?.code === 'INTERVIEW_QUESTIONS_NOT_READY';
+    failPanelStartup(prepareQuestions
+      ? 'This attempt is missing its interview questions. Prepare them to continue.'
+      : cause instanceof Error ? cause.message : 'Interview startup failed. Please retry from your placement drive.', {prepareQuestions});
   } finally { backgroundStartupRunning = false; }
 }
 async function awaitPlacementPreparation(operationId, driveId) {

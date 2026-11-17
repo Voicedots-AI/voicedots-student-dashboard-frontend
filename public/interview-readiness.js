@@ -58,6 +58,9 @@ export function checkInterviewReadiness(url, {makeSocket = value => new WebSocke
           const detail = data.detail;
           const error = new Error(typeof detail === 'string' ? detail : detail?.message || 'Interview services are unavailable.');
           error.code = detail?.code || data.code;
+          if (!error.code && typeof detail === 'string' && detail.includes('The interview questions are not ready.')) {
+            error.code = 'INTERVIEW_QUESTIONS_NOT_READY';
+          }
           error.serverTraceId = data.trace_id;
           finish(error);
         }

@@ -442,7 +442,28 @@ export function Practice() {
     }
     if (!await preparePlacementPermissions()) return;
     launchRequested.current = true;
-    if (await verifyPlacementATS()) openPlacementPanel(submissionId,sessionId,operationId);
+    if (!await verifyPlacementATS()) return;
+    if (driveId && submissionId && !sessionId && !operationId && context?.preparation_status !== "ready") {
+      setBusy(true);
+      setError("");
+      try {
+        remember(await api<Preparation>(
+          `/api/student/interview/${encodeURIComponent(submissionId)}/prepare`,
+          json({ proceed_without_optional: false }),
+        ));
+      } catch (error) {
+        if (error instanceof ApiError && error.payload && typeof error.payload === "object" &&
+            "status" in error.payload && ["needs_clarification", "resume_reupload_required"].includes(String(error.payload.status))) {
+          remember(error.payload as Preparation);
+        } else {
+          setError(error instanceof Error ? error.message : "Could not prepare your interview. Please try again.");
+        }
+      } finally {
+        setBusy(false);
+      }
+      return;
+    }
+    openPlacementPanel(submissionId,sessionId,operationId);
   }
 
   async function start(event?: FormEvent<HTMLFormElement>) {

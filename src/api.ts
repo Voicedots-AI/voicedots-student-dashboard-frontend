@@ -144,6 +144,7 @@ export type DriveContext = {
   decision: string;
   submission_id?: string;
   session_id?: string;
+  preparation_status?: string | null;
   interview_window: string;
   interview_window_start_at?: string;
   interview_window_end_at?: string;
