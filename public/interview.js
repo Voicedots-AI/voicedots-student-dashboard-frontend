@@ -5,7 +5,7 @@
  */
 
 import { createFeedPhotoVerifier } from "./feed-photo-verifier.js";
-import { createVerificationNarrator, verifyIdentityWithNarration } from "./verification-narrator.js?v=written-guidance-20261116";
+import { createVerificationNarrator, verifyIdentityWithNarration } from "./verification-narrator.js?v=device-guidance-20261117";
 import { checkInterviewReadiness } from "./interview-readiness.js?v=startup-diagnostics-20261107";
 import { acquireInterviewMedia } from "./interview-media.js";
 import { createInterviewDiagnostics } from "./interview-diagnostics.js?v=readiness-compat-20261107";
@@ -459,6 +459,7 @@ function getPriyaFemaleVoice() {
   return null;
 }
 
+let verificationDeviceCue = null;
 const priyaNarrator = createVerificationNarrator({
   fetchAudio: async (text, signal) => {
     const controller = new AbortController();
@@ -485,11 +486,31 @@ const priyaNarrator = createVerificationNarrator({
   },
   onSpeaking: speaking => setActivePanelTalking(speaking),
   onStatus: text => { const status = document.getElementById('pf-voice-status'); if (status) status.textContent = text; },
-  onRead: read => {
+  onRead: (read, text) => {
     const button = document.getElementById('pf-voice-read');
     if (!button) return;
     button.hidden = !read;
     button.onclick = read;
+    const device = document.getElementById('pf-voice-device');
+    const voice = window.speechSynthesis?.getVoices().find(item => item.localService && /^en(-|$)/i.test(item.lang));
+    if (!device) return;
+    if (!read && verificationDeviceCue) {
+      verificationDeviceCue.onend = verificationDeviceCue.onerror = null;
+      verificationDeviceCue = null;
+      window.speechSynthesis.cancel();
+      device.disabled = false;
+    }
+    device.hidden = !read || !voice;
+    device.onclick = read && voice ? () => {
+      device.disabled = true;
+      const cue = new SpeechSynthesisUtterance(text);
+      verificationDeviceCue = cue;
+      cue.voice = voice;
+      cue.lang = voice.lang;
+      cue.onend = () => { verificationDeviceCue = null; device.disabled = false; read(); };
+      cue.onerror = () => { verificationDeviceCue = null; device.disabled = false; };
+      window.speechSynthesis.speak(cue);
+    } : null;
   },
   onRetry: (retry, label) => {
     const button = document.getElementById('pf-voice-retry');

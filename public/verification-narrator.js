@@ -93,7 +93,7 @@ export function createVerificationNarrator({
           cleanup();
           onStatus('');
           resolve();
-        });
+        }, text);
         onRetry(attempt, blocked ? "Play Priya's voice" : 'Retry voice');
       }
 
