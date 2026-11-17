@@ -1,3 +1,4 @@
+import { interviewOutcome } from "./interview-outcome";
 import DriveName from "./drive-description/DriveName";
 import {atsIndicator} from './shared-assessment/atsCutoff';
 import {studentDataCache} from "./student-data-cache";
@@ -389,7 +390,9 @@ function studentAttemptState(value: Drive | DriveContext): StudentAttemptState {
     else if (status === "completed" && maximum > used) next = Math.min(maximum, used + 1);
     else if (action === "not_assigned") next = attempt;
   }
-  return { maximum, used, completed, current, next, remaining: Math.max(0, maximum - used) };
+  const rawRemaining = isContext ? value.attempts_remaining : value.interview_attempts_remaining;
+  const remaining = boundedCount(rawRemaining, Math.max(0, maximum - used), maximum);
+  return { maximum, used, completed, current, next, remaining };
 }
 
 function interviewWindowEnded(end?: string, now = Date.now()) {
@@ -548,15 +551,9 @@ function PlacementTableStatus({drive}:{drive:Drive}) {
 
 function PlacementProgress({drive, status}: {drive:Drive; status:string}) {
   const attempts = studentAttemptState(drive);
-  const percent = attempts.maximum ? attempts.completed / attempts.maximum * 100 : 0;
-  const reason = drive.interview_termination_reason;
-  const outcome = drive.interview_session_status === 'candidate_ended'
-    ? drive.interview_termination_source === 'proctor' ? 'Interview stopped by monitoring' : 'Interview ended early by you'
-    : reason === 'time_limit_reached' ? 'Interview time finished'
-    : ['internal_error', 'voice_provider_limit', 'stale_runtime'].includes(reason || '') ? 'Interview interrupted by a service issue'
-    : reason === 'connection_lost' ? 'Interview interrupted — connection lost' : '';
-  const progressPath = `/placement/call?drive=${encodeURIComponent(drive.id)}&company=${encodeURIComponent(drive.company_name)}&role=${encodeURIComponent(drive.role_title)}`;
-
+  const percent = attempts.used / attempts.maximum * 100;
+  const outcome = interviewOutcome(drive.interview_session_status, drive.interview_termination_reason, drive.interview_termination_source);
+  const progressPath = `/placement/progress?drive=${encodeURIComponent(drive.id)}`;
   return (
     <div className="placement-progress">
       <div className="placement-progress-heading">
@@ -569,18 +566,18 @@ function PlacementProgress({drive, status}: {drive:Drive; status:string}) {
         to={progressPath}
         className="placement-progress-body placement-progress-clickable"
         title="View interview attempts and trajectory"
-        aria-label={`${attempts.completed} of ${attempts.maximum} attempts completed. Open progress trajectory.`}
+        aria-label={`${attempts.used} of ${attempts.maximum} attempts used. Open progress trajectory.`}
       >
         <div
           className="placement-progress-ring"
           style={{"--progress": `${percent}%`} as CSSProperties}
           role="img"
-          aria-label={`${attempts.completed} of ${attempts.maximum} attempts completed`}
+          aria-label={`${attempts.used} of ${attempts.maximum} attempts used`}
         >
-          <strong>{attempts.completed}</strong>
+          <strong>{attempts.used}</strong>
         </div>
         <div>
-          <b>{attempts.completed} {drive.interview_session_status === 'candidate_ended' ? 'finished · latest ended early' : 'completed'}</b>
+          <b>{attempts.used} used</b>
           <span>{attempts.current != null ? 1 : 0} in progress</span>
           <span>{attempts.remaining} remaining</span>
         </div>
@@ -607,7 +604,7 @@ export function PlacementDriveHistoryItem({drive:record,reports=[],expanded=true
     <div className="placement-history-company"><span className="company-avatar" aria-hidden="true">{(drive.company_name||"C").slice(0,2).toUpperCase()}</span><div><span className="placement-history-label">Company</span><strong>{drive.company_name}</strong></div></div>
     <div className="placement-history-drive"><span className="placement-history-label">Drive / role</span><h3><DriveName id={drive.id} company={drive.company_name} role={drive.role_title} drive={drive}>{drive.role_title}</DriveName></h3>{expanded&&<small>{info.window}</small>}</div>
     <div className="placement-history-eligibility"><span className={`pill ${qualified&&drive.main_resume_available!==false?"placement-summary-eligible":ats.score!==null?"placement-history-ineligible":"placement-eligibility-pending"}`}>{label}</span></div>
-    <div className="dashboard-history-status"><span className="placement-history-label">Interview status</span><strong>{info.status}</strong>{expanded&&<small>{attempts.completed} completed · {attempts.remaining} remaining</small>}</div>
+    <div className="dashboard-history-status"><span className="placement-history-label">Interview status</span><strong>{info.status}</strong>{expanded&&<small>{attempts.used} used · {attempts.remaining} remaining</small>}</div>
     <nav className="dashboard-history-actions" aria-label={`Interview actions for ${drive.company_name}`}>
       {canInterview?<Link to={`/practice?drive=${encodeURIComponent(drive.id)}`} aria-label={`${actionLabel} for ${drive.company_name}`}><Mic size={15}/><span>{actionLabel}</span></Link>:<button type="button" disabled title={reason}><Mic size={15}/><span>{actionLabel}</span></button>}
       <Link className="dashboard-history-ats" data-ats-tone={atsIndicator(ats.score,ats.minimum)} to={`/ats-fit?drive=${encodeURIComponent(drive.id)}`} aria-label={`ATS Fit assessment for ${drive.company_name}`}><FileText size={15}/><span><strong>ATS Fit</strong><small>{ats.label}</small></span></Link>

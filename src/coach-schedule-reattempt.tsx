@@ -15,6 +15,7 @@ import { api, json } from './api';
 import { Link, useSearchParams } from 'react-router-dom';
 import { CoachTopNav } from './coach-top-nav';
 import { useJourneyDrive, useReleasedJourneyReport } from './placement-journey-gate';
+import { interviewOutcome } from './interview-outcome';
 import './coach-approved.css';
 
 type Attempt = {
@@ -217,7 +218,9 @@ export function CoachScheduleReattempt() {
   const report = useReleasedJourneyReport();
   const drivePath = `/placements?${new URLSearchParams({ drive: driveId })}`;
   const remaining = drive?.interview_attempts_remaining;
-  const completed = drive?.interview_completed_attempts;
+  const used = drive?.interview_attempts_used;
+  const lastOutcome = interviewOutcome(drive?.interview_session_status, drive?.interview_termination_reason, drive?.interview_termination_source);
+  const reportOutcome = interviewOutcome(report?.session_status, report?.termination_reason, report?.termination_source);
   const windowEnded = !!drive?.window_end_at && Date.parse(drive.window_end_at) <= Date.now();
   const closed = windowEnded || drive?.status === 'closed' || ['closed', 'expired'].includes(drive?.interview_status || '');
   const canSchedule = !!drive && !closed && !drive.is_locked && drive.eligibility_status !== 'ineligible' &&
@@ -475,7 +478,7 @@ export function CoachScheduleReattempt() {
         <div className="reattempt-plan-header">
           <h2 className="reattempt-plan-title">Re-attempt Interview Plan</h2>
           <p className="reattempt-plan-subtitle">
-            Re-attempt availability depends on your placement drive.
+            {[drive?.company_name, drive?.role_title].filter(Boolean).join(' · ')}
           </p>
         </div>
 
@@ -485,21 +488,33 @@ export function CoachScheduleReattempt() {
             <span>Loading your re-attempt plan…</span>
           </div>
         ) : !plan?.attempts.length ? (
-          <section className="journey-preview">
-            <h3>{error ? 'Booking status unavailable' : closed ? 'Interview window closed' : remaining === 0 ? 'No attempts remaining' : 'No re-attempt booking on file'}</h3>
-            {drive && <p>{[drive.company_name, drive.role_title].filter(Boolean).join(' · ')}</p>}
-            {completed != null && <p>{completed} completed {completed === 1 ? 'attempt' : 'attempts'}</p>}
-            {remaining != null && <p>{remaining} {remaining === 1 ? 'attempt' : 'attempts'} remaining under this drive’s rules</p>}
-            {report && <p>
-              <Link to={`/reports/${encodeURIComponent(report.session_id)}`}>
-                {report.attempt_number ? `Attempt ${report.attempt_number} result` : 'Latest released result'}
+          <div className="reattempt-summary">
+            <section className="reattempt-summary-panel">
+              <h3>Interview history</h3>
+              <dl className="reattempt-counts">
+                {used != null && <div><dt>Attempts used</dt><dd>{used}</dd></div>}
+                {remaining != null && <div><dt>Attempts remaining</dt><dd>{remaining}</dd></div>}
+              </dl>
+              {lastOutcome && <p className="reattempt-outcome"><AlertCircle size={16} aria-hidden="true" />{lastOutcome}</p>}
+              {report && <div className="reattempt-result">
+                <div>
+                  <strong>{report.attempt_number ? `Attempt ${report.attempt_number} result` : 'Latest released result'}</strong>
+                  {reportOutcome && reportOutcome !== lastOutcome && <p>{reportOutcome}</p>}
+                </div>
+                {report.report?.overall_score != null && <strong>{report.report.overall_score}/100</strong>}
+                <Link to={`/reports/${encodeURIComponent(report.session_id)}`}>View result <ChevronRight size={16} /></Link>
+              </div>}
+            </section>
+            <section className="reattempt-summary-panel">
+              <CalendarDays size={22} aria-hidden="true" />
+              <h3>{error ? 'Booking status unavailable' : closed ? 'Interview window closed' : remaining === 0 ? 'No attempts remaining' : 'No re-attempt booked'}</h3>
+              {error && <p role="status">{error}</p>}
+              {error && <button type="button" className="coach-secondary" onClick={() => window.location.reload()}>Retry booking status</button>}
+              <Link className={canSchedule ? 'coach-primary' : 'coach-secondary'} to={drivePath}>
+                {canSchedule ? 'Continue to interview setup' : 'View placement drive'} <ChevronRight size={16} />
               </Link>
-              {report.report?.overall_score != null && <span> · {report.report.overall_score}/100</span>}
-            </p>}
-            {error && <p role="status">{error}</p>}
-            {error && <button className="coach-secondary" onClick={() => window.location.reload()}>Retry booking status</button>}
-            <p><Link to={drivePath}>{canSchedule ? 'Continue to interview setup' : 'View this placement drive'}</Link></p>
-          </section>
+            </section>
+          </div>
         ) : (
           <div className="reattempt-content-grid">
             {/* Left Column: 3 Attempt Cards + Bottom Banner */}
@@ -507,16 +522,18 @@ export function CoachScheduleReattempt() {
               <div className="reattempt-cards-row">
                 {plan.attempts.map(attempt => {
                   const completed = attempt.status === 'completed';
+                  const outcome = completed && report?.attempt_number === attempt.attempt_number ? reportOutcome : '';
                   const scheduled = attempt.status === 'scheduled';
                   return <article key={attempt.attempt_number} className="reattempt-card">
                     <div className="reattempt-card-header">
                       <span className="reattempt-card-title">Attempt {attempt.attempt_number}</span>
                       <span className={`reattempt-status-chip ${completed ? 'completed' : scheduled ? 'scheduled' : 'not-scheduled'}`}>
-                        {completed ? 'Completed' : scheduled ? 'Scheduled' : 'Not scheduled'}
+                        {outcome ? 'Ended' : completed ? 'Completed' : scheduled ? 'Scheduled' : 'Not scheduled'}
                       </span>
                     </div>
                     <div className="reattempt-card-body">
                       {completed && attempt.score != null && <strong>{attempt.score} / {attempt.max_score ?? 100}</strong>}
+                      {outcome && <span>{outcome}</span>}
                       {attempt.date && <span>{[attempt.date, attempt.time].filter(Boolean).join(' · ')}</span>}
                       {!completed && canSchedule && attempt.attempt_number === drive?.interview_next_attempt_number && [2, 3].includes(attempt.attempt_number) && (
                         <button type="button" className="reattempt-action-btn reschedule-btn" onClick={() => openScheduleModal(attempt.attempt_number)}>

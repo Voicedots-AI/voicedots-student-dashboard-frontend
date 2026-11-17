@@ -385,6 +385,18 @@ dialog.modal.coach-contribution-dialog{position:fixed;inset:0;margin:auto;width:
 .s4-topic-right dd { margin: .25rem 0 0; font-weight: 650; }
 .journey-schedule-progress { display: grid; grid-template-columns: 1fr auto; gap: .5rem 1rem; }
 .journey-schedule-progress progress { grid-column: 1 / -1; width: 100%; accent-color: #07865f; }
+.reattempt-summary { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 16px; }
+.reattempt-summary-panel { padding: 20px; border: 1px solid #d5e4f5; border-radius: 14px; background: #f5f9ff; color: #183153; }
+.reattempt-summary-panel h3 { margin: 0 0 12px; font-size: 1rem; }
+.reattempt-summary-panel > svg { color: #0969da; margin-bottom: 10px; }
+.reattempt-counts { display: flex; flex-wrap: wrap; gap: 12px; margin: 0; }
+.reattempt-counts div { flex: 1 1 120px; padding: 12px; border-radius: 10px; background: #fff; }
+.reattempt-counts dd { margin: 3px 0 0; color: #174ea6; font-size: 1.5rem; font-weight: 700; }
+.reattempt-outcome { display: flex; align-items: center; gap: 8px; color: #804417; }
+.reattempt-outcome svg { flex-shrink: 0; }
+.reattempt-result { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; padding-top: 14px; margin-top: 14px; border-top: 1px solid #d5e4f5; }
+.reattempt-result a { display: inline-flex; align-items: center; gap: 4px; margin-left: auto; }
+@media (max-width: 700px) { .reattempt-summary { grid-template-columns: 1fr; } }
 @media (max-width: 560px) {
   .coach-top-navbar .coach-nav-btn { flex: 1 1 auto; }
   .s4-topic-card { flex-wrap: wrap; }
