@@ -15,6 +15,11 @@ type ResourceCategory = 'all' | 'technical' | 'system_design' | 'behavioral' | '
 
 type Resource = { id: string | number; category: string; title: string; description: string; readTime: string; skillTag: string; level: string; actionUrl: string; actionLabel: string };
 
+const exampleQuestions = [
+  { question: 'Tell me about a decision you owned on a project.', answer_guidance: 'Explain the situation, your decision, why you made it, and the result you observed.' },
+  { question: 'How would you investigate a result that looks wrong?', answer_guidance: 'Define the expected result, check your inputs, test one explanation at a time, and describe how you would verify the fix.' },
+];
+
 export function CoachLearningResources({ resources = [], questions = [] }: { resources?: Resource[]; questions?: { question: string; topic?: string; answer_guidance?: string }[] }) {
   const coachPath = useCoachCallPath();
   const [selectedCategory, setSelectedCategory] = useState<ResourceCategory>('all');
@@ -141,17 +146,21 @@ export function CoachLearningResources({ resources = [], questions = [] }: { res
         ))}
       </div>
 
-      {questions.length > 0 && <section className="coach-stage-card" style={{marginTop:24,padding:24}}>
-        <h2>Practice questions for your drive</h2>
+      <section className="coach-stage-card" style={{marginTop:24,padding:24}}>
+        <h2>{questions.length ? 'Practice questions for your drive' : 'Example practice questions'}</h2>
         <p>Try each answer yourself, then review the preparation guidance.</p>
-        {questions.map((question,index) => <details key={`${index}-${question.question}`} style={{padding:'16px 0',borderBottom:'1px solid #e2e8f0'}}>
+        {(questions.length ? questions : exampleQuestions).map((question,index) => <details key={`${index}-${question.question}`} style={{padding:'16px 0',borderBottom:'1px solid #e2e8f0'}}>
           <summary style={{cursor:'pointer',fontWeight:600}}>{index+1}. {question.question}</summary>
-          {question.topic && <p>{question.topic}</p>}
+          {'topic' in question && typeof question.topic === 'string' && <p>{question.topic}</p>}
           <p>{question.answer_guidance || 'Discuss your reasoning and examples with your AI Coach.'}</p>
         </details>)}
-      </section>}
+      </section>
 
-      {filtered.length === 0 && (
+      {!resources.length ? <section className="journey-preview journey-notes">
+        <h3>Build a practice checklist</h3>
+        <p>Pick one interview answer, write a clearer version, and rehearse it aloud. Ask AI Coach for resources tied to your target role.</p>
+        <Link to={coachPath}>Ask AI Coach</Link>
+      </section> : filtered.length === 0 && (
         <section className="coach-stage-card" style={{ textAlign: 'center', padding: '48px 24px' }}>
           <FolderArchive size={36} style={{ color: '#94a3b8', margin: '0 auto 12px auto' }} />
           <h3 style={{ fontSize: '16px', color: '#1e293b', marginBottom: '6px' }}>No matching resources found</h3>

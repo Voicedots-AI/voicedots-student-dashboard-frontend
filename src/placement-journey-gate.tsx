@@ -1,9 +1,12 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { api, ApiError, type Drive, type Report } from './api';
 import { useAuth } from './auth';
 import { canAccessPlacementCoach } from './placement-coach-access';
 import { InterviewAccessState } from './interview-access-state';
+
+const ReleasedJourneyReport = createContext<Report | undefined>(undefined);
+export const useReleasedJourneyReport = () => useContext(ReleasedJourneyReport);
 
 /** Never mount journey screens (or their requests) before checking this student's drive. */
 export function PlacementJourneyGate({ children }: { children: ReactNode }) {
@@ -11,7 +14,7 @@ export function PlacementJourneyGate({ children }: { children: ReactNode }) {
   const location = useLocation();
   const driveId = new URLSearchParams(location.search).get('drive') || '';
   const key = `${identity?.student.id || ''}:${driveId}`;
-  const [result, setResult] = useState<{ key: string; eligible: Drive[]; selected?: Drive; unlocked?: boolean; error?: string } | null>(null);
+  const [result, setResult] = useState<{ key: string; eligible: Drive[]; selected?: Drive; unlocked?: boolean; report?: Report; error?: string } | null>(null);
   const [revision, setRevision] = useState(0);
   useEffect(() => {
     const controller = new AbortController();
@@ -23,8 +26,10 @@ export function PlacementJourneyGate({ children }: { children: ReactNode }) {
     ]).then(([drives, data, access]) => {
       const selected = drives.find(drive => drive.id === driveId);
       const conflict = driveId && selected && !access.unlocked && canAccessPlacementCoach(selected, data.reports);
+      const report = data.reports.filter(item => item.drive_id === driveId && item.status === 'released' && item.session_id && item.report)
+        .sort((a, b) => Date.parse(b.completed_at || b.created_at) - Date.parse(a.completed_at || a.created_at))[0];
       if (!controller.signal.aborted) setResult({ key, selected,
-        unlocked: access.unlocked, eligible: drives.filter(drive => canAccessPlacementCoach(drive, data.reports)),
+        unlocked: access.unlocked, report, eligible: drives.filter(drive => canAccessPlacementCoach(drive, data.reports)),
         error: conflict ? 'Your drive shows a finished interview, but the coaching service could not match its history. Please contact support with this drive ID: ' + driveId + '. You do not need to repeat the interview to fix this mismatch.' : undefined });
     }).catch((cause: unknown) => {
       const message = cause instanceof ApiError && [404,405].includes(cause.status)
@@ -38,7 +43,7 @@ export function PlacementJourneyGate({ children }: { children: ReactNode }) {
   const retry = () => setRevision(value => value + 1);
   if (!result || result.key !== key) return <InterviewAccessState title="Checking your interview progress"><p>Please wait while we check your placement drive history.</p></InterviewAccessState>;
   if (result.error) return <InterviewAccessState title="Your improvement journey is temporarily unavailable" retry={retry}><p>{result.error}</p><p><Link to="/reports">View My Reports</Link></p></InterviewAccessState>;
-  if (driveId && result.selected && result.unlocked) return <>{children}</>;
+  if (driveId && result.selected && result.unlocked) return <ReleasedJourneyReport.Provider value={result.report}>{children}</ReleasedJourneyReport.Provider>;
   if (!driveId && result.eligible.length) return <InterviewAccessState title="Choose your placement drive"><p>Your coaching journey belongs to an individual drive. Choose a completed interview to continue.</p>
     {result.eligible.map(drive => { const params = new URLSearchParams(location.search); params.set('drive', drive.id); params.set('company', drive.company_name); params.set('role', drive.role_title);
       return <p key={drive.id}><Link to={`${location.pathname}?${params}`}>{drive.company_name} · {drive.role_title}</Link></p>; })}

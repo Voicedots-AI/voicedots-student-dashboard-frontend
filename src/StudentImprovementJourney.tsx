@@ -1,6 +1,5 @@
-import {StudentJourneyReview} from './student-journey-review';
 import { useState, useEffect, useRef, useMemo } from "react";
-import { Link, useSearchParams, useNavigate, useLocation } from "react-router-dom";
+import { Link, Navigate, useSearchParams, useNavigate, useLocation } from "react-router-dom";
 import {
   Mic,
   MicOff,
@@ -30,7 +29,6 @@ import {
   Bell,
   Calendar,
   Building2,
-  ChevronDown,
   ChevronRight,
   Download,
 } from "lucide-react";
@@ -39,7 +37,7 @@ import { useAuth } from "./auth";
 import { CoachLearningResources } from "./coach-learning-resources";
 import { CoachScheduleReattempt } from "./coach-schedule-reattempt";
 import { CoachTopNav } from "./coach-top-nav";
-import { PlacementJourneyGate } from "./placement-journey-gate";
+import { PlacementJourneyGate, useReleasedJourneyReport } from "./placement-journey-gate";
 import { ImprovementJourneyChart } from "./improvement-journey-chart";
 import { PlacementDriveRedirect } from "./placement-drive-redirect";
 import './result-stat-cards.css';
@@ -434,7 +432,12 @@ export function resolveNehaFemaleVoice(): SpeechSynthesisVoice | null {
 export function StudentImprovementJourney() {
   const location = useLocation();
   const params = new URLSearchParams(location.search);
-  if (params.get('view') === 'review') return <StudentJourneyReview />;
+  if (location.pathname === '/placement/journey' && params.get('view') === 'review') {
+    params.delete('view');
+    params.delete('screen');
+    params.delete('phase');
+    return <Navigate replace to={{ pathname: '/placement/plan', search: params.toString() }} />;
+  }
   if (location.pathname === '/placement/call' && ['ats','guidance'].includes(params.get('mode') || '')) {
     return <LivePlacementOfficerCall key={`${params.get('mode')}:${params.get('drive') || ''}:${params.get('source') || ''}:${params.get('plan') || ''}:${params.get('report_session_id') || ''}`} />;
   }
@@ -454,6 +457,7 @@ function UnlockedStudentImprovementJourney() {
 }
 
 function ImprovementJourneyScreens() {
+  const releasedReport = useReleasedJourneyReport();
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const location = useLocation();
@@ -516,6 +520,8 @@ function ImprovementJourneyScreens() {
   const [loading, setLoading] = useState<boolean>(true);
   const [data, setData] = useState<any>(null);
   const [journeyError, setJourneyError] = useState("");
+  const [creatingPlan, setCreatingPlan] = useState(false);
+  const [planSaveError, setPlanSaveError] = useState("");
   const [muted, setMuted] = useState<boolean>(false);
   const [cameraOn, setCameraOn] = useState<boolean>(true);
   // Real student identity from Auth & cache
@@ -954,8 +960,8 @@ function ImprovementJourneyScreens() {
     milestone: string;
     date: string;
     overall: number;
-    technical: number;
-    communication: number;
+    technical: number | null;
+    communication: number | null;
   };
 
   const activeTrajectoryPoints = useMemo<TrajectoryPoint[]>(() => {
@@ -964,13 +970,20 @@ function ImprovementJourneyScreens() {
     const measured=records.flatMap((row:any,index:number)=>{
       const overall=row.report.overall_score;
       const technical=row.report.score_breakdown?.technical??row.report.score_breakdown?.technical_knowledge;
-      const communication=row.report.score_breakdown?.communication;
-      if(![overall,technical,communication].every(value=>typeof value==='number'&&Number.isFinite(value)))return [];
-      return [{milestone:`Attempt ${row.attempt_number||index+1}`,date:row.completed_at||row.created_at||'',overall,technical,communication}];
+      const communication=row.report.score_breakdown?.communication??row.report.score_breakdown?.Communication;
+      if (typeof overall !== 'number' || !Number.isFinite(overall)) return [];
+      return [{milestone:`Attempt ${row.attempt_number||index+1}`,date:row.completed_at||row.created_at||'',overall,
+        technical: Number.isFinite(technical) ? technical : null,
+        communication: Number.isFinite(communication) ? communication : null}];
     });
     if(measured.length)return measured;
     const saved=data?.progress_tracking?.trajectory_points;
-    return Array.isArray(saved)?saved.filter((point:any)=>[point.overall,point.technical,point.communication].every(value=>typeof value==='number'&&Number.isFinite(value))):[];
+    if (!Array.isArray(saved)) return [];
+    return saved.filter(point => Number.isFinite(point?.overall)).map(point => ({
+      ...point,
+      technical: Number.isFinite(point.technical) ? point.technical : null,
+      communication: Number.isFinite(point.communication) ? point.communication : null,
+    }));
   },[data,realStudentReports,selectedDriveId]);
   const activeQuestions: DynamicQuestion[] = Array.isArray(data?.questions) ? data.questions : [];
 
@@ -1443,6 +1456,23 @@ function ImprovementJourneyScreens() {
     void loadJourneyData();
   }, []);
 
+  const createPlanFromReport = async () => {
+    if (creatingPlan || !releasedReport?.drive_id) return;
+    setCreatingPlan(true);
+    setPlanSaveError("");
+    try {
+      await api("/api/student/coach/improvement-journey/plan", {
+        method: "POST",
+        ...json({ drive_id: releasedReport.drive_id, report_session_id: releasedReport.session_id }),
+      });
+      await loadJourneyData();
+    } catch (error) {
+      setPlanSaveError(error instanceof Error ? error.message : "Could not save your plan. Please try again.");
+    } finally {
+      setCreatingPlan(false);
+    }
+  };
+
   // Accurate scoring and context compiler
   const computeAccurateEvaluation = (
     answers: Array<{ question: string; answer: string; score: number; feedback: string }>,
@@ -1623,9 +1653,6 @@ function ImprovementJourneyScreens() {
   if (journeyError || !data || (currentScreen === 1 && !activeQuestions.length)) {
     return <section className="journey-container"><CoachTopNav/><h2>Your learning data is not available yet</h2><p role="status">{journeyError || "Complete or prepare an interview through your placement drive to create your assessment records."}</p><button className="button secondary" onClick={() => void loadJourneyData()}>Retry</button><Link className="button primary" to="/placements">View placement drives</Link></section>;
   }
-  if (currentScreen === 4 && !data.improvement_plan?.focus_areas?.length) {
-    return <section className="journey-container"><CoachTopNav activeTab="plan"/><h2>No learning plan saved yet</h2><p>Your plan will appear here when one is created from your assessment.</p><Link className="button primary" to={coachCallPath(searchParams.toString(), location.pathname)}>Talk to AI Coach</Link></section>;
-  }
 
 
   const rawScore = (() => {
@@ -1709,6 +1736,33 @@ function ImprovementJourneyScreens() {
 
   const progressMetrics = data?.progress_tracking || {};
   const readiness = data?.placement_readiness || {};
+  const readinessScore = readiness.overall_score ?? releasedReport?.report?.overall_score ?? null;
+  const practiceExamples = [
+    { focus: "Communication", activity: "Record a 90-second answer with one example and a clear result." },
+    { focus: "Project ownership", activity: "Explain one project decision you made and how you measured its impact." },
+    { focus: "Structured thinking", activity: "State your assumptions, compare two approaches, and explain how you would verify the result." },
+  ];
+  const planAreas = (data.improvement_plan?.focus_areas || []).filter(
+    (item: {focus?: string; activity?: string}) => item?.focus?.trim() && item.activity?.trim()
+  );
+  const competencies = new Map<string, number>();
+  for (const rows of [
+    readiness.competencies,
+    data.interview_result?.competencies,
+    releasedReport?.report?.core_dimensions,
+    releasedReport?.report?.domain_dimensions,
+  ]) {
+    if (!Array.isArray(rows)) continue;
+    for (const item of rows) {
+      const label = item?.name || item?.label || item?.dimension;
+      const score = item?.percentage ?? item?.score;
+      if (typeof label !== "string" || !label.trim() || typeof score !== "number" || !Number.isFinite(score) || score < 0 || score > 100) continue;
+      const name = label.trim().toLowerCase().replace(/_/g, " ");
+      if (!competencies.has(name)) competencies.set(name, score);
+    }
+  }
+  const targetDrives = (readiness.target_drives || []).filter((drive: { company?: string }) => drive?.company?.trim());
+  const readinessSteps = (readiness.recommended_steps || []).filter((step: string) => step?.trim());
   return (
     <div
       className={`journey-container${interviewPhase === "live" && currentScreen === 1
@@ -3167,11 +3221,11 @@ function ImprovementJourneyScreens() {
               <div>
                 <h2 className="s4-plan-title">My Improvement Plan</h2>
                 <p className="s4-plan-subtitle">
-                  Based on your interview performance and target role – {activeRoleTitle || "Software Engineer"}
+                  {planAreas.length ? (activeRoleTitle || "Practice priorities from your interview") : "Example exercises for your next interview"}
                 </p>
               </div>
 
-              <button
+              {planAreas.length ? <button
                 type="button"
                 className="s4-btn-download"
                 onClick={handleDownloadPlanPDF}
@@ -3179,11 +3233,16 @@ function ImprovementJourneyScreens() {
               >
                 <Download size={15} />
                 <span>Download Plan (PDF)</span>
-              </button>
+              </button> : releasedReport ? (
+                <button type="button" className="s4-btn-download" disabled={creatingPlan} onClick={() => void createPlanFromReport()}>
+                  {creatingPlan ? "Creating plan…" : "Create plan from interview"}
+                </button>
+              ) : <Link className="s4-btn-download" to={coachCallPath(searchParams.toString(), location.pathname)}>Talk to AI Coach</Link>}
             </div>
+            {planSaveError && <p role="alert">{planSaveError}</p>}
 
             <div className="s4-cards-list">
-              {data.improvement_plan.focus_areas.map((item: {focus: string; activity: string}) => (
+              {(planAreas.length ? planAreas : practiceExamples).map((item: {focus: string; activity: string}) => (
                 <article key={item.focus} className="s4-topic-card">
                   <div className="s4-topic-info">
                     <h3 className="s4-topic-title">{item.focus}</h3>
@@ -3192,11 +3251,11 @@ function ImprovementJourneyScreens() {
                 </article>
               ))}
             </div>
-            {data.improvement_plan.coach_notes?.length > 0 && (
-              <section aria-label="Saved AI Coach discussion">
-                <h3>Notes from your AI Coach discussion</h3>
-                {data.improvement_plan.coach_notes.map((note: string, index: number) => <p key={index}>{note}</p>)}
-              </section>
+            {data.improvement_plan?.coach_notes?.some((note: string) => note?.trim()) && (
+              <details className="journey-preview journey-notes">
+                <summary>Notes from your AI Coach discussion</summary>
+                {data.improvement_plan.coach_notes.filter((note: string) => note?.trim()).map((note: string, index: number) => <p key={index}>{note}</p>)}
+              </details>
             )}
           </div>
         </div>
@@ -3232,19 +3291,12 @@ function ImprovementJourneyScreens() {
                   </span>
                 </div>
 
-                <div className="s5-dropdown-wrapper">
-                  <select className="s5-select-week" defaultValue="this_week">
-                    <option value="this_week">This Week</option>
-                    <option value="next_week">Next Week</option>
-                    <option value="month">Full Month</option>
-                  </select>
-                  <ChevronDown size={14} className="s5-select-arrow" />
-                </div>
+
               </div>
             </div>
 
             {/* Schedule Table */}
-            <div className="s5-table-container">
+            {scheduleTasks.length ? <div className="s5-table-container">
               <table className="s5-table">
                 <thead>
                   <tr>
@@ -3315,66 +3367,14 @@ function ImprovementJourneyScreens() {
                   })}
                 </tbody>
               </table>
-            </div>
-
-            {/* Bottom Split Section: Weekly Goals on Left, Weekly Progress Gauge on Right */}
-            <div className="s5-bottom-split">
-              {/* Left Column: Weekly Goals */}
-              <div className="s5-goals-col">
-                <h3 className="s5-subheading">Weekly Goals</h3>
-                <div className="s5-goals-list">
-                  {[
-                    "Complete 12 learning modules",
-                    "Solve 50 practice questions",
-                    "Attend 2 mock interviews",
-                    "Improve communication skills",
-                  ].map((goal, idx) => (
-                    <div key={idx} className="s5-goal-item">
-                      <div className="s5-goal-check">
-                        <CheckCircle2 size={16} color="#10b981" />
-                      </div>
-                      <span className="s5-goal-text">{goal}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Right Column: Semi-circular Progress Gauge */}
-              <div className="s5-gauge-col">
-                <div className="s5-gauge-wrapper">
-                  <svg viewBox="0 0 160 100" className="s5-gauge-svg">
-                    <defs>
-                      <linearGradient id="s5GaugeGrad" x1="0" y1="0" x2="1" y2="0">
-                        <stop offset="0%" stopColor="#10b981" />
-                        <stop offset="100%" stopColor="#06b6d4" />
-                      </linearGradient>
-                    </defs>
-                    {/* Semi-circular track: radius 58, length PI*58 = 182.2 */}
-                    <path
-                      d="M 22,90 A 58,58 0 0,1 138,90"
-                      fill="none"
-                      stroke="#f1f5f9"
-                      strokeWidth="14"
-                      strokeLinecap="round"
-                    />
-                    {/* Colored arc for 40% (0.40 * 182.2 = 72.9) */}
-                    <path
-                      d="M 22,90 A 58,58 0 0,1 138,90"
-                      fill="none"
-                      stroke="url(#s5GaugeGrad)"
-                      strokeWidth="14"
-                      strokeDasharray="72.9 182.2"
-                      strokeLinecap="round"
-                    />
-                  </svg>
-                  <div className="s5-gauge-center">
-                    <strong className="s5-gauge-pct">40%</strong>
-                    <span className="s5-gauge-sub">Weekly Progress</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
+            </div> : <section className="journey-preview">
+              <h3>Example study routine</h3>
+              <ul>{practiceExamples.map(item => <li key={item.focus}>{item.activity}</li>)}</ul>
+              <Link to={coachCallPath(searchParams.toString(), location.pathname)}>Create a schedule with AI Coach</Link>
+            </section>}
+            {scheduleTasks.length > 0 && <p className="journey-preview journey-notes">
+              <strong>{scheduleTasks.filter(task => task.status === "Completed").length} of {scheduleTasks.length}</strong> scheduled activities completed
+            </p>}
             {/* Bottom Actions */}
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "28px", paddingTop: "20px", borderTop: "1px solid #f1f5f9" }}>
               <button type="button" className="vd-btn-secondary" onClick={() => navigateTo(4)}>
@@ -3414,7 +3414,7 @@ function ImprovementJourneyScreens() {
 
           {/* Main White Card Container */}
           <div className="s-portal-card">
-            <ImprovementJourneyChart points={activeTrajectoryPoints} onReport={() => navigateTo(2)} />
+            <ImprovementJourneyChart points={activeTrajectoryPoints} onReport={() => navigate(releasedReport ? `/reports/${encodeURIComponent(releasedReport.session_id)}` : '/reports')} />
 
             {/* 3 Bottom Metric Stat Cards (Solid Blue and Green theme - ZERO purple) */}
             <div className="s8-metrics-grid">
@@ -3436,7 +3436,7 @@ function ImprovementJourneyScreens() {
                 </div>
                 <div className="s8-metric-content">
                   <strong className="s8-metric-value">
-                    {progressMetrics.questions_completed ?? 0} / {progressMetrics.questions_total ?? 0}
+                    {progressMetrics.questions_completed ?? 0}{progressMetrics.questions_total > 0 ? ` / ${progressMetrics.questions_total}` : ""}
                   </strong>
                   <span className="s8-metric-label">Practice Questions Completed</span>
                 </div>
@@ -3449,7 +3449,7 @@ function ImprovementJourneyScreens() {
                 </div>
                 <div className="s8-metric-content">
                   <strong className="s8-metric-value">
-                    {progressMetrics.mock_interviews_completed ?? 0} / {progressMetrics.mock_interviews_total ?? 0}
+                    {progressMetrics.mock_interviews_completed ?? 0}{progressMetrics.mock_interviews_total > 0 ? ` / ${progressMetrics.mock_interviews_total}` : ""}
                   </strong>
                   <span className="s8-metric-label">Mock Interviews Completed</span>
                 </div>
@@ -3504,19 +3504,19 @@ function ImprovementJourneyScreens() {
                       stroke="#10b981"
                       strokeWidth="13"
                       strokeLinecap="round"
-                      strokeDasharray={`${(253.1 * (readiness.overall_score ?? 0)) / 100} 300`}
+                      strokeDasharray={`${(253.1 * (readinessScore ?? 0)) / 100} 300`}
                       strokeDashoffset="0"
                     />
                   </svg>
                   <div className="s9-gauge-center-text">
-                    <span className="s9-gauge-score">{readiness.overall_score ?? "—"}</span>
-                    <span className="s9-gauge-denom">/ 100</span>
+                    <span className="s9-gauge-score">{readinessScore ?? "—"}</span>
+                    {readinessScore != null && <span className="s9-gauge-denom">/ 100</span>}
                   </div>
                 </div>
 
                 <div className="s9-readiness-badge">
                   <Trophy size={16} className="s9-trophy-icon" />
-                  <span>{readiness.status_label || "Good Readiness"}</span>
+                  <span>{readiness.overall_score != null && readiness.status_label ? readiness.status_label : readinessScore != null ? "Released assessment" : "Awaiting assessment"}</span>
                 </div>
               </div>
 
@@ -3524,24 +3524,16 @@ function ImprovementJourneyScreens() {
               <div className="s9-competencies-col">
                 <h3 className="s9-section-heading">Competency Readiness</h3>
                 <div className="s9-competency-list">
-                  {(readiness.competencies || []).map((item: any, idx: number) => (
-                    <div key={idx} className="s9-competency-item">
-                      <div className="s9-comp-name-group">
-                        <span className="s9-comp-dot" style={{ background: item.dot_color || item.dotColor || "#2563eb" }} />
-                        <span className="s9-comp-name">{item.name}</span>
-                      </div>
-                      <div className="s9-comp-track">
-                        <div
-                          className="s9-comp-fill"
-                          style={{
-                            width: `${item.percentage}%`,
-                            background: item.color || item.barColor || "#2563eb",
-                          }}
-                        />
-                      </div>
-                      <span className="s9-comp-pct">{item.percentage}%</span>
-                    </div>
-                  ))}
+                  {competencies.size ? Array.from(competencies, ([name, score]) => (
+                    <label key={name} className="journey-skill">
+                      <span>{name}</span><strong>{score}%</strong>
+                      <progress max={100} value={score} aria-label={name} />
+                    </label>
+                  )) : <div className="journey-preview">
+                    <h4>Example skills to practice</h4>
+                    <ul>{practiceExamples.map(item => <li key={item.focus}>{item.focus}</li>)}</ul>
+                    <p>Scores appear when your competency assessment is released.</p>
+                  </div>}
                 </div>
               </div>
             </div>
@@ -3550,9 +3542,9 @@ function ImprovementJourneyScreens() {
             <div className="s9-bottom-grid">
               {/* Left: Recommended Next Steps */}
               <div className="s9-subcard">
-                <h3 className="s9-section-heading">Recommended Next Steps</h3>
+                <h3 className="s9-section-heading">{readinessSteps.length ? "Recommended Next Steps" : "Example Practice Steps"}</h3>
                 <div className="s9-steps-list">
-                  {(readiness.recommended_steps || []).map((step: string, idx: number) => (
+                  {(readinessSteps.length ? readinessSteps : practiceExamples.map(item => item.activity)).map((step: string, idx: number) => (
                     <div key={idx} className="s9-step-item">
                       <CheckCircle2 size={18} className="s9-step-icon" />
                       <span className="s9-step-text">{step}</span>
@@ -3565,7 +3557,11 @@ function ImprovementJourneyScreens() {
               <div className="s9-subcard">
                 <h3 className="s9-section-heading">Target Placement Drives</h3>
                 <div className="s9-drives-list">
-                  {(readiness.target_drives || []).map((drive: any, idx: number) => (
+                  {!targetDrives.length && <div className="journey-preview">
+                    <p>Browse open drives to find roles and check their eligibility and interview windows.</p>
+                    <Link to="/placements">Browse placement drives</Link>
+                  </div>}
+                  {targetDrives.map((drive: any, idx: number) => (
                     <div key={idx} className="s9-drive-item">
                       <div className="s9-drive-company">
                         <div className="s9-drive-icon-box">
@@ -3578,7 +3574,7 @@ function ImprovementJourneyScreens() {
                         className="s9-drive-timing"
                         onClick={() => navigateTo(1, { phase: "details" })}
                       >
-                        <span>{drive.timing}</span>
+                        <span>{drive.timing || "View details"}</span>
                         <ChevronRight size={14} />
                       </button>
                     </div>

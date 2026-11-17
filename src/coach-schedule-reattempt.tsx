@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from './auth';
 import { api, json } from './api';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { CoachTopNav } from './coach-top-nav';
 import './coach-approved.css';
 
@@ -487,7 +487,7 @@ export function CoachScheduleReattempt() {
         <div className="reattempt-plan-header">
           <h2 className="reattempt-plan-title">Re-attempt Interview Plan</h2>
           <p className="reattempt-plan-subtitle">
-            You can re-attempt the AI interview up to 3 times as per your plan.
+            Re-attempt availability depends on your placement drive.
           </p>
         </div>
 
@@ -497,7 +497,18 @@ export function CoachScheduleReattempt() {
             <span>Loading your re-attempt plan…</span>
           </div>
         ) : !plan?.attempts.length ? (
-          <div role="status"><h3>No interview schedule available</h3><p>{error || 'Your saved attempts will appear here when available from your placement drive.'}</p><button className="coach-secondary" onClick={() => window.location.reload()}>Retry</button></div>
+          <section className="journey-preview">
+            <h3>{error ? 'Could not load your re-attempt plan' : 'No re-attempt booked yet'}</h3>
+            {error && <p role="status">{error}</p>}
+            <h4>Example preparation plan</h4>
+            <ol>
+              <li>Review feedback from your previous interview.</li>
+              <li>Practice one improved answer and complete a mock interview.</li>
+              <li>Check your placement drive for an available slot.</li>
+            </ol>
+            {error ? <button className="coach-secondary" onClick={() => window.location.reload()}>Retry</button>
+              : <Link to="/placements">Check placement drives</Link>}
+          </section>
         ) : (
           <div className="reattempt-content-grid">
             {/* Left Column: 3 Attempt Cards + Bottom Banner */}
