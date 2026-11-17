@@ -38,6 +38,7 @@ export function LivePlacementOfficerCall() {
   const analyserRef = useRef<AnalyserNode | null>(null);
   const audioSource = useRef<MediaElementAudioSourceNode | null>(null);
   const [listening, setListening] = useState(false);
+  const [handsFree, setHandsFree] = useState(false);
   const [muted, setMuted] = useState(false);
   const [input, setInput] = useState("");
   const [interim, setInterim] = useState("");
@@ -49,9 +50,14 @@ export function LivePlacementOfficerCall() {
   const audioUrl = useRef<string | null>(null);
   const speechRequest = useRef<AbortController | null>(null);
   const speechEpoch = useRef(0);
+  const deviceNarration = useRef<SpeechSynthesisUtterance | null>(null);
 
   function stopVoice() {
     speechEpoch.current += 1;
+    if (deviceNarration.current) {
+      deviceNarration.current = null;
+      window.speechSynthesis.cancel();
+    }
     speechRequest.current?.abort();
     speechRequest.current = null;
     if (audio.current) {
@@ -83,6 +89,7 @@ export function LivePlacementOfficerCall() {
   }
   function stopCall() {
     turnGeneration.current += 1;
+    setHandsFree(false);
     setThinking(false);
     stopListening();
     stopVoice();
@@ -212,6 +219,22 @@ export function LivePlacementOfficerCall() {
     } catch (cause) {
       if (mounted.current && epoch === speechEpoch.current && !controller.signal.aborted) {
         stopVoice();
+        const voice = window.speechSynthesis?.getVoices().find(item => item.localService && /^en(-|$)/i.test(item.lang));
+        if (voice) {
+          const line = new SpeechSynthesisUtterance(text);
+          line.voice = voice;
+          line.lang = voice.lang;
+          deviceNarration.current = line;
+          const finish = () => {
+            if (deviceNarration.current === line) stopVoice();
+          };
+          line.onend = finish;
+          line.onerror = finish;
+          setSpeaking(true);
+          setNotice("Using your device’s voice for this reply.");
+          window.speechSynthesis.speak(line);
+          return;
+        }
         setNotice(cause instanceof Error ? cause.message : "Coach voice is unavailable. You can continue using the transcript.");
       }
     }
@@ -242,9 +265,9 @@ export function LivePlacementOfficerCall() {
     await coachTurn('');
   }
   function listen() {
-    if (listening) { stopListening(); return; }
+    if (listening || recognition.current) return;
     const Constructor = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!Constructor) { setNotice("Voice input is unavailable in this browser. Type your message below."); return; }
+    if (!Constructor) { setHandsFree(false); setNotice("Voice input is unavailable in this browser. Type your message below."); return; }
     stopVoice();
     setSpeaking(false);
     const instance = new Constructor();
@@ -261,11 +284,24 @@ export function LivePlacementOfficerCall() {
         setInterim(transcript);
       }
     };
-    instance.onerror = event => { if (mounted.current) setNotice(event.error === "not-allowed" ? "Microphone permission was denied. You can type instead." : "Voice input stopped. Try again or type your message."); };
-    instance.onend = () => { if (mounted.current) { setListening(false); setInterim(""); } recognition.current = null; };
+    instance.onerror = event => { if (mounted.current) { setHandsFree(false); setNotice(event.error === "not-allowed" ? "Microphone permission was denied. You can type instead." : "Voice input paused. Select Speak to resume or type your message."); } };
+    instance.onend = () => { if (recognition.current !== instance) return; recognition.current = null; if (mounted.current) { setListening(false); setInterim(""); } };
     recognition.current = instance;
     try { instance.start(); setListening(true); }
-    catch { stopListening(); setNotice("The microphone could not start. Try typing instead."); }
+    catch { setHandsFree(false); stopListening(); setNotice("The microphone could not start. Try typing instead."); }
+  }
+  useEffect(() => {
+    if (active && handsFree && !listening && !thinking && !preparingVoice && !speaking) listen();
+  }, [active, handsFree, listening, thinking, preparingVoice, speaking]);
+
+  function toggleListening() {
+    if (handsFree || listening) {
+      setHandsFree(false);
+      stopListening();
+    } else {
+      setHandsFree(true);
+      listen();
+    }
   }
   function submit(event: FormEvent) { event.preventDefault(); reply(input); }
   const navigationParams = new URLSearchParams(params);
@@ -285,16 +321,16 @@ export function LivePlacementOfficerCall() {
         <div className="officer-wave" aria-hidden="true">{Array.from({ length: 15 }, (_, index) => <i key={index} style={{ animationDelay: `${index * 0.09}s` }} />)}</div>
         <p className="officer-stage-caption">A little guidance. A clearer next step.</p>
         <div className="officer-controls">
-          {!active ? <button className="button primary" disabled={!context || !storageKey || hydratedKey !== storageKey} onClick={startCall}><PhoneCall size={18} /> Start call</button> : <><button className="button secondary" onClick={listen} aria-pressed={listening}>{listening ? <MicOff size={18} /> : <Mic size={18} />}{listening ? "Stop listening" : "Speak"}</button><button className="officer-end button" onClick={stopCall}><PhoneOff size={18} /> End call</button></>}
+          {!active ? <button className="button primary" disabled={!context || !storageKey || hydratedKey !== storageKey} onClick={startCall}><PhoneCall size={18} /> Start call</button> : <><button className="button secondary" onClick={toggleListening} aria-pressed={handsFree}>{listening ? <MicOff size={18} /> : <Mic size={18} />}{handsFree ? "Pause microphone" : "Speak"}</button><button className="officer-end button" onClick={stopCall}><PhoneOff size={18} /> End call</button></>}
           <button className="button secondary" aria-label={muted ? "Enable officer voice" : "Mute officer voice"} aria-pressed={muted} onClick={() => { setMuted(!muted); if (!muted) stopVoice(); }}>{muted ? <VolumeX size={18} /> : <Volume2 size={18} />}</button>
         </div>
       </section>
       <section className="officer-conversation" aria-label="Call conversation"><header><h2>Live conversation</h2><span>Saved for this opportunity</span></header>
         <div className="officer-transcript" ref={transcript} role="log" tabIndex={0} aria-label="Conversation history" aria-live="polite" aria-relevant="additions"><p className="officer-intro">{guidanceMode ? "Discuss this page using your available records. Coaching provides guidance and does not change your plans or eligibility." : atsMode ? "Discuss your resume, ATS score and gaps against the selected job description. No interview is required for ATS guidance." : "Discuss your interview assessment and prepare for your next attempt with evidence-based guidance."}</p>{messages.map((message, index) => <article key={index} className={`officer-message ${message.speaker}`}><b>{message.speaker === "officer" ? "Placement officer" : "You"}</b><p>{message.text}</p></article>)}{interim && <p className="officer-interim">Listening: {interim}</p>}</div>
-        <div className="officer-prompts">{(guidanceMode ? ["Help me understand this page", "What should I focus on?", "Explain my available feedback", "Suggest my next step"] : atsMode ? ["Explain my ATS score", "Which requirements need evidence?", "Improve my resume for this role", "What should I prepare first?"] : ["Library resources", "Faculty guidance", "Alumni mentorship", "Schedule my next attempt"]).map(prompt => <button key={prompt} disabled={!active} onClick={() => reply(prompt)}>{prompt}</button>)}</div>
+        <div className="officer-prompts">{(guidanceMode ? ["Help me understand this page", "What should I focus on?", "Explain my available feedback", "Suggest my next step"] : atsMode ? ["Explain my ATS score", "Which requirements need evidence?", "Improve my resume for this role", "What should I prepare first?"] : ["Suggest an improvement plan", "Study resources", "Schedule my next attempt"]).map(prompt => <button key={prompt} disabled={!active} onClick={() => reply(prompt)}>{prompt}</button>)}</div>
         <form onSubmit={submit}><label className="sr-only" htmlFor="officer-message">Your message to the placement officer</label><input id="officer-message" value={input} maxLength={2000} disabled={!active} onChange={event => setInput(event.target.value)} placeholder={active ? "Ask your placement officer…" : "Start a call to join the conversation"} /><button className="button primary" aria-label="Send message" disabled={!active || !input.trim()}><Send size={18} /></button></form>
       </section>
     </div>
-    {guidanceMode ? <footer className="officer-next"><Link className="button secondary" to={returnPath}>Back to your page</Link><span>Guidance based on your available page records.</span></footer> : atsMode ? <footer className="officer-next"><Link className="button secondary" to={`/ats-fit?drive=${encodeURIComponent(driveId)}`}>Back to ATS Fit</Link><span>Guidance uses your current resume and the selected job requirements.</span></footer> : <footer className="officer-next"><Link className="button secondary" to={`/placement/plan?${query}`}>Open learning plan</Link><Link className="button secondary" to={`/placement/reattempt?${query}`}>Schedule re-attempt</Link><span>Confirm availability and bookings in the scheduling screen.</span></footer>}
+    {guidanceMode ? <footer className="officer-next"><Link className="button secondary" to={returnPath}>Back to your page</Link><span>Guidance based on your available page records.</span></footer> : atsMode ? <footer className="officer-next"><Link className="button secondary" to={`/ats-fit?drive=${encodeURIComponent(driveId)}`}>Back to ATS Fit</Link><span>Guidance uses your current resume and the selected job requirements.</span></footer> : <footer className="officer-next"><Link className="button secondary" to={`/placement/plan?${query}`}>Open learning plan</Link><Link className="button secondary" to={`/placement/resources?${query}`}>Study resources</Link><Link className="button secondary" to={`/placement/schedule?${query}`}>Study schedule</Link><Link className="button secondary" to={`/placement/reattempt?${query}`}>Schedule re-attempt</Link><span>Confirm availability and bookings in the scheduling screen.</span></footer>}
   </section>;
 }
