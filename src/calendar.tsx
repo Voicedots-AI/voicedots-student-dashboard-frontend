@@ -52,7 +52,7 @@ type CalendarEvent = {
   id: string; kind: Kind; date: string; title: string; subtitle: string;
   startsAt?: number; endsAt?: number; dateOnly?: boolean; location?: string;
   status?: string; durationMinutes?: number; plan_id?: string; session_id?: string;
-  cycle_id?: string; session_type?: string; interviewAction?: string;
+  cycle_id?: string; session_type?: string; interviewAction?: string; drive_id?: string;
   interviewResumeAvailable?: boolean; resultAvailable?: boolean; personal?: PersonalEvent;
   coachDetails?: CoachPracticeDetails;
 };
@@ -241,7 +241,7 @@ export function Calendar() {
       return [{ id: drive.id, kind: "placement" as const, date, title: drive.role_title, subtitle: drive.company_name, startsAt, endsAt, dateOnly: !drive.window_start_at, location: drive.location, status: drive.is_locked ? "locked" : drive.interview_status || drive.status, interviewAction: drive.is_locked ? "blocked" : drive.interview_action, interviewResumeAvailable: !drive.is_locked && drive.main_resume_available !== false, resultAvailable: drive.interview_result_available }];
     }),
     ...(coach.data?.events || []).map((item) => {
-      const event = item as { id: string; date: string; title: string; subtitle: string; time?: string; duration_minutes?: number; status?: string; plan_id?: string; session_id?: string; cycle_id?: string; session_type?: string };
+      const event = item as { id: string; date: string; title: string; subtitle: string; time?: string; duration_minutes?: number; status?: string; plan_id?: string; session_id?: string; cycle_id?: string; session_type?: string; drive_id?: string };
       const date = /^\d{4}-\d{2}-\d{2}$/.test(event.date) ? event.date : indiaDateParts(new Date(event.date));
       const startsAt = event.time ? Date.parse(event.time) : Date.parse(`${date}T00:00:00+05:30`);
       return { ...event, kind: "coach" as const, date, startsAt, endsAt: event.time ? startsAt + (event.duration_minutes || 30) * 60000 : dayEnd(date), durationMinutes: event.duration_minutes || 30 };
@@ -343,6 +343,11 @@ export function Calendar() {
   }
   function resultFor(event: CalendarEvent) { return event.resultAvailable ? (reports.data?.reports || []).find((report) => report.drive_id === event.id && report.submission_id && !["held_for_review", "processing", "failed"].includes(report.status)) : undefined; }
   function eventPrimaryAction(event: CalendarEvent) {
+    if (event.kind === "coach" && event.drive_id) {
+      setDetail(null);
+      navigate(`/placement/schedule?drive=${encodeURIComponent(event.drive_id)}`);
+      return;
+    }
     if (event.coachDetails || event.kind === "coach") {
       setDetail(null);
       navigate(coachCallPath('', '/calendar', {plan:event.plan_id || ''}));
@@ -355,6 +360,7 @@ export function Calendar() {
     openSystemEvent(event);
   }
   function eventActionLabel(event: CalendarEvent) {
+    if (event.kind === "coach" && event.drive_id) return "Open learning schedule";
     if (event.kind === "placement") return event.interviewResumeAvailable && event.interviewAction === "resume" ? "Continue interview" : event.interviewResumeAvailable && ["start", "retry_preparation"].includes(event.interviewAction || "") ? "Join / Continue" : "View opportunity";
     if (event.coachDetails || event.kind === "coach") return "Start Practice with AI Coach";
     return event.personal?.meeting_url ? "Open meeting" : "View event";

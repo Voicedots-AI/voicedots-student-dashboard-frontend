@@ -1413,9 +1413,7 @@ function ImprovementJourneyScreens() {
       setData(res);
       if (res?.company_name) setCompanyName(res.company_name);
       if (res?.role_title) setTargetRole(res.role_title);
-      if (res?.daily_schedule && Array.isArray(res.daily_schedule) && res.daily_schedule.length > 0) {
-        setScheduleTasks(res.daily_schedule);
-      }
+      setScheduleTasks(Array.isArray(res?.daily_schedule) ? res.daily_schedule : []);
       if (!savedContext && res?.interview_result?.submitted_answers?.length) {
         const backendContext: SavedInterviewContext = {
           drive_id: res.drive_id || selectedDriveId,
@@ -3184,85 +3182,22 @@ function ImprovementJourneyScreens() {
               </button>
             </div>
 
-            {/* List of 4 Improvement Topic Cards */}
             <div className="s4-cards-list">
-              {[
-                {
-                  id: "technical",
-                  title: "Technical Knowledge",
-                  topics: "Data Structures, Algorithms, Operating Systems",
-                  priority: "High",
-                  targetScore: "80+",
-                  icon: Code2,
-                  titleColor: "#dc2626",
-                  iconBg: "#ef4444",
-                },
-                {
-                  id: "problem",
-                  title: "Problem Solving",
-                  topics: "Coding Practice, Logical Thinking, Case Studies",
-                  priority: "High",
-                  targetScore: "75+",
-                  icon: Brain,
-                  titleColor: "#2563eb",
-                  iconBg: "#2563eb",
-                },
-                {
-                  id: "communication",
-                  title: "Communication Skills",
-                  topics: "Answer Structure, Clarity, Examples, Body Language",
-                  priority: "Medium",
-                  targetScore: "70+",
-                  icon: MessageSquare,
-                  titleColor: "#059669",
-                  iconBg: "#10b981",
-                },
-                {
-                  id: "domain",
-                  title: "Domain Knowledge",
-                  topics: "Core CS Concepts, Current Trends, Real-world Applications",
-                  priority: "Medium",
-                  targetScore: "70+",
-                  icon: Sparkles,
-                  titleColor: "#1d4ed8",
-                  iconBg: "#2563eb",
-                },
-              ].map((item) => {
-                const IconComponent = item.icon;
-                return (
-                  <div key={item.id} className="s4-topic-card">
-                    {/* Left: Icon Box + Title & Topics */}
-                    <div className="s4-topic-left">
-                      <div className="s4-topic-icon-box" style={{ background: item.iconBg }}>
-                        <IconComponent size={24} color="#ffffff" />
-                      </div>
-                      <div className="s4-topic-info">
-                        <h3 className="s4-topic-title" style={{ color: item.titleColor }}>
-                          {item.title}
-                        </h3>
-                        <p className="s4-topic-desc">{item.topics}</p>
-                      </div>
-                    </div>
-
-                    {/* Right: Priority & Target Score */}
-                    <div className="s4-topic-right">
-                      <div className="s4-meta-col">
-                        <span className="s4-meta-label">Priority</span>
-                        <span className={`s4-priority-pill ${item.priority.toLowerCase()}`}>
-                          {item.priority}
-                        </span>
-                      </div>
-
-                      <div className="s4-meta-col">
-                        <span className="s4-meta-label">Target Score</span>
-                        <span className="s4-target-score">{item.targetScore}</span>
-                      </div>
-                    </div>
+              {data.improvement_plan.focus_areas.map((item: {focus: string; activity: string}) => (
+                <article key={item.focus} className="s4-topic-card">
+                  <div className="s4-topic-info">
+                    <h3 className="s4-topic-title">{item.focus}</h3>
+                    <p className="s4-topic-desc">{item.activity}</p>
                   </div>
-                );
-              })}
+                </article>
+              ))}
             </div>
-
+            {data.improvement_plan.coach_notes?.length > 0 && (
+              <section aria-label="Saved AI Coach discussion">
+                <h3>Notes from your AI Coach discussion</h3>
+                {data.improvement_plan.coach_notes.map((note: string, index: number) => <p key={index}>{note}</p>)}
+              </section>
+            )}
           </div>
         </div>
       )}

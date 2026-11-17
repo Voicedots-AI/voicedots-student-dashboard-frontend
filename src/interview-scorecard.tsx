@@ -135,10 +135,16 @@ export function InterviewScorecard({ view, sessionId, role, company }: { view: I
   const [coachVoiceError, setCoachVoiceError] = useState('');
   const [coachVoiceLoading, setCoachVoiceLoading] = useState(false);
   const coachAudioText = useRef('');
+  const coachDeviceSpeech = useRef<SpeechSynthesisUtterance | null>(null);
 
   function stopCoachVoice() {
     coachSpeechRequest.current?.abort();
     coachSpeechRequest.current = null;
+    if (coachDeviceSpeech.current) {
+      coachDeviceSpeech.current.onend = coachDeviceSpeech.current.onerror = null;
+      coachDeviceSpeech.current = null;
+      window.speechSynthesis.cancel();
+    }
     if (coachAudio.current) {
       coachAudio.current.onplaying = null;
       coachAudio.current.onended = null;
@@ -153,7 +159,6 @@ export function InterviewScorecard({ view, sessionId, role, company }: { view: I
     setIsCoachSpeaking(false);
   }
 
-  // Use the same canonical male voice as Dr. Rajesh's coach call.
   async function speakCoachText(text: string, userInitiated = false) {
     // Retry cached audio directly within the click gesture when autoplay was blocked.
     if (userInitiated && coachAudio.current && coachAudioText.current === text) {
@@ -171,8 +176,10 @@ export function InterviewScorecard({ view, sessionId, role, company }: { view: I
     setCoachVoiceLoading(true);
     const controller = new AbortController();
     coachSpeechRequest.current = controller;
+    const deadline = AbortSignal.timeout(6000);
     try {
-      const blob = await requestCoachSpeech(text, controller.signal, identity?.student.id || '');
+      const signal = AbortSignal.any([controller.signal, deadline]);
+      const blob = await requestCoachSpeech(text, signal, identity?.student.id || '');
       if (controller.signal.aborted) return;
       if (!blob.size) throw new Error('Empty coach audio');
       const url = URL.createObjectURL(blob);
@@ -197,7 +204,26 @@ export function InterviewScorecard({ view, sessionId, role, company }: { view: I
         return;
       }
       stopCoachVoice();
-      setCoachVoiceError(cause instanceof Error ? cause.message : 'Voice is unavailable. You can continue reading the conversation.');
+      const voices = window.speechSynthesis?.getVoices().filter(voice => voice.localService && /^en(-|$)/i.test(voice.lang)) || [];
+      const voice = voices.find(item => /^en-in$/i.test(item.lang)) || voices[0];
+      if (voice) {
+        const cue = new SpeechSynthesisUtterance(text);
+        cue.voice = voice;
+        cue.lang = voice.lang;
+        coachDeviceSpeech.current = cue;
+        cue.onend = stopCoachVoice;
+        cue.onerror = () => {
+          stopCoachVoice();
+          setCoachVoiceError('Device voice could not play. You can read the reply or select Play voice to retry.');
+        };
+        setIsCoachSpeaking(true);
+        setCoachVoiceError('Using your device’s voice for this reply.');
+        window.speechSynthesis.speak(cue);
+        return;
+      }
+      setCoachVoiceError(deadline.aborted
+        ? 'Coach voice took too long. You can read the reply or select Play voice to retry.'
+        : cause instanceof Error ? cause.message : 'Voice is unavailable. You can continue reading the conversation.');
     } finally {
       if (!controller.signal.aborted) setCoachVoiceLoading(false);
     }
@@ -877,13 +903,16 @@ export function InterviewScorecard({ view, sessionId, role, company }: { view: I
                   {!coachIntro && <Link className="s3-btn-readjust" to={coachCallPath(callParams.toString(), `/reports/${encodeURIComponent(sessionId)}`, {report_session_id:sessionId})} onClick={() => { stopCoachVoice(); setShowCoachPopup(false); }}><PhoneCall size={16} /> Call AI Coach Now</Link>}
                   <button
                     type="button"
-                    disabled={openingPlan || !callDriveId}
+                    disabled={openingPlan || discussionBusy || !callDriveId}
                     className="s3-btn-start-plan"
                     onClick={async () => {
                       setOpeningPlan(true);
                       setPlanError('');
                       try {
-                        await api(`/api/student/coach/improvement-journey?drive_id=${encodeURIComponent(callDriveId)}`);
+                        await api('/api/student/coach/improvement-journey/plan', {
+                          method: 'POST',
+                          ...json({ drive_id: callDriveId, report_session_id: sessionId }),
+                        });
                         stopCoachVoice();
                         setShowCoachPopup(false);
                         navigate(`/placement/plan?${callParams.toString()}`);
