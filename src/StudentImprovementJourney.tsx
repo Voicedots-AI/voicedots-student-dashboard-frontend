@@ -3552,7 +3552,7 @@ function ImprovementJourneyScreens() {
           SCREEN 9: Placement Readiness Dashboard
           ========================================================================= */}
       {currentScreen === 9 && (
-        <div className="coach-approved-page" style={{ padding: 0 }}>
+        <div className="coach-approved-page journey-readiness-page" style={{ padding: 0 }}>
           <CoachTopNav activeTab="readiness" />
 
           {/* Dynamic Screen Top Header with [9] badge, Real Notifications, and Real Student Candidate Chip */}
@@ -3663,7 +3663,7 @@ function ImprovementJourneyScreens() {
             </div>
 
             {/* Bottom Actions */}
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "28px", paddingTop: "20px", borderTop: "1px solid #f1f5f9" }}>
+            <div className="journey-readiness-actions">
               <button type="button" className="vd-btn-secondary" onClick={() => navigateTo(8)}>
                 ← Back to Progress Tracking
               </button>

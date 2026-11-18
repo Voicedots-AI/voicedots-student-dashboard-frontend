@@ -419,3 +419,34 @@ dialog.modal.coach-contribution-dialog{position:fixed;inset:0;margin:auto;width:
 }
 .journey-practice-steps{padding-left:20px;margin:12px 0;font-size:13px;line-height:1.7;color:#42617e}.journey-success-check{padding:10px 12px;background:#f0f8ff;border-radius:8px;font-size:13px;line-height:1.6}
 .journey-learning-meter{width:100%;accent-color:#059669}.s8-metric-value{overflow-wrap:anywhere;}
+
+/* Fit readiness into the desktop workspace while preserving readable mobile flow. */
+.journey-readiness-page .coach-top-navbar { margin-bottom: 10px; padding: 8px; gap: 6px; }
+.journey-readiness-page .s-portal-screen-header { padding: 10px 16px; margin-bottom: 12px; }
+.journey-readiness-page .s-portal-card { padding: 20px; }
+.journey-readiness-page .s9-main-title { font-size: 20px; margin-bottom: 16px; }
+.journey-readiness-page .s9-top-grid { grid-template-columns: 210px minmax(0, 1fr); gap: 24px; align-items: start; padding-bottom: 16px; margin-bottom: 16px; }
+.journey-readiness-page .s9-gauge-box { padding: 12px; }
+.journey-readiness-page .s9-gauge-wrapper { width: 140px; height: 140px; }
+.journey-readiness-page .s9-gauge-center-text { white-space: nowrap; }
+.journey-readiness-page .s9-gauge-score { font-size: 34px; }
+.journey-readiness-page .s9-readiness-badge { margin-top: 4px; padding: 5px 10px; font-size: 11px; }
+.journey-readiness-page .s9-section-heading { margin-bottom: 10px; font-size: 15px; }
+.journey-readiness-page .s9-competency-list { gap: 8px; }
+.journey-readiness-page .journey-skill { margin: 0; padding: 0; gap: 3px 12px; font-size: 12px; line-height: 1.3; min-width: 0; }
+.journey-readiness-page .journey-skill progress { margin: 0; height: 7px; }
+.journey-readiness-page .s9-bottom-grid { grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 16px; }
+.journey-readiness-page .s9-subcard { padding: 14px 16px; border-radius: 12px; }
+.journey-readiness-page .s9-steps-list { gap: 7px; }
+.journey-readiness-page .s9-step-item { gap: 8px; align-items: start; }
+.journey-readiness-page .s9-step-text { font-size: 12px; line-height: 1.5; }
+.journey-readiness-page .s9-step-icon { width: 15px; height: 15px; margin-top: 2px; }
+.journey-readiness-page .s9-drive-item { flex-wrap: wrap; gap: 8px; }
+.journey-readiness-page .s9-drive-name { font-size: 13px; }
+.journey-readiness-actions { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 14px; padding-top: 12px; border-top: 1px solid #edf2f8; }
+@media(max-width:700px) {
+  .journey-readiness-page .s9-top-grid,
+  .journey-readiness-page .s9-bottom-grid { grid-template-columns: 1fr; }
+  .journey-readiness-page .s-portal-card { padding: 14px; }
+  .journey-readiness-page .s9-gauge-box { justify-self: stretch; }
+}
