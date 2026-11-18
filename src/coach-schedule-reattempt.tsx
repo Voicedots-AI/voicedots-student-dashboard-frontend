@@ -50,6 +50,12 @@ type ReattemptPlan = {
   };
 };
 
+function indiaDate(value: Date) {
+  const parts = new Intl.DateTimeFormat('en-CA', {timeZone:'Asia/Kolkata',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(value);
+  const part = (type: string) => parts.find(item => item.type === type)?.value;
+  return `${part('year')}-${part('month')}-${part('day')}`;
+}
+
 /**
  * Embedded Custom Calendar Picker (No browser default input[type=date])
  */
@@ -57,10 +63,12 @@ function CustomCalendarPicker({
   selectedDate,
   onSelectDate,
   minDate,
+  maxDate,
 }: {
   selectedDate: string;
   onSelectDate: (dateStr: string) => void;
   minDate: string;
+  maxDate?: string;
 }) {
   const [currentMonth, setCurrentMonth] = useState<Date>(() => {
     if (selectedDate) {
@@ -104,6 +112,7 @@ function CustomCalendarPicker({
     const mm = String(target.getMonth() + 1).padStart(2, '0');
     const dd = String(target.getDate()).padStart(2, '0');
     const str = `${yyyy}-${mm}-${dd}`;
+    if (str < minDate || maxDate && str > maxDate) return;
     setCurrentMonth(new Date(yyyy, target.getMonth(), 1));
     onSelectDate(str);
   }
@@ -137,10 +146,7 @@ function CustomCalendarPicker({
   // Days of current month
   for (let d = 1; d <= totalDays; d++) {
     const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-    const cellDate = new Date(year, month, d);
-    const minD = new Date(minDate);
-    minD.setHours(0, 0, 0, 0);
-    const isDisabled = cellDate < minD;
+    const isDisabled = dateStr < minDate || !!maxDate && dateStr > maxDate;
 
     cells.push({
       day: d,
@@ -304,11 +310,11 @@ export function CoachScheduleReattempt() {
     if (target?.scheduled_for) {
       try {
         const d = new Date(target.scheduled_for);
-        const yyyy = d.getFullYear();
-        const mm = String(d.getMonth() + 1).padStart(2, '0');
-        const dd = String(d.getDate()).padStart(2, '0');
-        setSelectedDate(`${yyyy}-${mm}-${dd}`);
-        setSelectedTime(d.toTimeString().slice(0, 5));
+        if (!Number.isFinite(d.getTime())) throw new Error('Invalid saved slot');
+        setSelectedDate(indiaDate(d));
+        setSelectedTime(new Intl.DateTimeFormat('en-GB', {
+          timeZone:'Asia/Kolkata',hour:'2-digit',minute:'2-digit',hourCycle:'h23',
+        }).format(d));
       } catch {
         initDefaultDate();
       }
@@ -429,8 +435,9 @@ export function CoachScheduleReattempt() {
   const modes = plan?.options?.modes || ['AI Avatar Interview', 'Audio Interview', 'Text & Code Interview'];
 
   const minDateString = (() => {
-    const today = new Date();
-    return today.toISOString().split('T')[0];
+    const today = indiaDate(new Date());
+    const start = drive?.window_start_at ? indiaDate(new Date(drive.window_start_at)) : today;
+    return start > today ? start : today;
   })();
 
   return (
@@ -528,7 +535,7 @@ export function CoachScheduleReattempt() {
                   const outcome = interviewOutcome(attempt.session_status, attempt.termination_reason) ||
                     (completed && report?.attempt_number === attempt.attempt_number ? reportOutcome : '');
                   const scheduled = attempt.status === 'scheduled';
-                  return <article key={attempt.attempt_number} className="reattempt-card">
+                  return <article key={attempt.attempt_number} className={`reattempt-card ${completed ? 'attempt-completed' : scheduled ? 'attempt-scheduled' : 'attempt-not-scheduled'}`}>
                     <div className="reattempt-card-header">
                       <span className="reattempt-card-title">Attempt {attempt.attempt_number}</span>
                       <span className={`reattempt-status-chip ${completed ? 'completed' : scheduled ? 'scheduled' : 'not-scheduled'}`}>
@@ -536,7 +543,13 @@ export function CoachScheduleReattempt() {
                       </span>
                     </div>
                     <div className="reattempt-card-body">
-                      {completed && attempt.score != null && <strong>{attempt.score} / {attempt.max_score ?? 100}</strong>}
+                      <div className={`reattempt-icon-circle ${completed && !outcome ? 'green-circle' : 'blue-circle'}`}>
+                        {outcome ? <AlertCircle size={26} /> : completed ? <Check size={26} /> : <CalendarDays size={26} />}
+                      </div>
+                      {completed && attempt.score != null && <div className="reattempt-score-box"><strong className="score-value">{attempt.score}</strong><span className="score-max"> / {attempt.max_score ?? 100}</span></div>}
+                      {completed && !attempt.date && attempt.completed_at && <span>{new Intl.DateTimeFormat('en-IN', {
+                        day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata'
+                      }).format(new Date(attempt.completed_at))}</span>}
                       {outcome && <span>{outcome}</span>}
                       {attempt.date && <span>{[attempt.date, attempt.time].filter(Boolean).join(' · ')}</span>}
                       {!completed && canSchedule && attempt.attempt_number === drive?.interview_next_attempt_number && attempt.can_schedule !== false && (
@@ -689,6 +702,7 @@ export function CoachScheduleReattempt() {
                   selectedDate={selectedDate}
                   onSelectDate={dateStr => setSelectedDate(dateStr)}
                   minDate={minDateString}
+                  maxDate={drive?.window_end_at ? indiaDate(new Date(drive.window_end_at)) : undefined}
                 />
               </div>
 

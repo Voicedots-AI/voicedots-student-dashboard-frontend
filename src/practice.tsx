@@ -44,6 +44,7 @@ export function Practice() {
   const { identity } = useAuth();
   const [params] = useSearchParams();
   const requestedDriveId = params.get("drive");
+  const practiceDriveId = params.get("practice_drive");
   const completedSessionParam = params.get("completed_session");
   const [mode, setMode] = useState<"practice" | "placement">(requestedDriveId ? "placement" : "practice");
   const [selectedDriveId, setSelectedDriveId] = useState(requestedDriveId || "");
@@ -72,6 +73,18 @@ export function Practice() {
     return saved === "beginner" || saved === "intermediate" || saved === "advanced" ? saved : "dynamic";
   });
   const [jd, setJd] = useState(() => sessionStorage.getItem(`${draftKey}:jd`) || "");
+  useEffect(() => {
+    if (!practiceDriveId || drives.loading) return;
+    const drive = drives.data?.find(item => item.id === practiceDriveId);
+    if (!drive) return;
+    setMode("practice");
+    setRole(drive.role_title);
+    setJd(drive.job_description || "");
+    if (drive.interview_duration_minutes) setDuration(String(drive.interview_duration_minutes));
+    if (["beginner", "intermediate", "advanced"].includes(drive.difficulty_tier || "")) {
+      setDifficulty(drive.difficulty_tier as "beginner" | "intermediate" | "advanced");
+    }
+  }, [practiceDriveId, drives.data, drives.loading]);
   const [jdBusy, setJdBusy] = useState(false);
   const [jdError, setJdError] = useState("");
   const [context, setContext] = useState<DriveContext | null>(null);

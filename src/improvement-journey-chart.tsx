@@ -4,8 +4,8 @@ import './improvement-journey-chart.css';
 
 type Point = { milestone: string; date: string; overall: number; technical: number | null; communication: number | null };
 const metrics = [
-  { key: 'overall', label: 'Overall score', color: '#2563eb' },
-  { key: 'technical', label: 'Technical', color: '#0284c7' },
+  { key: 'overall', label: 'Overall score', color: '#8054d6' },
+  { key: 'technical', label: 'Technical', color: '#2563eb' },
   { key: 'communication', label: 'Communication', color: '#059669' },
 ] as const;
 type Metric = typeof metrics[number]['key'];
@@ -39,7 +39,12 @@ export function ImprovementJourneyChart({ points, onReport }: { points: Point[];
     <header className="improvement-chart-heading">
       <div><span className="improvement-chart-eyebrow"><TrendingUp size={14}/> YOUR INTERVIEW PROGRESS</span>
         <h2>My Improvement Journey</h2><p>Compare your recorded interview scores, one attempt at a time.</p></div>
-      <button type="button" className="improvement-chart-report" onClick={onReport}>View detailed report <ArrowUpRight size={16}/></button>
+      <div className="improvement-chart-tools">
+        {current && <select aria-label="Score metric" value={metric} onChange={event => setMetric(event.target.value as Metric)}>
+          {availableMetrics.map(item => <option key={item.key} value={item.key}>{item.label}</option>)}
+        </select>}
+        <button type="button" className="improvement-chart-report" onClick={onReport}>View detailed report <ArrowUpRight size={16}/></button>
+      </div>
     </header>
     {!current ? <div className="improvement-chart-empty"><h3>Track your next improvement</h3><p>Example milestone: practice a clearer project answer, then compare your next released interview score here.</p></div> : <>
       <div className="improvement-chart-metrics" role="group" aria-label="Highlight a score metric">

@@ -34,10 +34,11 @@ export function PlacementJourneyGate({ children }: { children: ReactNode }) {
       const conflict = driveId && selected && !access.unlocked && canAccessPlacementCoach(selected, data.reports);
       const reports = data.reports.filter(item => item.drive_id === driveId && item.status === 'released' && item.session_id && item.report)
         .sort((a, b) => Date.parse(b.completed_at || b.created_at) - Date.parse(a.completed_at || a.created_at));
-      const report = reports.find(item => item.session_id === requestedSession) ?? reports[0];
+      const report = requestedSession ? reports.find(item => item.session_id === requestedSession) : reports[0];
       if (!controller.signal.aborted) setResult({ key, selected,
         unlocked: access.unlocked, report, reports, eligible: drives.filter(drive => canAccessPlacementCoach(drive, data.reports)),
-        error: conflict ? 'Your drive shows a finished interview, but the coaching service could not match its history. Please contact support with this drive ID: ' + driveId + '. You do not need to repeat the interview to fix this mismatch.' : undefined });
+        error: requestedSession && !report ? 'The selected interview result is unavailable for this placement drive. Open My Reports to select a released result.'
+          : conflict ? 'Your drive shows a finished interview, but the coaching service could not match its history. Please contact support with this drive ID: ' + driveId + '. You do not need to repeat the interview to fix this mismatch.' : undefined });
     }).catch((cause: unknown) => {
       const message = cause instanceof ApiError && [404,405].includes(cause.status)
         ? 'The coaching service is not available on this server yet. This does not mean your interview is incomplete. Your report remains available in My Reports. Please contact support to enable the improvement journey.'

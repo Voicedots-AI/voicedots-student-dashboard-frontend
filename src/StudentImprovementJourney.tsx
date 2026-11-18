@@ -1,3 +1,4 @@
+import { reportCompetencies } from "./report-competencies";
 import { useState, useEffect, useRef, useMemo } from "react";
 import { Link, Navigate, useSearchParams, useNavigate, useLocation } from "react-router-dom";
 import {
@@ -635,16 +636,7 @@ function ImprovementJourneyScreens() {
           });
         }
       } catch {
-        // Fallback realistic daily nudge
-        items.push({
-          id: "coach-default",
-          title: "AI Coach Daily Nudge",
-          description: `Great progress, ${studentFullName.split(" ")[0]}! Focus on System Design and Concurrency to boost your readiness.`,
-          time: "Today",
-          route: "/placement/plan",
-          unread: true,
-          type: "coach",
-        });
+        // The notification service has no available data.
       }
 
       // 2. Fetch Re-attempt schedules
@@ -760,7 +752,13 @@ function ImprovementJourneyScreens() {
                         onClick={() => {
                           if (notif.route) {
                             setShowNotificationMenu(false);
-                            if (notif.route.startsWith("/practice") || notif.route.includes("coach_cycle=")) navigate(notif.route);
+                            if (notif.route === "interview" || notif.route === "/interview" || notif.title.toLowerCase().includes("mock interview")) {
+                              const query = new URLSearchParams();
+                              const drive = searchParams.get("drive");
+                              if (drive) query.set("practice_drive", drive);
+                              navigate(`/practice${query.size ? `?${query}` : ""}`);
+                            }
+                            else if (notif.route.startsWith("/practice") || notif.route.includes("coach_cycle=")) navigate(notif.route);
                             else if (notif.route.includes("plan")) navigateTo(4);
                             else if (notif.route.includes("schedule")) navigateTo(5);
                             else if (notif.route.includes("resources")) navigateTo(6);
@@ -856,6 +854,34 @@ function ImprovementJourneyScreens() {
   const [selectedLearningTask, setSelectedLearningTask] = useState<any>(null);
   const [updatingTaskId, setUpdatingTaskId] = useState<string | null>(null);
   const [taskNotice, setTaskNotice] = useState<string | null>(null);
+  useEffect(() => {
+    const taskId = searchParams.get("task");
+    if (taskId && scheduleTasks.length) {
+      setSelectedLearningTask(scheduleTasks.find(task => task.id === taskId) || null);
+    }
+  }, [searchParams, scheduleTasks]);
+  useEffect(() => {
+    if (selectedLearningTask) document.getElementById("selected-learning-activity")?.scrollIntoView({block: "nearest"});
+  }, [selectedLearningTask]);
+
+  const downloadLearningActivity = (task: any) => {
+    const area = data?.improvement_plan?.focus_areas?.find((item: any) => item.focus === task.focus);
+    const lines = [
+      task.focus || task.activity, "", task.activity,
+      `Date: ${task.date || "Self-paced"}`,
+      `Time: ${task.time || "Self-paced"}`,
+      `Status: ${task.status}`,
+      `Duration: ${task.duration || "Self-paced"}`, "",
+      ...(area?.practice_steps || []),
+      area?.success_check ? `Practice goal: ${area.success_check}` : "",
+    ];
+    const url = URL.createObjectURL(new Blob([lines.join("\n")], {type: "text/plain;charset=utf-8"}));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "learning-activity.txt";
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
 
   const handleTaskAction = async (task: any) => {
     const nextStatus = "Completed";
@@ -974,8 +1000,9 @@ function ImprovementJourneyScreens() {
       .sort((a:any,b:any)=>Date.parse(a.completed_at||a.created_at)-Date.parse(b.completed_at||b.created_at));
     const measured=records.flatMap((row:any,index:number)=>{
       const overall=row.report.overall_score;
-      const technical=row.report.score_breakdown?.technical??row.report.score_breakdown?.technical_knowledge;
-      const communication=row.report.score_breakdown?.communication??row.report.score_breakdown?.Communication;
+      const scores = reportCompetencies(row.report);
+      const technical = scores.find(item => item.key === "technical_knowledge")?.score;
+      const communication = scores.find(item => item.key === "communication")?.score;
       if (typeof overall !== 'number' || !Number.isFinite(overall)) return [];
       return [{milestone:`Attempt ${row.attempt_number||index+1}`,date:row.completed_at||row.created_at||'',overall,
         technical: Number.isFinite(technical) ? technical : null,
@@ -1741,7 +1768,7 @@ function ImprovementJourneyScreens() {
 
   const progressMetrics = data?.progress_tracking || {};
   const readiness = data?.placement_readiness || {};
-  const readinessScore = readiness.overall_score ?? releasedReport?.report?.overall_score ?? null;
+  const readinessScore = releasedReport?.report ? releasedReport.report.overall_score ?? null : readiness.overall_score ?? null;
   const practiceExamples = [
     { focus: "Communication", activity: "Record a 90-second answer with one example and a clear result." },
     { focus: "Project ownership", activity: "Explain one project decision you made and how you measured its impact." },
@@ -1750,23 +1777,24 @@ function ImprovementJourneyScreens() {
   const planAreas = (data.improvement_plan?.focus_areas || []).filter(
     (item: {focus?: string; activity?: string}) => item?.focus?.trim() && item.activity?.trim()
   );
-  const competencies = new Map<string, number>();
-  for (const rows of [
-    readiness.competencies,
-    data.interview_result?.competencies,
-    releasedReport?.report?.core_dimensions,
-    releasedReport?.report?.domain_dimensions,
-  ]) {
-    if (!Array.isArray(rows)) continue;
-    for (const item of rows) {
-      const label = item?.name || item?.label || item?.dimension;
-      const score = item?.percentage ?? item?.score;
-      if (typeof label !== "string" || !label.trim() || typeof score !== "number" || !Number.isFinite(score) || score < 0 || score > 100) continue;
-      const name = label.trim().toLowerCase().replace(/_/g, " ");
-      if (!competencies.has(name)) competencies.set(name, score);
+  const competencies = new Map<string, number | null>();
+  if (releasedReport?.report) {
+    for (const item of reportCompetencies(releasedReport.report)) competencies.set(item.name, item.score);
+  } else {
+    for (const item of readiness.competencies || []) {
+      if (typeof item.name === "string" && item.name.trim()) {
+        const value = item.percentage;
+        competencies.set(item.name, typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= 100 ? value : null);
+      }
     }
   }
   const targetDrives = (readiness.target_drives || []).filter((drive: { company?: string }) => drive?.company?.trim());
+  if (!targetDrives.length && (data.company_name || releasedReport?.company_name)) {
+    targetDrives.push({
+      company: data.company_name || releasedReport?.company_name,
+      timing: data.role_title || releasedReport?.target_role || "View placement drive",
+    });
+  }
   const readinessSteps = (readiness.recommended_steps || []).filter((step: string) => step?.trim());
   return (
     <div
@@ -3247,18 +3275,24 @@ function ImprovementJourneyScreens() {
             {planSaveError && <p role="alert">{planSaveError}</p>}
 
             <div className="s4-cards-list">
-              {(planAreas.length ? planAreas : practiceExamples).map((item: {focus: string; activity: string; priority?: string; target_score?: number}, index: number) => (
+              {(planAreas.length ? planAreas : practiceExamples).map((item: {focus: string; activity: string; priority?: string; target_score?: number; practice_steps?: string[]; success_check?: string}, index: number) => (
                 <article key={item.focus} className="s4-topic-card">
                   <div className="s4-topic-left">
                     <span className="s4-topic-icon-box" data-tone={index % 4}><BookOpen size={22} aria-hidden="true" /></span>
                     <div className="s4-topic-info">
                       <h3 className="s4-topic-title">{item.focus}</h3>
                       <p className="s4-topic-desc">{item.activity}</p>
+                      {item.practice_steps?.length ? <ol className="journey-practice-steps">
+                        {item.practice_steps.map((step, stepIndex) => <li key={stepIndex}>{step}</li>)}
+                      </ol> : null}
+                      {item.success_check && <p className="journey-success-check"><strong>Practice goal</strong> {item.success_check}</p>}
                     </div>
                   </div>
-                  {(item.priority || Number.isFinite(item.target_score)) && <dl className="s4-topic-right">
-                    {item.priority && <div><dt>Priority</dt><dd>{item.priority}</dd></div>}
-                    {Number.isFinite(item.target_score) && <div><dt>Target score</dt><dd>{item.target_score}/100</dd></div>}
+                  {planAreas.length > 0 && <dl className="s4-topic-right">
+                    <div><dt>Priority</dt><dd className="s4-priority-pill">{item.priority || "Focus area"}</dd></div>
+                    {Number.isFinite(item.target_score ?? data.improvement_plan?.target_score) && <div>
+                      <dt>Practice target</dt><dd className="journey-plan-target">{item.target_score ?? data.improvement_plan.target_score}/100</dd>
+                    </div>}
                   </dl>}
                 </article>
               ))}
@@ -3326,8 +3360,8 @@ function ImprovementJourneyScreens() {
                     return (
                       <tr key={t.id} className={isCompleted ? "row-completed" : "row-pending"}>
                         <td className="s5-td-date">
-                          <strong>{t.date_label.split(" ")[0]}</strong>
-                          <span>{t.date_label.split(" ").slice(1).join(" ")}</span>
+                          <strong>{(t.date_label || t.date || "Self-paced").split(" ")[0]}</strong>
+                          <span>{(t.date_label || t.date || "").split(" ").slice(1).join(" ")}</span>
                         </td>
                         <td className="s5-td-time">{t.time}</td>
                         <td className="s5-td-activity">
@@ -3380,18 +3414,32 @@ function ImprovementJourneyScreens() {
               <ul>{practiceExamples.map(item => <li key={item.focus}>{item.activity}</li>)}</ul>
               <Link to={coachCallPath(searchParams.toString(), location.pathname)}>Create a schedule with AI Coach</Link>
             </section>}
-            {scheduleTasks.length > 0 && <div className="journey-preview journey-notes journey-schedule-progress">
-              <label htmlFor="scheduled-learning-progress">Scheduled activities completed</label>
-              <strong>{scheduleTasks.filter(task => task.status === "Completed").length} of {scheduleTasks.length}</strong>
-              <progress id="scheduled-learning-progress" value={scheduleTasks.filter(task => task.status === "Completed").length} max={scheduleTasks.length}/>
+            {scheduleTasks.length > 0 && <div className="journey-weekly-summary">
+              <section><h3>Learning goals</h3>
+                <ul>{Array.from(new Set<string>(scheduleTasks.map(task => String(task.focus || task.activity))))
+                  .map(focus => <li key={focus}><CheckCircle2 size={16} aria-hidden="true" />{focus}</li>)}</ul>
+              </section>
+              <div className="journey-schedule-progress journey-preview">
+                <label htmlFor="scheduled-learning-progress">Learning progress</label>
+                <strong>{Math.round(100 * scheduleTasks.filter(task => task.status === "Completed").length / scheduleTasks.length)}%</strong>
+                <progress id="scheduled-learning-progress" value={scheduleTasks.filter(task => task.status === "Completed").length} max={scheduleTasks.length}/>
+                <span>{scheduleTasks.filter(task => task.status === "Completed").length} of {scheduleTasks.length} activities completed</span>
+              </div>
             </div>}
-            {selectedLearningTask && <section className="journey-preview journey-notes" aria-label="Selected learning activity">
+            {selectedLearningTask && <section id="selected-learning-activity" className="journey-preview journey-notes" aria-label="Selected learning activity">
               <h3>{selectedLearningTask.focus || selectedLearningTask.activity}</h3>
               <p>{selectedLearningTask.activity}</p>
               <p>{selectedLearningTask.duration} · {selectedLearningTask.status}</p>
+              {data.improvement_plan?.focus_areas?.find((area: any) => area.focus === selectedLearningTask.focus)?.practice_steps?.length > 0 &&
+                <ol className="journey-practice-steps">{data.improvement_plan.focus_areas
+                  .find((area: any) => area.focus === selectedLearningTask.focus).practice_steps
+                  .map((step: string, index: number) => <li key={index}>{step}</li>)}</ol>}
               <div className="journey-task-actions">
-                <button type="button" className="vd-btn-secondary" onClick={() => navigateTo(6)}>Open practice resources</button>
-                <button type="button" className="vd-btn-secondary" onClick={handleDownloadPlanPDF}>Download activity</button>
+                <Link className="vd-btn-secondary" to={`/placement/resources?${new URLSearchParams({
+                  drive: selectedDriveId || "",
+                  topic: selectedLearningTask.focus || "",
+                })}`}>Open practice resources</Link>
+                <button type="button" className="vd-btn-secondary" onClick={() => downloadLearningActivity(selectedLearningTask)}>Download activity</button>
                 {selectedLearningTask.status !== "Completed" && <button type="button" className="vd-btn-primary"
                   disabled={updatingTaskId === selectedLearningTask.id}
                   onClick={() => void handleTaskAction(selectedLearningTask)}>
@@ -3405,6 +3453,7 @@ function ImprovementJourneyScreens() {
               <button type="button" className="vd-btn-secondary" onClick={() => navigateTo(4)}>
                 ← Back to Improvement Plan
               </button>
+              <Link className="vd-btn-secondary" to="/calendar?filter=coach">View in calendar</Link>
               <button type="button" className="vd-btn-primary" onClick={() => navigateTo(6)}>
                 Go to Learning Resources <ArrowRight size={15} />
               </button>
@@ -3440,6 +3489,11 @@ function ImprovementJourneyScreens() {
           {/* Main White Card Container */}
           <div className="s-portal-card">
             <ImprovementJourneyChart points={activeTrajectoryPoints} onReport={() => navigate(releasedReport ? `/reports/${encodeURIComponent(releasedReport.session_id)}` : '/reports')} />
+            {scheduleTasks.length > 0 && <section className="journey-preview journey-notes" aria-label="Saved learning progress">
+              <h3>Learning plan progress</h3>
+              <p>{scheduleTasks.filter(task => task.status === "Completed").length} of {scheduleTasks.length} saved activities completed</p>
+              <progress className="journey-learning-meter" max={scheduleTasks.length} value={scheduleTasks.filter(task => task.status === "Completed").length} aria-label="Saved activities completed"/>
+            </section>}
 
             {/* 3 Bottom Metric Stat Cards (Solid Blue and Green theme - ZERO purple) */}
             <div className="s8-metrics-grid">
@@ -3449,8 +3503,8 @@ function ImprovementJourneyScreens() {
                   <BookOpen size={22} />
                 </div>
                 <div className="s8-metric-content">
-                  <strong className="s8-metric-value">{progressMetrics.modules_completed ?? 0}</strong>
-                  <span className="s8-metric-label">Learning Modules Completed</span>
+                  <strong className="s8-metric-value">{scheduleTasks.filter(task => task.status === "Completed").length} / {scheduleTasks.length}</strong>
+                  <span className="s8-metric-label">Learning Activities Completed</span>
                 </div>
               </div>
 
@@ -3461,7 +3515,7 @@ function ImprovementJourneyScreens() {
                 </div>
                 <div className="s8-metric-content">
                   <strong className="s8-metric-value">
-                    {progressMetrics.questions_completed ?? 0}{progressMetrics.questions_total > 0 ? ` / ${progressMetrics.questions_total}` : ""}
+                    {progressMetrics.questions_completed ?? "Not tracked"}{progressMetrics.questions_total > 0 ? ` / ${progressMetrics.questions_total}` : ""}
                   </strong>
                   <span className="s8-metric-label">Practice Questions Completed</span>
                 </div>
@@ -3474,7 +3528,7 @@ function ImprovementJourneyScreens() {
                 </div>
                 <div className="s8-metric-content">
                   <strong className="s8-metric-value">
-                    {progressMetrics.mock_interviews_completed ?? 0}{progressMetrics.mock_interviews_total > 0 ? ` / ${progressMetrics.mock_interviews_total}` : ""}
+                    {progressMetrics.mock_interviews_completed ?? "Not tracked"}{progressMetrics.mock_interviews_total > 0 ? ` / ${progressMetrics.mock_interviews_total}` : ""}
                   </strong>
                   <span className="s8-metric-label">Mock Interviews Completed</span>
                 </div>
@@ -3551,8 +3605,8 @@ function ImprovementJourneyScreens() {
                 <div className="s9-competency-list">
                   {competencies.size ? Array.from(competencies, ([name, score]) => (
                     <label key={name} className="journey-skill">
-                      <span>{name}</span><strong>{score}%</strong>
-                      <progress max={100} value={score} aria-label={name} />
+                      <span>{name}</span><strong>{score == null ? "Not assessed" : `${score}%`}</strong>
+                      <progress max={100} value={score ?? 0} aria-label={name} aria-valuetext={score == null ? "Not assessed" : `${score}%`} />
                     </label>
                   )) : <div className="journey-preview">
                     <h4>Example skills to practice</h4>

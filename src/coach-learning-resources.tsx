@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import {
   ArrowLeft,
   FolderArchive,
@@ -19,6 +19,9 @@ const referenceGuides = [
   { title: 'Python tutorial', match: /\bpython\b/i, url: 'https://docs.python.org/3/tutorial/' },
   { title: 'SQL tutorial', match: /\bsql\b|postgres/i, url: 'https://www.postgresql.org/docs/current/tutorial.html' },
   { title: 'pandas tutorials', match: /\bpandas\b|data cleaning/i, url: 'https://pandas.pydata.org/docs/getting_started/intro_tutorials/' },
+  { title: 'Structure interview answers with STAR', match: /communication|ownership|structured thinking|\bstar\b|behavioral/i, url: 'https://nationalcareers.service.gov.uk/careers-advice/interview-advice/the-star-method' },
+  { title: 'MDN web development lessons', match: /javascript|\bhtml\b|\bcss\b|front.?end|web development/i, url: 'https://developer.mozilla.org/en-US/docs/Learn_web_development' },
+  { title: 'Algorithms lessons and exercises', match: /algorithm|data structure|complexity/i, url: 'https://www.khanacademy.org/computing/computer-science/algorithms' },
 ];
 const exampleQuestions = [
   { question: 'Tell me about a decision you owned on a project.', answer_guidance: 'Explain the situation, your decision, why you made it, and the result you observed.' },
@@ -27,8 +30,9 @@ const exampleQuestions = [
 
 export function CoachLearningResources({ resources = [], questions = [] }: { resources?: Resource[]; questions?: { question: string; topic?: string; answer_guidance?: string }[] }) {
   const coachPath = useCoachCallPath();
+  const [params] = useSearchParams();
   const [selectedCategory, setSelectedCategory] = useState<ResourceCategory>('all');
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState(params.get('topic') || '');
 
   const categories = [
     { id: 'all' as const, label: 'All Resources' },
@@ -46,6 +50,13 @@ export function CoachLearningResources({ resources = [], questions = [] }: { res
   const topics = [...resources.map(item => `${item.title} ${item.description} ${item.skillTag}`),
     ...questions.map(item => `${item.question} ${item.topic || ''} ${item.answer_guidance || ''}`)].join(' ');
   const guides = referenceGuides.filter(item => item.match.test(topics));
+  function resourceAction(item: Resource) {
+    if (!item.actionUrl.startsWith('/placement/schedule')) return item.actionUrl;
+    const [path, query] = item.actionUrl.split('?');
+    const params = new URLSearchParams(query);
+    params.set('task', String(item.id));
+    return `${path}?${params}`;
+  }
 
   return (
     <div className="coach-approved-page">
@@ -149,7 +160,7 @@ export function CoachLearningResources({ resources = [], questions = [] }: { res
             <div style={{ paddingTop: '16px', borderTop: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span style={{ fontSize: '12px', color: '#94a3b8' }}>{item.readTime}</span>
               <Link
-                to={item.actionUrl}
+                to={resourceAction(item)}
                 className="coach-primary"
                 style={{ fontSize: '12px', padding: '6px 14px', borderRadius: '9999px' }}
               >

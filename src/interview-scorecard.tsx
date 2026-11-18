@@ -1,3 +1,4 @@
+import { selectRajeshDeviceVoice } from "./coach-device-voice";
 import { useState, useEffect, useRef, type FormEvent } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
@@ -14,15 +15,12 @@ import {
   Sparkles,
   Star,
   Target,
-  Volume2,
-  VolumeX,
   PhoneCall,
 } from 'lucide-react';
 import { api, ApiError, json, type CandidateSatisfaction, type InterviewReportView } from './api';
 import { requestCoachSpeech } from './coach-voice-audio';
 import { useAuth } from './auth';
 import { coachCallPath } from './coach-call-link';
-import { CoachTopNav } from './coach-top-nav';
 import { reportCompetencies } from './report-competencies';
 
 import { PlacementOfficerAvatar } from './placement-officer-avatar';
@@ -89,8 +87,7 @@ export function InterviewScorecard({ view, sessionId, role, company }: { view: I
   const [activeScheduleDay, setActiveScheduleDay] = useState<string>('1-3');
   const [selectedDailyTime, setSelectedDailyTime] = useState<string>('2h');
   const [selectedTimeline, setSelectedTimeline] = useState<string>('14 Days');
-  // Offer the popup immediately; paid speech starts only after Play voice.
-  const [isVoiceMuted, setIsVoiceMuted] = useState<boolean>(true);
+
   const [isCoachSpeaking, setIsCoachSpeaking] = useState<boolean>(false);
   const [showSatisfactionDrawer, setShowSatisfactionDrawer] = useState<boolean>(false);
   const [discussionInput, setDiscussionInput] = useState<string>('');
@@ -170,19 +167,8 @@ export function InterviewScorecard({ view, sessionId, role, company }: { view: I
     setIsCoachSpeaking(false);
   }
 
-  async function speakCoachText(text: string, userInitiated = false) {
-    // Retry cached audio directly within the click gesture when autoplay was blocked.
-    if (userInitiated && coachAudio.current && coachAudioText.current === text) {
-      setCoachVoiceError('');
-      try {
-        await coachAudio.current.play();
-      } catch {
-        setCoachVoiceError('Audio could not play. Check your browser sound settings and select Play voice again.');
-      }
-      return;
-    }
+  async function speakCoachText(text: string) {
     stopCoachVoice();
-    if (isVoiceMuted && !userInitiated) return;
     setCoachVoiceError('');
     setCoachVoiceLoading(true);
     const controller = new AbortController();
@@ -211,12 +197,12 @@ export function InterviewScorecard({ view, sessionId, role, company }: { view: I
     } catch (cause) {
       if (controller.signal.aborted) return;
       if (cause instanceof DOMException && cause.name === 'NotAllowedError') {
-        setCoachVoiceError('Select Play voice to hear Dr. Rajesh. Your browser needs a click before playing sound.');
+        setCoachVoiceError('Your browser paused audio. Interact with this window to hear Dr. Rajesh.');
         return;
       }
       stopCoachVoice();
-      const voices = window.speechSynthesis?.getVoices().filter(voice => voice.localService && /^en(-|$)/i.test(voice.lang)) || [];
-      const voice = voices.find(item => /^en-in$/i.test(item.lang)) || voices[0];
+      const voices = window.speechSynthesis?.getVoices() || [];
+      const voice = selectRajeshDeviceVoice(voices);
       if (voice) {
         const cue = new SpeechSynthesisUtterance(text);
         cue.voice = voice;
@@ -225,7 +211,7 @@ export function InterviewScorecard({ view, sessionId, role, company }: { view: I
         cue.onend = stopCoachVoice;
         cue.onerror = () => {
           stopCoachVoice();
-          setCoachVoiceError('Device voice could not play. You can read the reply or select Play voice to retry.');
+          setCoachVoiceError('Device voice could not play. You can continue reading the conversation.');
         };
         setIsCoachSpeaking(true);
         setCoachVoiceError('Using your device’s voice for this reply.');
@@ -233,7 +219,7 @@ export function InterviewScorecard({ view, sessionId, role, company }: { view: I
         return;
       }
       setCoachVoiceError(deadline.aborted
-        ? 'Coach voice took too long. You can read the reply or select Play voice to retry.'
+        ? 'Coach voice took too long. You can continue reading the conversation.'
         : cause instanceof Error ? cause.message : 'Voice is unavailable. You can continue reading the conversation.');
     } finally {
       if (!controller.signal.aborted) setCoachVoiceLoading(false);
@@ -262,7 +248,7 @@ export function InterviewScorecard({ view, sessionId, role, company }: { view: I
       setCustomDialogue(reply);
       setDiscussionHistory(history=>[...history,{speaker:'student' as const,text:promptText},{speaker:'officer' as const,text:reply}].slice(-24));
       if (result.degraded) setDiscussionError('Detailed coaching is temporarily unavailable. Please retry shortly.');
-      void speakCoachText(reply);
+
       return true;
     } catch (cause) {
       if (!controller.signal.aborted) setDiscussionError(cause instanceof Error ? cause.message : 'Coaching is unavailable. Please retry.');
@@ -286,13 +272,13 @@ export function InterviewScorecard({ view, sessionId, role, company }: { view: I
   const currentDialogue = customDialogue || (coachIntro ? introDialogue : defaultDialogueForStep[activeStep]);
 
   useEffect(() => {
-    if (showCoachPopup && !isVoiceMuted) {
+    if (showCoachPopup) {
       const timer = setTimeout(() => {
         speakCoachText(currentDialogue);
       }, 350);
       return () => { clearTimeout(timer); stopCoachVoice(); };
     }
-  }, [showCoachPopup, activeStep, coachIntro]);
+  }, [showCoachPopup, currentDialogue]);
 
   async function saveFeedback(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -536,6 +522,11 @@ export function InterviewScorecard({ view, sessionId, role, company }: { view: I
         >
           <div className={`s3-modal-card ${coachIntro ? 's3-reference-intro' : ''}`} role="dialog" aria-modal="true" aria-labelledby="scorecard-coach-title" onKeyDown={event => {
             if (event.key === 'Escape') { stopCoachVoice(); setShowCoachPopup(false); }
+          }} onPointerDown={() => {
+            if (coachAudio.current?.paused && coachAudioText.current === currentDialogue &&
+                coachVoiceError.includes('Your browser paused audio.')) {
+              void coachAudio.current.play().then(() => setCoachVoiceError('')).catch(() => {});
+            }
           }}>
             {/* Top Window Bar */}
             <div className="s3-top-window-bar">
@@ -566,9 +557,6 @@ export function InterviewScorecard({ view, sessionId, role, company }: { view: I
             </div>
 
             {/* Window Body Grid: Left Avatar Card + Right Discussion & Schedule */}
-            {callDriveId && <div className="s3-journey-navigation">
-              <CoachTopNav activeTab="coach" driveId={callDriveId} sessionId={sessionId} />
-            </div>}
             <div className="s3-window-body-grid">
               {/* Left Column: AI Coach Avatar Visual & Voice Controls */}
               <div className="s3-avatar-card-column">
@@ -584,24 +572,7 @@ export function InterviewScorecard({ view, sessionId, role, company }: { view: I
                     <strong>Dr. Rajesh</strong>
                     <span>AI Placement Coach</span>
                   </div>
-                  <button
-                    type="button"
-                    className="s3-audio-toggle-btn"
-                    disabled={coachVoiceLoading}
-                    onClick={() => {
-                      if (isCoachSpeaking) {
-                        stopCoachVoice();
-                        setIsVoiceMuted(true);
-                      } else {
-                        setIsVoiceMuted(false);
-                        void speakCoachText(currentDialogue, true);
-                      }
-                    }}
-                    title={isCoachSpeaking ? 'Mute Coach Voice' : 'Play Coach Voice'}
-                  >
-                    {isCoachSpeaking ? <VolumeX size={15} /> : <Volume2 size={15} />}
-                    <span>{coachVoiceLoading ? 'Preparing voice…' : isCoachSpeaking ? 'Mute' : 'Play voice'}</span>
-                  </button>
+                  <span role="status">{coachVoiceLoading ? "Preparing voice…" : isCoachSpeaking ? "Speaking…" : "Dr. Rajesh · Voice coach"}</span>
                 </div>
               </div>
 
@@ -612,7 +583,7 @@ export function InterviewScorecard({ view, sessionId, role, company }: { view: I
                   <p className="s3-coach-subheadline">Personalized Placement Readiness Guidance</p>
                 </div>
                 {discussionError && <p role="alert" className="s3-voice-notice">{discussionError}</p>}
-                {coachVoiceError && <div role="status" className="s3-voice-notice"><p>{coachVoiceError}</p><button type="button" className="s3-discussion-prompt-chip" disabled={coachVoiceLoading} onClick={() => { setIsVoiceMuted(false); void speakCoachText(currentDialogue, true); }}>Play voice / Retry</button></div>}
+                {coachVoiceError && <p role="status" className="s3-voice-notice">{coachVoiceError}</p>}
 
                 {coachIntro && <div className="s3-intro-conversation">
                   <p>I've reviewed your {companyName} interview for {roleTitle}. Your score is <strong>{overallScore}/100</strong>. I can help you improve and prepare for your next attempt.</p>

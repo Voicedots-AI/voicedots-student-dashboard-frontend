@@ -1,5 +1,6 @@
+import { selectRajeshDeviceVoice } from "./coach-device-voice";
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Mic, MicOff, PhoneCall, PhoneOff, Send, Volume2, VolumeX } from "lucide-react";
 import { api, json, type Drive, type Report } from "./api";
 import { requestCoachSpeech } from './coach-voice-audio';
@@ -13,6 +14,8 @@ import "./placement-officer-call.css";
 type Message = { speaker: "officer" | "student"; text: string };
 export function LivePlacementOfficerCall() {
   const [params] = useSearchParams();
+  const navigate = useNavigate();
+  const [savingPlan, setSavingPlan] = useState(false);
   const atsMode = params.get('mode') === 'ats';
   const guidanceMode = params.get('mode') === 'guidance';
   const standalone = atsMode || guidanceMode;
@@ -219,7 +222,7 @@ export function LivePlacementOfficerCall() {
     } catch (cause) {
       if (mounted.current && epoch === speechEpoch.current && !controller.signal.aborted) {
         stopVoice();
-        const voice = window.speechSynthesis?.getVoices().find(item => item.localService && /^en(-|$)/i.test(item.lang));
+        const voice = selectRajeshDeviceVoice(window.speechSynthesis?.getVoices() || []);
         if (voice) {
           const line = new SpeechSynthesisUtterance(text);
           line.voice = voice;
@@ -260,7 +263,7 @@ export function LivePlacementOfficerCall() {
     finally{if(mounted.current&&generation===turnGeneration.current)setThinking(false);}
   }
   async function startCall() {
-    if (!context || !coachAccess || thinking) return;
+    if (active || !context || !coachAccess || thinking) return;
     setActive(true);
     setHandsFree(true);
     await coachTurn('');
@@ -285,7 +288,11 @@ export function LivePlacementOfficerCall() {
         setInterim(transcript);
       }
     };
-    instance.onerror = event => { if (mounted.current) { setHandsFree(false); setNotice(event.error === "not-allowed" ? "Microphone permission was denied. You can type instead." : "Voice input paused. Select Speak to resume or type your message."); } };
+    instance.onerror = event => {
+      if (!mounted.current || event.error === "no-speech") return;
+      setHandsFree(false);
+      setNotice(event.error === "not-allowed" ? "Microphone permission was denied. You can type instead." : "Voice input paused. Select Speak to resume or type your message.");
+    };
     instance.onend = () => { if (recognition.current !== instance) return; recognition.current = null; if (mounted.current) { setListening(false); setInterim(""); } };
     recognition.current = instance;
     try { instance.start(); setListening(true); }
@@ -305,6 +312,26 @@ export function LivePlacementOfficerCall() {
     }
   }
   function submit(event: FormEvent) { event.preventDefault(); reply(input); }
+  async function saveLearningPlan() {
+    if (savingPlan || thinking || !driveId) return;
+    setSavingPlan(true);
+    setNotice("");
+    try {
+      const data = await api<{reports: Report[]}>("/api/student/reports");
+      const reports = data.reports.filter(item => item.drive_id === driveId && item.status === "released" && item.report)
+        .sort((a,b) => Date.parse(b.completed_at || b.created_at) - Date.parse(a.completed_at || a.created_at));
+      const requested = params.get("report_session_id");
+      const report = requested ? reports.find(item => item.session_id === requested) : reports[0];
+      if (!report) throw new Error("A released interview result is required to create your plan.");
+      await api("/api/student/coach/improvement-journey/plan", {
+        method: "POST", ...json({drive_id: driveId, report_session_id: report.session_id}),
+      });
+      stopCall();
+      navigate(`/placement/plan?${new URLSearchParams({drive: driveId, report_session_id: report.session_id})}`);
+    } catch (cause) {
+      setNotice(cause instanceof Error ? cause.message : "Could not save your learning plan. Please retry.");
+    } finally { setSavingPlan(false); }
+  }
   const navigationParams = new URLSearchParams(params);
   navigationParams.delete("screen");
   const query = navigationParams.toString();
@@ -332,6 +359,6 @@ export function LivePlacementOfficerCall() {
         <form onSubmit={submit}><label className="sr-only" htmlFor="officer-message">Your message to the placement officer</label><input id="officer-message" value={input} maxLength={2000} disabled={!active} onChange={event => setInput(event.target.value)} placeholder={active ? "Ask your placement officer…" : "Start a call to join the conversation"} /><button className="button primary" aria-label="Send message" disabled={!active || !input.trim()}><Send size={18} /></button></form>
       </section>
     </div>
-    {guidanceMode ? <footer className="officer-next"><Link className="button secondary" to={returnPath}>Back to your page</Link><span>Guidance based on your available page records.</span></footer> : atsMode ? <footer className="officer-next"><Link className="button secondary" to={`/ats-fit?drive=${encodeURIComponent(driveId)}`}>Back to ATS Fit</Link><span>Guidance uses your current resume and the selected job requirements.</span></footer> : <footer className="officer-next"><Link className="button secondary" to={`/placement/plan?${query}`}>Open learning plan</Link><Link className="button secondary" to={`/placement/resources?${query}`}>Study resources</Link><Link className="button secondary" to={`/placement/schedule?${query}`}>Study schedule</Link><Link className="button secondary" to={`/placement/reattempt?${query}`}>Schedule re-attempt</Link><span>Confirm availability and bookings in the scheduling screen.</span></footer>}
+    {guidanceMode ? <footer className="officer-next"><Link className="button secondary" to={returnPath}>Back to your page</Link><span>Guidance based on your available page records.</span>{params.get("report_session_id") && <button type="button" className="button primary" disabled={savingPlan || thinking} onClick={() => void saveLearningPlan()}>{savingPlan ? "Saving plan…" : "Save and open learning plan"}</button>}</footer> : atsMode ? <footer className="officer-next"><Link className="button secondary" to={`/ats-fit?drive=${encodeURIComponent(driveId)}`}>Back to ATS Fit</Link><span>Guidance uses your current resume and the selected job requirements.</span></footer> : <footer className="officer-next"><button type="button" className="button primary" disabled={savingPlan || thinking} onClick={() => void saveLearningPlan()}>{savingPlan ? "Saving plan…" : "Save and open learning plan"}</button><Link className="button secondary" to={`/placement/resources?${query}`}>Study resources</Link><Link className="button secondary" to={`/placement/schedule?${query}`}>Study schedule</Link><Link className="button secondary" to={`/placement/reattempt?${query}`}>Schedule re-attempt</Link><span>Confirm availability and bookings in the scheduling screen.</span></footer>}
   </section>;
 }

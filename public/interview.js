@@ -4928,6 +4928,19 @@ let coachTalkInterval = null;
 let isCoachTalking = false;
 
 function checkAndShowAICoachModal(report) {
+  const driveId = new URLSearchParams(window.location.search).get('drive');
+  if (driveId && currentSessionId && report.status === 'released') {
+    const key = `vd_post_interview_coach_${currentSessionId}`;
+    if (sessionStorage.getItem(key) !== 'opened') {
+      sessionStorage.setItem(key, 'opened');
+      const target = window.parent !== window && window.parent.location.origin === window.location.origin
+        ? window.parent : window;
+      target.location.assign(`/reports/${encodeURIComponent(currentSessionId)}?${new URLSearchParams({
+        drive: driveId, report_session_id: currentSessionId, view: 'coach',
+      })}`);
+    }
+    return;
+  }
   const modalBackdrop = document.getElementById("ai-coach-modal-backdrop");
   const floatingBtn = document.getElementById("floating-coach-btn");
   if (!modalBackdrop) return;
