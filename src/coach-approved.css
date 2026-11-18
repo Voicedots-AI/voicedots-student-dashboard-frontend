@@ -450,3 +450,4 @@ dialog.modal.coach-contribution-dialog{position:fixed;inset:0;margin:auto;width:
   .journey-readiness-page .s-portal-card { padding: 14px; }
   .journey-readiness-page .s9-gauge-box { justify-self: stretch; }
 }
+.journey-loading{display:grid;place-items:center;min-height:45vh;color:#0969da;}

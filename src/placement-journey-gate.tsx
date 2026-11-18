@@ -4,6 +4,8 @@ import { api, ApiError, type Drive, type Report } from './api';
 import { useAuth } from './auth';
 import { canAccessPlacementCoach } from './placement-coach-access';
 import { InterviewAccessState } from './interview-access-state';
+import { Loader2 } from 'lucide-react';
+import './coach-approved.css';
 
 const ReleasedJourneyReport = createContext<Report | undefined>(undefined);
 export const useReleasedJourneyReport = () => useContext(ReleasedJourneyReport);
@@ -49,7 +51,11 @@ export function PlacementJourneyGate({ children }: { children: ReactNode }) {
     return () => controller.abort();
   }, [key, revision]);
   const retry = () => setRevision(value => value + 1);
-  if (!result || result.key !== key) return <InterviewAccessState title="Checking your interview progress"><p>Please wait while we check your placement drive history.</p></InterviewAccessState>;
+  if (!result || result.key !== key) return (
+    <div className="journey-loading" role="status" aria-label="Loading interview progress" aria-busy="true">
+      <Loader2 className="coach-loading-spinner" size={32} aria-hidden="true" />
+    </div>
+  );
   if (result.error) return <InterviewAccessState title="Your improvement journey is temporarily unavailable" retry={retry}><p>{result.error}</p><p><Link to="/reports">View My Reports</Link></p></InterviewAccessState>;
   if (driveId && result.selected && result.unlocked) return (
     <JourneyDrive.Provider value={result.selected}>
