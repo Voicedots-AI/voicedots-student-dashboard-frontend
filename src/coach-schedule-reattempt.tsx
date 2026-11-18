@@ -27,6 +27,9 @@ type Attempt = {
   time?: string | null;
   scheduled_for?: string | null;
   completed_at?: string | null;
+  can_schedule?: boolean;
+  session_status?: string | null;
+  termination_reason?: string | null;
 };
 
 type InterviewSettings = {
@@ -522,7 +525,8 @@ export function CoachScheduleReattempt() {
               <div className="reattempt-cards-row">
                 {plan.attempts.map(attempt => {
                   const completed = attempt.status === 'completed';
-                  const outcome = completed && report?.attempt_number === attempt.attempt_number ? reportOutcome : '';
+                  const outcome = interviewOutcome(attempt.session_status, attempt.termination_reason) ||
+                    (completed && report?.attempt_number === attempt.attempt_number ? reportOutcome : '');
                   const scheduled = attempt.status === 'scheduled';
                   return <article key={attempt.attempt_number} className="reattempt-card">
                     <div className="reattempt-card-header">
@@ -535,7 +539,7 @@ export function CoachScheduleReattempt() {
                       {completed && attempt.score != null && <strong>{attempt.score} / {attempt.max_score ?? 100}</strong>}
                       {outcome && <span>{outcome}</span>}
                       {attempt.date && <span>{[attempt.date, attempt.time].filter(Boolean).join(' · ')}</span>}
-                      {!completed && canSchedule && attempt.attempt_number === drive?.interview_next_attempt_number && [2, 3].includes(attempt.attempt_number) && (
+                      {!completed && canSchedule && attempt.attempt_number === drive?.interview_next_attempt_number && attempt.can_schedule !== false && (
                         <button type="button" className="reattempt-action-btn reschedule-btn" onClick={() => openScheduleModal(attempt.attempt_number)}>
                           {scheduled ? 'Reschedule' : 'Schedule attempt'}
                         </button>

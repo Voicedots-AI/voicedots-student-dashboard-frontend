@@ -262,6 +262,7 @@ export function LivePlacementOfficerCall() {
   async function startCall() {
     if (!context || !coachAccess || thinking) return;
     setActive(true);
+    setHandsFree(true);
     await coachTurn('');
   }
   function listen() {

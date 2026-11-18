@@ -9,6 +9,8 @@ const ReleasedJourneyReport = createContext<Report | undefined>(undefined);
 export const useReleasedJourneyReport = () => useContext(ReleasedJourneyReport);
 const JourneyDrive = createContext<Drive | undefined>(undefined);
 export const useJourneyDrive = () => useContext(JourneyDrive);
+const JourneyReports = createContext<Report[]>([]);
+export const useJourneyReports = () => useContext(JourneyReports);
 
 /** Never mount journey screens (or their requests) before checking this student's drive. */
 export function PlacementJourneyGate({ children }: { children: ReactNode }) {
@@ -18,7 +20,7 @@ export function PlacementJourneyGate({ children }: { children: ReactNode }) {
   const driveId = params.get('drive') || '';
   const requestedSession = params.get('report_session_id');
   const key = `${identity?.student.id || ''}:${driveId}:${requestedSession || ''}`;
-  const [result, setResult] = useState<{ key: string; eligible: Drive[]; selected?: Drive; unlocked?: boolean; report?: Report; error?: string } | null>(null);
+  const [result, setResult] = useState<{ key: string; eligible: Drive[]; selected?: Drive; unlocked?: boolean; report?: Report; reports?: Report[]; error?: string } | null>(null);
   const [revision, setRevision] = useState(0);
   useEffect(() => {
     const controller = new AbortController();
@@ -34,7 +36,7 @@ export function PlacementJourneyGate({ children }: { children: ReactNode }) {
         .sort((a, b) => Date.parse(b.completed_at || b.created_at) - Date.parse(a.completed_at || a.created_at));
       const report = reports.find(item => item.session_id === requestedSession) ?? reports[0];
       if (!controller.signal.aborted) setResult({ key, selected,
-        unlocked: access.unlocked, report, eligible: drives.filter(drive => canAccessPlacementCoach(drive, data.reports)),
+        unlocked: access.unlocked, report, reports, eligible: drives.filter(drive => canAccessPlacementCoach(drive, data.reports)),
         error: conflict ? 'Your drive shows a finished interview, but the coaching service could not match its history. Please contact support with this drive ID: ' + driveId + '. You do not need to repeat the interview to fix this mismatch.' : undefined });
     }).catch((cause: unknown) => {
       const message = cause instanceof ApiError && [404,405].includes(cause.status)
@@ -50,7 +52,9 @@ export function PlacementJourneyGate({ children }: { children: ReactNode }) {
   if (result.error) return <InterviewAccessState title="Your improvement journey is temporarily unavailable" retry={retry}><p>{result.error}</p><p><Link to="/reports">View My Reports</Link></p></InterviewAccessState>;
   if (driveId && result.selected && result.unlocked) return (
     <JourneyDrive.Provider value={result.selected}>
-      <ReleasedJourneyReport.Provider value={result.report}>{children}</ReleasedJourneyReport.Provider>
+      <JourneyReports.Provider value={result.reports || []}>
+        <ReleasedJourneyReport.Provider value={result.report}>{children}</ReleasedJourneyReport.Provider>
+      </JourneyReports.Provider>
     </JourneyDrive.Provider>
   );
   if (!driveId && result.eligible.length) return <InterviewAccessState title="Choose your placement drive"><p>Your coaching journey belongs to an individual drive. Choose a completed interview to continue.</p>

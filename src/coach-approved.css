@@ -401,3 +401,4 @@ dialog.modal.coach-contribution-dialog{position:fixed;inset:0;margin:auto;width:
   .coach-top-navbar .coach-nav-btn { flex: 1 1 auto; }
   .s4-topic-card { flex-wrap: wrap; }
 }
+.journey-task-actions {display:flex;flex-wrap:wrap;gap:10px;margin-top:16px}.journey-attempt-selector {display:flex;align-items:center;gap:8px;font-size:12px}.journey-attempt-selector select {width:auto;margin:0;}

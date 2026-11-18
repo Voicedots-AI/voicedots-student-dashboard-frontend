@@ -760,7 +760,8 @@ function ImprovementJourneyScreens() {
                         onClick={() => {
                           if (notif.route) {
                             setShowNotificationMenu(false);
-                            if (notif.route.includes("plan")) navigateTo(4);
+                            if (notif.route.startsWith("/practice") || notif.route.includes("coach_cycle=")) navigate(notif.route);
+                            else if (notif.route.includes("plan")) navigateTo(4);
                             else if (notif.route.includes("schedule")) navigateTo(5);
                             else if (notif.route.includes("resources")) navigateTo(6);
                             else if (notif.route.includes("reattempt")) navigateTo(7);
@@ -852,11 +853,12 @@ function ImprovementJourneyScreens() {
   const [savedContext, setSavedContext] = useState<SavedInterviewContext | null>(null);
   const [showQAModal, setShowQAModal] = useState<boolean>(false);
   const [scheduleTasks, setScheduleTasks] = useState<any[]>([]);
+  const [selectedLearningTask, setSelectedLearningTask] = useState<any>(null);
   const [updatingTaskId, setUpdatingTaskId] = useState<string | null>(null);
   const [taskNotice, setTaskNotice] = useState<string | null>(null);
 
   const handleTaskAction = async (task: any) => {
-    const nextStatus = task.status === "Completed" ? "Pending" : "Completed";
+    const nextStatus = "Completed";
     setUpdatingTaskId(task.id);
     setTaskNotice(null);
 
@@ -865,14 +867,17 @@ function ImprovementJourneyScreens() {
     );
 
     try {
-      await api("/api/student/coach/improvement-journey/task-status", {
+      const updated = await api<any>("/api/student/coach/improvement-journey/task-status", {
         ...json({
           task_id: task.id,
           status: nextStatus,
           drive_id: selectedDriveId,
         }),
       });
+      setData(updated);
+      setScheduleTasks(updated.daily_schedule || []);
       setTaskNotice(`Task "${task.activity}" updated to ${nextStatus}.`);
+      setSelectedLearningTask(null);
       setTimeout(() => setTaskNotice(null), 3000);
     } catch (err: any) {
       setScheduleTasks((prev) =>
@@ -3348,7 +3353,7 @@ function ImprovementJourneyScreens() {
                               type="button"
                               className="s5-btn-action view"
                               disabled={updatingTaskId === t.id}
-                              onClick={() => handleTaskAction(t)}
+                              onClick={() => setSelectedLearningTask(t)}
                             >
                               View
                             </button>
@@ -3358,11 +3363,7 @@ function ImprovementJourneyScreens() {
                               className="s5-btn-action start"
                               disabled={updatingTaskId === t.id}
                               onClick={() => {
-                                if (t.type === "AI Coach") {
-                                  navigate(coachCallPath(searchParams.toString(), location.pathname));
-                                } else {
-                                  handleTaskAction(t);
-                                }
+                                setSelectedLearningTask(t);
                               }}
                             >
                               Start
@@ -3384,6 +3385,21 @@ function ImprovementJourneyScreens() {
               <strong>{scheduleTasks.filter(task => task.status === "Completed").length} of {scheduleTasks.length}</strong>
               <progress id="scheduled-learning-progress" value={scheduleTasks.filter(task => task.status === "Completed").length} max={scheduleTasks.length}/>
             </div>}
+            {selectedLearningTask && <section className="journey-preview journey-notes" aria-label="Selected learning activity">
+              <h3>{selectedLearningTask.focus || selectedLearningTask.activity}</h3>
+              <p>{selectedLearningTask.activity}</p>
+              <p>{selectedLearningTask.duration} · {selectedLearningTask.status}</p>
+              <div className="journey-task-actions">
+                <button type="button" className="vd-btn-secondary" onClick={() => navigateTo(6)}>Open practice resources</button>
+                <button type="button" className="vd-btn-secondary" onClick={handleDownloadPlanPDF}>Download activity</button>
+                {selectedLearningTask.status !== "Completed" && <button type="button" className="vd-btn-primary"
+                  disabled={updatingTaskId === selectedLearningTask.id}
+                  onClick={() => void handleTaskAction(selectedLearningTask)}>
+                  Mark completed
+                </button>}
+                <button type="button" className="vd-btn-secondary" onClick={() => setSelectedLearningTask(null)}>Close activity</button>
+              </div>
+            </section>}
             {/* Bottom Actions */}
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "28px", paddingTop: "20px", borderTop: "1px solid #f1f5f9" }}>
               <button type="button" className="vd-btn-secondary" onClick={() => navigateTo(4)}>

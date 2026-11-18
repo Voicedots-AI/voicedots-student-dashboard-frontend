@@ -15,6 +15,11 @@ type ResourceCategory = 'all' | 'technical' | 'system_design' | 'behavioral' | '
 
 type Resource = { id: string | number; category: string; title: string; description: string; readTime: string; skillTag: string; level: string; actionUrl: string; actionLabel: string };
 
+const referenceGuides = [
+  { title: 'Python tutorial', match: /\bpython\b/i, url: 'https://docs.python.org/3/tutorial/' },
+  { title: 'SQL tutorial', match: /\bsql\b|postgres/i, url: 'https://www.postgresql.org/docs/current/tutorial.html' },
+  { title: 'pandas tutorials', match: /\bpandas\b|data cleaning/i, url: 'https://pandas.pydata.org/docs/getting_started/intro_tutorials/' },
+];
 const exampleQuestions = [
   { question: 'Tell me about a decision you owned on a project.', answer_guidance: 'Explain the situation, your decision, why you made it, and the result you observed.' },
   { question: 'How would you investigate a result that looks wrong?', answer_guidance: 'Define the expected result, check your inputs, test one explanation at a time, and describe how you would verify the fix.' },
@@ -38,6 +43,9 @@ export function CoachLearningResources({ resources = [], questions = [] }: { res
     const matchesSearch = !searchQuery || res.title.toLowerCase().includes(searchQuery.toLowerCase()) || res.description.toLowerCase().includes(searchQuery.toLowerCase()) || res.skillTag.toLowerCase().includes(searchQuery.toLowerCase());
     return matchesCat && matchesSearch;
   });
+  const topics = [...resources.map(item => `${item.title} ${item.description} ${item.skillTag}`),
+    ...questions.map(item => `${item.question} ${item.topic || ''} ${item.answer_guidance || ''}`)].join(' ');
+  const guides = referenceGuides.filter(item => item.match.test(topics));
 
   return (
     <div className="coach-approved-page">
@@ -59,6 +67,12 @@ export function CoachLearningResources({ resources = [], questions = [] }: { res
       </header>
 
       {/* Category Bar and Search */}
+      {guides.length > 0 && <section className="journey-preview" style={{marginBottom:20}}>
+        <h2>Documentation for your practice topics</h2>
+        <ul>{guides.map(guide => <li key={guide.url}>
+          <a href={guide.url} target="_blank" rel="noopener noreferrer">{guide.title}</a>
+        </li>)}</ul>
+      </section>}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '16px', marginBottom: '24px', flexWrap: 'wrap' }}>
         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
           {categories.map((cat) => (

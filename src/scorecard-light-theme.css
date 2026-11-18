@@ -125,3 +125,10 @@
 :root .s3-modal-card .s3-btn-start-plan:focus-visible{outline:3px solid #6ee7b7;outline-offset:3px}
 :root .s3-modal-card .s3-btn-start-plan:disabled{background:#d1fae5;border-color:#a7f3d0;color:#47715e;box-shadow:none;cursor:not-allowed;transform:none}
 @media(prefers-reduced-motion:reduce){:root .s3-modal-card .s3-btn-start-plan{transition:none}:root .s3-modal-card .s3-btn-start-plan:hover:not(:disabled){transform:none}}
+:root .s3-modal-card { max-height: calc(100dvh - 32px); }
+:root .s3-modal-card .s3-window-body-grid { min-height: 0; overflow-y: auto; align-items: start; }
+:root .s3-modal-card .s3-bottom-actions-row { position: sticky; bottom: 0; background: #fff; padding-top: 12px; padding-bottom: 8px; z-index: 2; }
+@media(max-width:600px) {
+  :root .s3-modal-backdrop { padding: 8px; }
+  :root .s3-modal-card .s3-bottom-actions-row > * { flex: 1 1 100%; min-width: 0; }
+}

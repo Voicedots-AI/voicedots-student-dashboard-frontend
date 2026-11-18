@@ -70,6 +70,9 @@ export function InterviewScorecard({ view, sessionId, role, company }: { view: I
   const rawScore = view.overall_score;
   const overallScore = rawScore != null ? Math.round(Math.max(0, Math.min(100, rawScore))) : 0;
   const showCoachPopup = searchParams.get('view') === 'coach';
+  useEffect(() => {
+    if (showCoachPopup) document.querySelector('.s3-window-body-grid')?.scrollTo({ top: 0, behavior: 'instant' });
+  }, [showCoachPopup]);
   const setShowCoachPopup = (open: boolean) => {
     const next = new URLSearchParams(searchParams);
     if (open) {

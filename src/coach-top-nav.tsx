@@ -1,8 +1,9 @@
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { TrendingUp, Calendar, BookOpen, CalendarDays, LineChart, Award, PhoneCall, Video, FileText } from 'lucide-react';
 import './coach-approved.css';
 import { coachCallPath } from './coach-call-link';
-import { useReleasedJourneyReport } from './placement-journey-gate';
+import { useReleasedJourneyReport, useJourneyReports } from './placement-journey-gate';
+import type { Report } from './api';
 
 type JourneyTab = 'interview' | 'result' | 'coach' | 'call' | 'plan' | 'schedule' | 'resources' | 'reattempt' | 'progress' | 'readiness';
 
@@ -15,11 +16,14 @@ const learningTabs = [
   { id: 'readiness', label: 'Placement Readiness', icon: Award },
 ] as const;
 
-export function CoachTopNav({ activeTab, driveId, sessionId }: { activeTab?: JourneyTab; driveId?: string; sessionId?: string }) {
+export function CoachTopNav({ activeTab, driveId, sessionId, attemptReports }: { activeTab?: JourneyTab; driveId?: string; sessionId?: string; attemptReports?: Report[] }) {
   const location = useLocation();
   const input = new URLSearchParams(location.search);
   const report = useReleasedJourneyReport();
+  const savedReports = useJourneyReports();
+  const navigate = useNavigate();
   const drive = driveId || input.get('drive');
+  const reports = (attemptReports || savedReports).filter(item => item.drive_id === drive && item.status === 'released' && item.report);
   const session = sessionId || report?.session_id;
   const context = new URLSearchParams();
   if (drive) context.set('drive', drive);
@@ -46,6 +50,17 @@ export function CoachTopNav({ activeTab, driveId, sessionId }: { activeTab?: Jou
     ...learningTabs.map(tab => ({ ...tab, to: `/placement/${tab.id}${query}` })),
   ];
   return <nav className="coach-top-navbar" aria-label="Placement journey">
+    {reports.length > 1 && <label className="journey-attempt-selector">Interview result
+      <select value={session || ''} onChange={event => {
+        const next = new URLSearchParams(context);
+        next.set('report_session_id', event.target.value);
+        navigate(`/reports/${encodeURIComponent(event.target.value)}?${next}`);
+      }}>
+        {reports.map((item, index) => <option key={item.session_id} value={item.session_id}>
+          Attempt {item.attempt_number || reports.length - index}{item.report?.overall_score != null ? ` · ${item.report.overall_score}/100` : ''}
+        </option>)}
+      </select>
+    </label>}
     {tabs.map(({ id, label, icon: Icon, to }) => <Link
       key={id} to={to} className={`coach-nav-btn${selected === id ? ' active' : ''}`}
       aria-current={selected === id ? 'page' : false}
