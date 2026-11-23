@@ -140,7 +140,7 @@ export function Practice() {
   function savePermissionConsent(submissionId?: string, operationId?: string) {
     if (!driveId) return;
     sessionStorage.setItem(`vd_placement_consent_${identity!.student.id}_${driveId}`, JSON.stringify({
-      version: 1, accepted: true, acceptedAt: Date.now(), submissionId, operationId,
+      version: 1, accepted: true, acceptedAt: Date.now(), submissionId, operationId, insightsConsent:'insights-v1',
     }));
   }
 
@@ -823,7 +823,7 @@ export function Practice() {
                         <button ref={shareButton} type="button" className={`button secondary${highlightShare ? ' permission-required-highlight' : ''}`} onClick={() => void allowScreenSharing()} disabled={permissionBusy || screenReady} aria-describedby="placement-permission-note" aria-invalid={highlightShare || undefined}>
                           <ShieldCheck size={16}/>{screenReady ? 'Interview access allowed' : permissionBusy ? 'Allow browser permissions…' : 'Allow interview access'}
                         </button>
-                        <span id="placement-permission-note">By allowing sharing, you agree to fullscreen, camera/mic recording and AI assessment.</span>
+                        <span id="placement-permission-note">By allowing sharing, you agree to fullscreen, camera/mic recording and AI assessment. You also agree to transcript analytics and on-device camera measurements; analytics sends only numeric camera measurements and never infers emotions or affects scores.</span>
                       </div>
                       <div className="placement-primary-action">
                         {preparation && ['in_progress','ready'].includes(preparation.status) && !context.can_start_next_attempt ? <button type="button" className="button primary placement-start-interview" onClick={() => void enterInterview(preparation.submission_id, preparation.session_id, preparation.operation_id)}><Mic size={17}/>Start Interview <ArrowRight size={17}/></button>

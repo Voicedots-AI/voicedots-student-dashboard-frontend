@@ -1,3 +1,6 @@
+import { createInterviewObservations } from "./interview-observations.js";
+const interviewObservations=createInterviewObservations();
+let insightObservationConsent=false;
 /* VoiceDot AI — Live AI Panel Interview (Stage 5)
  * Google Meet style video call with AI Panelist stage, PiP candidate camera,
  * continuous live transcript sidebar, pre-join device verification (real mic analyzer),
@@ -87,6 +90,7 @@ const micSelectEl = document.getElementById("mic-select");
 const pjShareAllowBtn = document.getElementById("pj-share-allow");
 const pjJoinBtn = document.getElementById("pj-join-btn");
 const recordingConsentEl = document.getElementById("recording-consent");
+recordingConsentEl?.addEventListener('change',()=>{insightObservationConsent=recordingConsentEl.checked;});
 const recordingStatusEl = document.getElementById("recording-status");
 const callRecordingStatusEl = document.getElementById("call-recording-status");
 const micStatusText = document.getElementById("mic-status-text");
@@ -930,6 +934,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   const consentKey = consentDriveId ? `vd_placement_consent_${getStudentSession()?.id}_${consentDriveId}` : null;
   if (consentKey) {
     try { placementConsent = JSON.parse(sessionStorage.getItem(consentKey) || 'null'); } catch { /* Consent must be explicit. */ }
+    insightObservationConsent=placementConsent?.insightsConsent==='insights-v1';
     const age = Date.now() - (placementConsent?.acceptedAt || 0);
     const ownsEntry = preparationId ? placementConsent?.operationId === preparationId
       : placementConsent?.submissionId === urlParams.get('id');
@@ -2442,6 +2447,9 @@ async function analyzeCameraFrame() {
     delete lastVisionWarningAt.candidate_not_visible;
     delete lastVisionWarningAt.gaze_off_camera;
   }
+  if(proctoringActive&&!qualityIssue&&(faceLandmarker||nativeFaceDetector)) {
+    interviewObservations.sample(faceCountDetected===1?landmarks:null, {cameraFacing:landmarks?!landmarkGazeOffCamera(landmarks):null});
+  }
 
   // Face detection alone misses a person whose back/side is turned to the
   // camera (no eyes/nose/mouth visible). The person/object detector counts
@@ -3941,6 +3949,7 @@ function handleControlMessage(payload) {
     // never send this. Only from here on does a flag actually count, and
     // only from here on do queued pending events get flushed.
     case "interview_started":
+      interviewObservations.start({consent:insightObservationConsent,cameraUsed:hasLiveTrack('video')});
       if (liveChip) liveChip.style.display = 'inline-flex';
       startCallTimer(Number(payload.elapsed_seconds) || 0, Number(payload.duration_seconds) || Infinity);
       interviewRecordingEnabled = payload.recording_enabled !== false;
@@ -4139,6 +4148,7 @@ function handleControlMessage(payload) {
     // "transcript" — and a partial is not final, so it only ever updates
     // the live caption bar, never the committed transcript panel.
     case "partial_transcript":
+      interviewObservations.response();
       if (payload.text) {
         setLiveCaption(payload.text, true);
         if (aiRoleEl) aiRoleEl.textContent = "Listening...";
@@ -4183,6 +4193,7 @@ function handleControlMessage(payload) {
       break;
 
     case "listening":
+      interviewObservations.listening();
       if (Number(payload.audio_epoch) === currentAudioEpoch && !activePlaybackSources.size) {
         aiSpeaking = false; setActivePanelTalking(false);
       }
@@ -4207,6 +4218,7 @@ function handleControlMessage(payload) {
       completionPersistencePending = true;
       // fall through: both events carry the completed-round proof.
     case "session_complete":
+      void saveInterviewObservations();
       clearProcessingStatus();
       sessionTimedOut = sessionTimedOut || payload.time_limit_reached === true;
       if (callTimerInterval) { clearInterval(callTimerInterval); callTimerInterval = null; }
@@ -5726,6 +5738,20 @@ function escHtml(str) {
 }
 
 
+async function saveInterviewObservations() {
+  const values=interviewObservations.snapshot();
+  if(!values||!currentSessionId)return;
+  const endpoint=`${_HTTP_BASE}/api/student/interview/${encodeURIComponent(currentSessionId)}/insight-signals`;
+  // End-event persistence can lag its websocket notification. Retry only 409.
+  for(let attempt=0;attempt<4;attempt++) {
+    try {
+      const response=await studentFetch(endpoint,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(values),keepalive:true});
+      if(response.status!==409)return;
+    } catch {return;}
+    await new Promise(resolve=>setTimeout(resolve,1000));
+  }
+}
+
 async function showInterviewExperienceFeedback() {
   if (!currentSessionId || document.getElementById("interview-experience-feedback")) return;
   const endpoint = `${_HTTP_BASE}/api/student/interview/${encodeURIComponent(currentSessionId)}/experience-feedback`;
@@ -5738,6 +5764,7 @@ async function showInterviewExperienceFeedback() {
     }
     if (!response.ok) return;
     const data=await response.json();
+    void saveInterviewObservations();
     if (data.submitted || !Array.isArray(data.questions)) return;
     const esc = escHtml;
     const limit = Number(data.text_limit) || 500;
@@ -5793,6 +5820,12 @@ async function showInterviewExperienceFeedback() {
                 <div class="xf-chips">${(data.improvement_options || []).map(option => `<label class="xf-chip"><input type="checkbox" name="improvements" value="${esc(option.key)}"><span>${esc(option.label)}</span></label>`).join("")}</div>
                 <input class="xf-other" name="improvement_other" maxlength="200" placeholder="Tell us what else to improve..." aria-label="Please specify the other improvement" hidden>
                 <p class="xf-error" role="alert"></p></fieldset>
+              ${[
+                ['difficulty','Interview difficulty',[['too_easy','Too easy'],['right','Right'],['too_hard','Too hard']]],
+                ['interviewer_clarity','Was the interviewer clear?',[['yes','Yes'],['partly','Partly'],['no','No']]],
+                ['would_recommend','Would you recommend this interview?',[['yes','Yes'],['no','No']]],
+                ['coaching_motivated_me','Coaching motivated me',[['1','1 / 5'],['2','2 / 5'],['3','3 / 5'],['4','4 / 5'],['5','5 / 5']]],
+              ].map(([key,label,options])=>`<fieldset class="xf-q"><legend>${label} <span>(Optional)</span></legend><div class="xf-chips">${options.map(([value,text])=>`<label class="xf-chip"><input type="radio" name="${key}" value="${value}"><span>${text}</span></label>`).join('')}</div></fieldset>`).join('')}
               <fieldset class="xf-q" data-q="comments"><legend>Additional Comments <span>(Optional)</span></legend>
                 <div class="xf-text"><textarea name="comments" maxlength="${limit}" rows="3" aria-label="Additional comments" placeholder="Share any other thoughts, suggestions, or feedback..."></textarea><span class="xf-count">0/${limit}</span></div></fieldset>
             </div>
@@ -5872,6 +5905,10 @@ async function showInterviewExperienceFeedback() {
       event.preventDefault();
       const improvements = [...form.querySelectorAll('input[name="improvements"]:checked')].map(box => box.value);
       const payload = { recommend, improvements, improvement_other: other.value.trim(), comments: comments.value.trim() };
+      for(const key of ['difficulty','interviewer_clarity','would_recommend','coaching_motivated_me']) {
+        const value=checked(key)?.value;
+        if(value!=null)payload[key]=key==='would_recommend'?value==='yes':key==='coaching_motivated_me'?Number(value):value;
+      }
       for (const question of data.questions) payload[question.key] = checked(question.key) ? Number(checked(question.key).value) : null;
       const first = data.questions[0]?.key;
       if (first && payload[first] == null) {

@@ -39,6 +39,10 @@ const feedbackQuestions = [
   ['feedback_usefulness', 'The feedback is useful for my next steps.'],
   ['audio_experience', 'The audio and response timing worked well.'],
   ['overall_experience', 'Overall, I was satisfied with the interview.'],
+  ['clarity', 'The interview questions and instructions were clear. (Optional)'],
+  ['confidence', 'I feel confident about my next interview. (Optional)'],
+  ['preparedness', 'I felt prepared for this role. (Optional)'],
+  ['coaching_motivated_me', 'Coaching motivated me. (Optional)'],
 ] as const;
 
 export function InterviewScorecard({ view, sessionId, role, company }: { view: InterviewReportView; sessionId: string; role?: string; company?: string|null; assessedAt?: string; durationSeconds?: number }) {
@@ -98,7 +102,21 @@ export function InterviewScorecard({ view, sessionId, role, company }: { view: I
   const [feedbackRatings, setFeedbackRatings] = useState<Record<string, number>>(satisfaction?.ratings ?? {});
   const [recommend, setRecommend] = useState(satisfaction?.recommendation_score != null);
   const [recommendation, setRecommendation] = useState(satisfaction?.recommendation_score ?? 5);
+  const [insightAnswers,setInsightAnswers]=useState<Record<string,string>>({});
   const [comments, setComments] = useState(satisfaction?.comments ?? '');
+  useEffect(()=>{
+    let alive=true;
+    api<{ratings:Record<string,number>;insight_answers?:Record<string,unknown>;submitted_at?:string;skipped:boolean;recommendation_score?:number|null;comments?:string}>(`/api/student/interview/${encodeURIComponent(sessionId)}/experience-feedback`).then(saved=>{
+      if(!alive||saved.skipped||!Object.keys(saved.ratings).length)return;
+      setFeedbackRatings({...saved.ratings,...(typeof saved.insight_answers?.coaching_motivated_me==='number'?{coaching_motivated_me:saved.insight_answers.coaching_motivated_me}:{})});
+      setInsightAnswers(Object.fromEntries(Object.entries(saved.insight_answers||{}).map(([k,v])=>[k,typeof v==='boolean'?(v?'yes':'no'):String(v)])));
+      setRecommend(saved.recommendation_score!=null);setRecommendation(saved.recommendation_score??5);setComments(saved.comments||'');
+      const values=['question_relevance','conversation_quality','assessment_fairness','feedback_usefulness','audio_experience','overall_experience'].map(k=>saved.ratings[k]).filter(v=>v!=null);
+      setSatisfaction({score:Math.round(values.reduce((a,b)=>a+b,0)/values.length/5*100),label:'Feedback submitted',ratings:saved.ratings,submitted_at:saved.submitted_at||'',method:'student_survey'});
+    }).catch(()=>{/* The existing optional form remains available for a retry. */});
+    return()=>{alive=false};
+  },[sessionId]);
+
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
@@ -283,9 +301,10 @@ export function InterviewScorecard({ view, sessionId, role, company }: { view: I
   async function saveFeedback(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
-    const ratings: Record<string, number | string> = Object.fromEntries(
-      feedbackQuestions.map(([key]) => [key, Number(form.get(key))])
+    const ratings: Record<string, number | string | boolean> = Object.fromEntries(
+      feedbackQuestions.filter(([key])=>form.get(key)!=null).map(([key]) => [key, Number(form.get(key))])
     );
+    for(const key of ['difficulty','interviewer_clarity','would_recommend'])if(insightAnswers[key])ratings[key]=key==='would_recommend'?insightAnswers[key]==='yes':insightAnswers[key];
     if (recommend) ratings.recommendation_score = recommendation;
     if (comments.trim()) ratings.comments = comments.trim();
     setBusy(true);
@@ -293,7 +312,7 @@ export function InterviewScorecard({ view, sessionId, role, company }: { view: I
     try {
       setSatisfaction(
         await api<CandidateSatisfaction>(
-          `/api/interview/${encodeURIComponent(sessionId)}/evaluation/satisfaction`,
+          `/api/student/interview/${encodeURIComponent(sessionId)}/scorecard-feedback`,
           json(ratings)
         )
       );
@@ -961,7 +980,7 @@ export function InterviewScorecard({ view, sessionId, role, company }: { view: I
                           type="radio"
                           name={key}
                           value={n}
-                          required
+                          required={index<6}
                           checked={feedbackRatings[key] === n}
                           onChange={() => setFeedbackRatings((prev) => ({ ...prev, [key]: n }))}
                           aria-label={`${n} out of 5: ${['Strongly disagree','Disagree','Neutral','Agree','Strongly agree'][n-1]}`}
@@ -1000,6 +1019,11 @@ export function InterviewScorecard({ view, sessionId, role, company }: { view: I
             )}
             </div>
 
+            <div className="feedback-survey-grid">{([
+              ['difficulty','Interview difficulty',[['too_easy','Too easy'],['right','Right'],['too_hard','Too hard']]],
+              ['interviewer_clarity','Was the interviewer clear?',[['yes','Yes'],['partly','Partly'],['no','No']]],
+              ['would_recommend','Would you recommend this interview?',[['yes','Yes'],['no','No']]],
+            ] as const).map(([key,label,options])=><fieldset className="feedback-rating-question" key={key}><legend>{label} (Optional)</legend><select aria-label={label} value={insightAnswers[key]||''} onChange={e=>setInsightAnswers(a=>({...a,[key]:e.target.value}))}><option value="">Choose an answer</option>{options.map(([v,t])=><option key={v} value={v}>{t}</option>)}</select></fieldset>)}</div>
             <label className="feedback-comments">
               <span>Anything else you'd like us to know? <small>Optional</small></span>
               <textarea
@@ -1012,7 +1036,7 @@ export function InterviewScorecard({ view, sessionId, role, company }: { view: I
             </label>
 
             {error && <p role="alert" className="feedback-error">{error}</p>}
-            <div className="feedback-form-footer"><span className="feedback-required-note">Rate all {feedbackQuestions.length} statements before submitting.</span>
+            <div className="feedback-form-footer"><span className="feedback-required-note">The first six ratings are required. Additional questions are optional.</span>
             <button type="submit" className="button primary" disabled={busy}>
               {busy ? 'Saving feedback…' : satisfaction ? 'Update feedback' : 'Submit feedback'} <ArrowRight size={16}/>
             </button>
