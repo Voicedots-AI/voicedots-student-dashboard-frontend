@@ -531,7 +531,7 @@ function speakPriya(text) {
   return priyaNarrator.speak(text);
 }
 
-async function runPriyaFaceVerificationFlow() {
+async function runPriyaFaceVerificationFlow(afterVerified = null) {
   const overlay = document.getElementById("pip-face-verify-overlay");
   const badge = document.getElementById("pf-verify-badge");
   const arrow = document.getElementById("pf-verify-arrow");
@@ -593,15 +593,13 @@ async function runPriyaFaceVerificationFlow() {
   const welcome = "Welcome! I'm Priya Sharma. Let's complete a quick identity check, then start your interview. Please slowly turn your head to the left.";
   if (questionTextEl) questionTextEl.textContent = welcome;
 
-  await speakPriya(welcome);
-  await waitForPose(() => {
+  await Promise.all([speakPriya(welcome), waitForPose(() => {
     const ratio = headTurnRatio();
     return ratio !== null && ratio < 0.38;
-  }, 10000);
+  }, 10000)]);
 
   // Step 1 confirmed
   if (dot1) dot1.className = "pf-verify-step-dot done";
-  await new Promise(r => setTimeout(r, 400));
 
   // Step 2: Turn Head RIGHT
   if (counterPill) counterPill.textContent = "Step 2/3";
@@ -610,15 +608,13 @@ async function runPriyaFaceVerificationFlow() {
   if (dot2) dot2.className = "pf-verify-step-dot active";
   if (questionTextEl) questionTextEl.textContent = "Now please slowly turn your head to the right.";
 
-  await speakPriya("Now please slowly turn your head to the right.");
-  await waitForPose(() => {
+  await Promise.all([speakPriya("Now please slowly turn your head to the right."), waitForPose(() => {
     const ratio = headTurnRatio();
     return ratio !== null && ratio > 0.62;
-  }, 10000);
+  }, 10000)]);
 
   // Step 2 confirmed
   if (dot2) dot2.className = "pf-verify-step-dot done";
-  await new Promise(r => setTimeout(r, 400));
 
   // Step 3: Look at CENTER
   if (counterPill) counterPill.textContent = "Step 3/3";
@@ -627,19 +623,29 @@ async function runPriyaFaceVerificationFlow() {
   if (dot3) dot3.className = "pf-verify-step-dot active";
   if (questionTextEl) questionTextEl.textContent = "Now look straight at the camera and blink naturally.";
 
-  await speakPriya("Now look straight at the camera and blink naturally.");
-  await waitForPose(() => {
+  // Collect the same six spaced frames while the centre instruction plays.
+  // Pose guidance is not verification; only the server can confirm identity.
+  const identityCheck = waitForPose(() => {
     const ratio = headTurnRatio();
     return ratio !== null && ratio >= 0.40 && ratio <= 0.60;
-  }, 9000);
+  }, 9000).then(verifyPreflightIdentity);
+  // Attach rejection handling immediately while narration is in flight.
+  const centreOutcome = Promise.allSettled([
+    speakPriya("Now look straight at the camera and blink naturally."), identityCheck,
+  ]);
+  const outcomes = await centreOutcome;
 
   // Head-turn guidance is not proof of identity. Announce the server result only.
   if (verifyText) verifyText.textContent = 'Checking Your Identity';
   if (counterPill) counterPill.textContent = 'Verifying…';
   if (questionTextEl) questionTextEl.textContent = 'Please keep looking at the camera while your identity is checked.';
   await verifyIdentityWithNarration({
-    verify: verifyPreflightIdentity,
+    verify: async () => {
+      const failed = outcomes.find(outcome => outcome.status === 'rejected');
+      if (failed) throw failed.reason;
+    },
     speak: speakPriya,
+    afterVerified,
     onFailed: text => {
       if (verifyText) verifyText.textContent = 'Identity Not Verified';
       if (counterPill) counterPill.textContent = 'Please retry';
@@ -657,7 +663,6 @@ async function runPriyaFaceVerificationFlow() {
   });
 
   // Smoothly fade out overlay & restore question card
-  await new Promise(r => setTimeout(r, 1200));
   if (overlay) overlay.classList.add("hidden");
   if (labelEl) labelEl.textContent = "Current Question";
   if (counterPill) counterPill.textContent = "1/5";
@@ -834,9 +839,10 @@ async function startInterviewBackgroundFlow() {
     if (!preflight.preflight_id) throw new Error('The server did not return an interview preparation token.');
     preflightId = preflight.preflight_id;
     panelDiagnostics.setStage('identity_verification');
-    await runPriyaFaceVerificationFlow();
-    panelDiagnostics.setStage('service_readiness');
-    await checkReadiness();
+    await runPriyaFaceVerificationFlow(async () => {
+      panelDiagnostics.setStage('service_readiness');
+      await checkReadiness();
+    });
     const screenTrack = screenStream?.getVideoTracks().find(track => track.readyState === 'live');
     panelDiagnostics.setStage('session_create');
     const session = await startupResponse(await studentFetch(`${_HTTP_BASE}/api/resume/${currentSubmissionId}/interview`, {
@@ -852,6 +858,7 @@ async function startInterviewBackgroundFlow() {
     await photoVerifier.load(currentSessionId);
     await startInterview(currentSubmissionId);
   } catch (cause) {
+    priyaNarrator.cancel();
     panelDiagnostics.log('error', 'startup_failed', {code:cause?.code, errorName:cause?.name, closeCode:cause?.closeCode});
     const prepareQuestions = cause?.code === 'INTERVIEW_QUESTIONS_NOT_READY';
     failPanelStartup(prepareQuestions
@@ -1276,7 +1283,7 @@ async function waitForPreflight(check, message, timeout = 15000) {
   }
 }
 
-async function checkReadiness() {
+async function checkReadiness(allowQuestionPreparation = true) {
   if (!preflightId) {
     const response = await studentFetch(`${_HTTP_BASE}/api/resume/${currentSubmissionId}/preflight`, { method: "POST", signal: AbortSignal.timeout(15000) });
     const data = await response.json();
@@ -1294,6 +1301,22 @@ async function checkReadiness() {
     });
     servicesCheckedAt = Date.now();
   } catch (error) {
+    if (allowQuestionPreparation && error.code === 'INTERVIEW_QUESTIONS_NOT_READY') {
+      panelDiagnostics.log('info', 'automatic_question_preparation');
+      if (rndStatus) rndStatus.textContent = 'Preparing your interview questions…';
+      const response = await studentFetch(`${_HTTP_BASE}/api/student/interview/${encodeURIComponent(currentSubmissionId)}/prepare`, {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({proceed_without_optional: true}), signal: AbortSignal.timeout(15000),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(typeof result.detail === 'string' ? result.detail : result.detail?.message || 'Interview preparation is temporarily unavailable. Please retry.');
+      const prepared = result.status === 'in_progress' && result.operation_id
+        ? await awaitPlacementPreparation(result.operation_id, new URLSearchParams(location.search).get('drive')) : result;
+      if (prepared.status !== 'ready' || prepared.submission_id !== currentSubmissionId) throw new Error('Interview preparation could not finish. Please retry.');
+      // Keep the verified identity/media and continue the same startup once.
+      // Never recursively retry providers or create another interview attempt.
+      return checkReadiness(false);
+    }
     if (String(error.message).toLowerCase().includes('expired')) {
       preflightId = null;
       preflightChecks.identity = 'pending';

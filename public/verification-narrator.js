@@ -1,4 +1,4 @@
-export async function verifyIdentityWithNarration({ verify, speak, onVerified, onFailed }) {
+export async function verifyIdentityWithNarration({ verify, speak, onVerified, onFailed, afterVerified = null }) {
   try {
     await verify();
   } catch (error) {
@@ -9,7 +9,9 @@ export async function verifyIdentityWithNarration({ verify, speak, onVerified, o
   }
   const text = "Identity verified successfully. Thank you. Let's get your interview ready.";
   onVerified(text);
-  await speak(text);
+  // Readiness needs verified identity, but does not need to wait for audio.
+  // Both finish before the caller starts the interview, so voices never overlap.
+  await Promise.all([speak(text), afterVerified ? afterVerified() : Promise.resolve()]);
 }
 
 /** One narrator for pre-interview guidance. Candidates can explicitly switch to written instructions for a cue. */
