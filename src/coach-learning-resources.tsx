@@ -5,11 +5,15 @@ import {
   FolderArchive,
   ChevronRight,
   Search,
+  PlayCircle,
+  ExternalLink,
+  BookOpen,
 } from 'lucide-react';
 import { PageHeading } from './ui';
 import { CoachTopNav } from './coach-top-nav';
 import './coach-approved.css';
 import { useCoachCallPath } from './coach-call-link';
+import './coach-resource-library.css';
 
 type ResourceCategory = 'all' | 'technical' | 'system_design' | 'behavioral' | 'company_banks';
 
@@ -28,11 +32,19 @@ const exampleQuestions = [
   { question: 'How would you investigate a result that looks wrong?', answer_guidance: 'Define the expected result, check your inputs, test one explanation at a time, and describe how you would verify the fix.' },
 ];
 
+// Public learning material, never a substitute for saved student records.
+const learningLibrary = [
+  { title: 'Python for beginners', topic: 'Python · Programming', category: 'technical', format: 'video', source: 'freeCodeCamp · YouTube', description: 'Build your foundations in Python with a guided video course.', url: 'https://www.youtube.com/watch?v=kLZgQWjnUz0' },
+  { title: 'SQL and database fundamentals', topic: 'SQL · Databases', category: 'technical', format: 'video', source: 'freeCodeCamp · YouTube', description: 'Learn tables, queries, joins and database design using MySQL.', url: 'https://www.youtube.com/watch?v=HXV3zeQKqGY' },
+  ...referenceGuides.map(guide => ({ title: guide.title, topic: guide.title, category: guide.match.test('communication') ? 'behavioral' : 'technical', format: 'website', source: new URL(guide.url).hostname, description: 'Read the guide and apply one idea to your next practice answer.', url: guide.url })),
+];
+
 export function CoachLearningResources({ resources = [], questions = [] }: { resources?: Resource[]; questions?: { question: string; topic?: string; answer_guidance?: string }[] }) {
   const coachPath = useCoachCallPath();
   const [params] = useSearchParams();
   const [selectedCategory, setSelectedCategory] = useState<ResourceCategory>('all');
   const [searchQuery, setSearchQuery] = useState(params.get('topic') || '');
+  const [format, setFormat] = useState('all');
 
   const categories = [
     { id: 'all' as const, label: 'All Resources' },
@@ -43,13 +55,16 @@ export function CoachLearningResources({ resources = [], questions = [] }: { res
   ];
 
   const filtered = resources.filter(res => {
-    const matchesCat = selectedCategory === 'all' || res.category === selectedCategory;
+    const matchesCat = (selectedCategory === 'all' || res.category === selectedCategory) && format === 'all';
     const matchesSearch = !searchQuery || res.title.toLowerCase().includes(searchQuery.toLowerCase()) || res.description.toLowerCase().includes(searchQuery.toLowerCase()) || res.skillTag.toLowerCase().includes(searchQuery.toLowerCase());
     return matchesCat && matchesSearch;
   });
-  const topics = [...resources.map(item => `${item.title} ${item.description} ${item.skillTag}`),
-    ...questions.map(item => `${item.question} ${item.topic || ''} ${item.answer_guidance || ''}`)].join(' ');
-  const guides = referenceGuides.filter(item => item.match.test(topics));
+  const library = learningLibrary.filter(item =>
+    (selectedCategory === 'all' || item.category === selectedCategory) &&
+    (format === 'all' || item.format === format) &&
+    (!searchQuery.trim() || `${item.title} ${item.topic} ${item.source} ${item.description}`.toLowerCase().includes(searchQuery.trim().toLowerCase())));
+  const visibleQuestions = (questions.length ? questions : exampleQuestions).filter(item =>
+    !searchQuery.trim() || `${item.question} ${'topic' in item ? item.topic : ''} ${item.answer_guidance || ''}`.toLowerCase().includes(searchQuery.trim().toLowerCase()));
   function resourceAction(item: Resource) {
     if (!item.actionUrl.startsWith('/placement/schedule')) return item.actionUrl;
     const [path, query] = item.actionUrl.split('?');
@@ -78,12 +93,6 @@ export function CoachLearningResources({ resources = [], questions = [] }: { res
       </header>
 
       {/* Category Bar and Search */}
-      {guides.length > 0 && <section className="journey-preview" style={{marginBottom:20}}>
-        <h2>Documentation for your practice topics</h2>
-        <ul>{guides.map(guide => <li key={guide.url}>
-          <a href={guide.url} target="_blank" rel="noopener noreferrer">{guide.title}</a>
-        </li>)}</ul>
-      </section>}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '16px', marginBottom: '24px', flexWrap: 'wrap' }}>
         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
           {categories.map((cat) => (
@@ -111,6 +120,7 @@ export function CoachLearningResources({ resources = [], questions = [] }: { res
           <Search size={15} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
           <input
             type="text"
+            aria-label="Search learning resources and questions"
             placeholder="Search questions & topics…"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
@@ -126,8 +136,22 @@ export function CoachLearningResources({ resources = [], questions = [] }: { res
         </div>
       </div>
 
+      <div className="resource-format-tabs" aria-label="Resource format">
+        {[['all', 'All formats'], ['video', 'YouTube videos'], ['website', 'Websites & guides']].map(([value, label]) =>
+          <button key={value} type="button" aria-pressed={format === value} onClick={() => setFormat(value)}>{label}</button>)}
+      </div>
+      <section className="resource-library" aria-label="Learning library">
+        <div className="resource-section-heading"><div><h2>Learn, then put it into practice</h2><p>Public learning links. Open in a new tab; your progress changes only when you complete an activity.</p></div><span>{library.length} links</span></div>
+        <div className="resource-library-grid">{library.map(item => <article className="resource-library-card" key={item.url}>
+          <div className={`resource-library-icon ${item.format}`} aria-hidden="true">{item.format === 'video' ? <PlayCircle size={25}/> : <BookOpen size={25}/>}</div>
+          <span className="resource-library-source">{item.source}</span>
+          <h3>{item.title}</h3><p>{item.description}</p>
+          <a href={item.url} target="_blank" rel="noopener noreferrer">{item.format === 'video' ? 'Watch on YouTube' : 'Open website'}<ExternalLink size={14}/><span className="resource-sr-only"> (opens in a new tab)</span></a>
+        </article>)}</div>
+      </section>
+
       {/* Resource Cards Grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '20px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 300px), 1fr))', gap: '20px' }}>
         {filtered.map((item) => (
           <article
             key={item.id}
@@ -174,18 +198,19 @@ export function CoachLearningResources({ resources = [], questions = [] }: { res
       <section className="coach-stage-card" style={{marginTop:24,padding:24}}>
         <h2>{questions.length ? 'Practice questions for your drive' : 'Example practice questions'}</h2>
         <p>Try each answer yourself, then review the preparation guidance.</p>
-        {(questions.length ? questions : exampleQuestions).map((question,index) => <details key={`${index}-${question.question}`} style={{padding:'16px 0',borderBottom:'1px solid #e2e8f0'}}>
+        {visibleQuestions.length === 0 && <p>No questions match this search. Try a different topic.</p>}
+        {visibleQuestions.map((question,index) => <details key={`${index}-${question.question}`} style={{padding:'16px 0',borderBottom:'1px solid #e2e8f0'}}>
           <summary style={{cursor:'pointer',fontWeight:600}}>{index+1}. {question.question}</summary>
           {'topic' in question && typeof question.topic === 'string' && <p>{question.topic}</p>}
           <p>{question.answer_guidance || 'Discuss your reasoning and examples with your AI Coach.'}</p>
         </details>)}
       </section>
 
-      {!resources.length ? <section className="journey-preview journey-notes">
+      {!resources.length && library.length > 0 ? <section className="journey-preview journey-notes">
         <h3>Build a practice checklist</h3>
         <p>Pick one interview answer, write a clearer version, and rehearse it aloud. Ask AI Coach for resources tied to your target role.</p>
         <Link to={coachPath}>Ask AI Coach</Link>
-      </section> : filtered.length === 0 && (
+      </section> : filtered.length === 0 && library.length === 0 && (
         <section className="coach-stage-card" style={{ textAlign: 'center', padding: '48px 24px' }}>
           <FolderArchive size={36} style={{ color: '#94a3b8', margin: '0 auto 12px auto' }} />
           <h3 style={{ fontSize: '16px', color: '#1e293b', marginBottom: '6px' }}>No matching resources found</h3>
@@ -195,7 +220,7 @@ export function CoachLearningResources({ resources = [], questions = [] }: { res
           <button
             type="button"
             className="coach-secondary"
-            onClick={() => { setSelectedCategory('all'); setSearchQuery(''); }}
+            onClick={() => { setSelectedCategory('all'); setSearchQuery(''); setFormat('all'); }}
           >
             Clear filters
           </button>

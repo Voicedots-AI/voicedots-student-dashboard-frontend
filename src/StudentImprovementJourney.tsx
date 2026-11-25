@@ -3281,11 +3281,14 @@ function ImprovementJourneyScreens() {
                     <span className="s4-topic-icon-box" data-tone={index % 4}><BookOpen size={22} aria-hidden="true" /></span>
                     <div className="s4-topic-info">
                       <h3 className="s4-topic-title">{item.focus}</h3>
-                      <p className="s4-topic-desc">{item.activity}</p>
+                      <p className="s4-topic-desc s4-plan-summary">{item.activity}</p>
+                      {(item.practice_steps?.length || item.success_check) ? <details className="s4-plan-details">
+                        <summary>Practice steps & goal</summary>
                       {item.practice_steps?.length ? <ol className="journey-practice-steps">
                         {item.practice_steps.map((step, stepIndex) => <li key={stepIndex}>{step}</li>)}
                       </ol> : null}
                       {item.success_check && <p className="journey-success-check"><strong>Practice goal</strong> {item.success_check}</p>}
+                      </details> : null}
                     </div>
                   </div>
                   {planAreas.length > 0 && <dl className="s4-topic-right">

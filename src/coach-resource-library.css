@@ -1,0 +1,23 @@
+.s4-plan-summary { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.6; }
+.s4-plan-details { margin-top: 8px; font-size: 12px; color: #526584; }
+.s4-plan-details summary { width: fit-content; color: #175fc3; cursor: pointer; font-weight: 600; }
+.s4-topic-info:has(.s4-plan-details[open]) .s4-plan-summary { display: block; }
+.s4-plan-details .journey-practice-steps { margin: 10px 0; }
+.resource-format-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 22px; }
+.resource-format-tabs button { border: 1px solid #dce5f3; background: #fff; color: #526584; border-radius: 8px; padding: 9px 14px; font: inherit; font-size: 12px; cursor: pointer; }
+.resource-format-tabs button[aria-pressed="true"] { background: #eef4ff; border-color: #8db4f2; color: #165bc3; font-weight: 600; }
+.resource-section-heading { display: flex; align-items: start; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
+.resource-section-heading h2 { font-size: 19px; margin: 0 0 6px; color: #162c49; }
+.resource-section-heading p { font-size: 12px; color: #64748b; margin: 0; max-width: 620px; line-height: 1.6; }
+.resource-section-heading > span { white-space: nowrap; font-size: 12px; color: #64748b; }
+.resource-library-grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,260px),1fr)); gap: 16px; margin-bottom: 24px; }
+.resource-library-card { min-width: 0; display: flex; align-items: flex-start; flex-direction: column; padding: 20px; background: #fff; border: 1px solid #dfe7f3; border-radius: 14px; }
+.resource-library-icon { padding: 10px; border-radius: 10px; background: #eef4ff; color: #2465c7; margin-bottom: 14px; }
+.resource-library-icon.video { background: #fff0f0; color: #c53838; }
+.resource-library-source { font-size: 11px; color: #697a90; overflow-wrap: anywhere; }
+.resource-library-card h3 { font-size: 15px; color: #162c49; margin: 7px 0; line-height: 1.5; }
+.resource-library-card p { font-size: 12px; color: #64748b; line-height: 1.7; margin: 0 0 18px; }
+.resource-library-card a { display: inline-flex; align-items: center; gap: 8px; margin-top: auto; font-size: 12px; font-weight: 600; color: #185ec1; text-decoration: none; }
+.resource-library-card a:hover { text-decoration: underline; }
+.resource-library-card a:focus-visible,.resource-format-tabs button:focus-visible,.s4-plan-details summary:focus-visible { outline: 2px solid #2865cb; outline-offset: 4px; }
+.resource-sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
