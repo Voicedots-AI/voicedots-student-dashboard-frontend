@@ -140,16 +140,6 @@ export function CoachLearningResources({ resources = [], questions = [] }: { res
         {[['all', 'All formats'], ['video', 'YouTube videos'], ['website', 'Websites & guides']].map(([value, label]) =>
           <button key={value} type="button" aria-pressed={format === value} onClick={() => setFormat(value)}>{label}</button>)}
       </div>
-      <section className="resource-library" aria-label="Learning library">
-        <div className="resource-section-heading"><div><h2>Learn, then put it into practice</h2><p>Public learning links. Open in a new tab; your progress changes only when you complete an activity.</p></div><span>{library.length} links</span></div>
-        <div className="resource-library-grid">{library.map(item => <article className="resource-library-card" key={item.url}>
-          <div className={`resource-library-icon ${item.format}`} aria-hidden="true">{item.format === 'video' ? <PlayCircle size={25}/> : <BookOpen size={25}/>}</div>
-          <span className="resource-library-source">{item.source}</span>
-          <h3>{item.title}</h3><p>{item.description}</p>
-          <a href={item.url} target="_blank" rel="noopener noreferrer">{item.format === 'video' ? 'Watch on YouTube' : 'Open website'}<ExternalLink size={14}/><span className="resource-sr-only"> (opens in a new tab)</span></a>
-        </article>)}</div>
-      </section>
-
       {/* Resource Cards Grid */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 300px), 1fr))', gap: '20px' }}>
         {filtered.map((item) => (
@@ -194,6 +184,16 @@ export function CoachLearningResources({ resources = [], questions = [] }: { res
           </article>
         ))}
       </div>
+
+      <section className="resource-library" aria-label="Learning library">
+        <div className="resource-section-heading"><div><h2>Learn, then put it into practice</h2><p>Public learning links. Open in a new tab; your progress changes only when you complete an activity.</p></div><span>{library.length} links</span></div>
+        <div className="resource-library-grid">{library.map(item => <article className="resource-library-card" key={item.url}>
+          <div className={`resource-library-icon ${item.format}`} aria-hidden="true">{item.format === 'video' ? <PlayCircle size={25}/> : <BookOpen size={25}/>}</div>
+          <span className="resource-library-source">{item.source}</span>
+          <h3>{item.title}</h3><p>{item.description}</p>
+          <a href={item.url} target="_blank" rel="noopener noreferrer">{item.format === 'video' ? 'Watch on YouTube' : 'Open website'}<ExternalLink size={14}/><span className="resource-sr-only"> (opens in a new tab)</span></a>
+        </article>)}</div>
+      </section>
 
       <section className="coach-stage-card" style={{marginTop:24,padding:24}}>
         <h2>{questions.length ? 'Practice questions for your drive' : 'Example practice questions'}</h2>
