@@ -705,16 +705,10 @@ async function recoverInterviewQuestions(action) {
   try {
     const response = await studentFetch(`${_HTTP_BASE}/api/student/interview/${encodeURIComponent(currentSubmissionId)}/prepare`, {
       method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({proceed_without_optional: false}), signal: AbortSignal.timeout(15000),
+      body: JSON.stringify({proceed_without_optional: true}), signal: AbortSignal.timeout(15000),
     });
     const result = await response.json();
     const drive = new URLSearchParams(window.location.search).get('drive');
-    if (['needs_clarification', 'resume_reupload_required'].includes(result.status)) {
-      const student = getStudentSession();
-      if (student?.id) sessionStorage.setItem(`vd_preparation_${student.id}_${drive || 'practice'}`, JSON.stringify(result));
-      failPanelStartup('Review your saved resume details before preparing these questions.', {requiresSetup: true});
-      return;
-    }
     if (!response.ok) throw new Error(result.detail?.message || (typeof result.detail === 'string' ? result.detail : 'Question preparation could not start.'));
     const prepared = result.status === 'in_progress' && result.operation_id
       ? await awaitPlacementPreparation(result.operation_id, drive) : result;

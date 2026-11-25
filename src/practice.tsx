@@ -38,7 +38,6 @@ import {
 import { PreparationJourney } from "./preparation-journey";
 import './placement-interview-consent.css';
 import { placementMediaReady, releasePlacementPanelMedia, waitForPlacementMedia } from './placement-panel-media';
-import { ResumeClarificationSteps, type ClarificationAnswer } from "./resume-clarification";
 
 export function Practice() {
   const { identity } = useAuth();
@@ -462,7 +461,7 @@ export function Practice() {
       try {
         remember(await api<Preparation>(
           `/api/student/interview/${encodeURIComponent(submissionId)}/prepare`,
-          json({ proceed_without_optional: false }),
+          json({ proceed_without_optional: true }),
         ));
       } catch (error) {
         if (error instanceof ApiError && error.payload && typeof error.payload === "object" &&
@@ -579,19 +578,11 @@ export function Practice() {
     }
   }
 
-  async function clarify(answers?: ClarificationAnswer[]) {
+  async function continueSavedPreparation() {
+    if (!preparation?.submission_id) return;
     setBusy(true);
     setError("");
     try {
-      if (answers) {
-        await api(
-          `/api/resume/${encodeURIComponent(preparation!.submission_id!)}/amendments`,
-          json({
-            source_extraction_id: preparation!.source_extraction_id,
-            answers,
-          }),
-        );
-      }
       remember(
         await api<Preparation>(
           `/api/student/interview/${encodeURIComponent(preparation!.submission_id!)}/prepare`,
@@ -599,18 +590,21 @@ export function Practice() {
         ),
       );
     } catch (e) {
-      if (
-        e instanceof ApiError &&
-        e.payload &&
-        typeof e.payload === "object" &&
-        "status" in e.payload
-      )
-        remember(e.payload as Preparation);
       setError((e as Error).message);
     } finally {
       setBusy(false);
     }
   }
+
+  // Recover an old cached questionnaire response once, without asking for
+  // additional resume claims or entering a request loop on provider failure.
+  const continuedResumePreparation = useRef<string | null>(null);
+  useEffect(() => {
+    if (!preparation?.submission_id || !['needs_clarification', 'resume_reupload_required'].includes(preparation.status)) return;
+    if (continuedResumePreparation.current === preparation.submission_id) return;
+    continuedResumePreparation.current = preparation.submission_id;
+    void continueSavedPreparation();
+  }, [preparation?.submission_id, preparation?.status]);
 
   async function useResume(resume: Resume) {
     setError("");
@@ -742,17 +736,9 @@ export function Practice() {
             </button>
             <button className="text-button" onClick={reset}>{mode === "placement" ? "Choose another placement" : "Start a different practice"}</button>
           </>}
-          {preparation.status === "resume_reupload_required" && <>
-            <h2>Update your active resume</h2>
-            <p>{preparation.message} Replace the Main Resume in My Profile so every feature continues to use the same version.</p>
-            <Link className="button primary" to="/profile#resume-library">Manage resume in My Profile <ArrowRight size={17}/></Link>
-          </>}
-          {needsClarification && <>
-            <h2>A little more about your experience</h2>
-            <p>{preparation.message}</p>
-            <ResumeClarificationSteps key={`${preparation.source_extraction_id || ""}:${JSON.stringify(preparation.prompts || [])}`} prompts={preparation.prompts || []} required={Boolean(preparation.clarification_required)}
-              busy={busy} onSubmit={answers => void clarify(answers)} />
-            {preparation.can_continue_without_answers && <button className="text-button" disabled={busy} onClick={() => void clarify()}>Continue without optional details</button>}
+          {(needsClarification || preparation.status === "resume_reupload_required") && <>
+            <p role="status">Preparing your interview from your saved resume and target role…</p>
+            {error && <ErrorMessage message={error} retry={() => void continueSavedPreparation()} />}
           </>}
           {!pending && !ready && !needsClarification && preparation.status !== "resume_reupload_required" && <>
             <p>{preparation.message || `Interview status: ${humanize(preparation.status)}.`}</p>
