@@ -43,9 +43,20 @@ export async function requestCoachSpeech(text: string, signal: AbortSignal, owne
       throw new Error('Coach voice is not available on this server yet. Please contact support. You can still read your feedback; retrying will not fix a missing service.');
     }
     if (cause instanceof ApiError && (cause.status === 503 || cause.status === 429)) {
-      retryAfter = Date.now() + 60000;
+      const providerLimit=/quota|usage limit|credits|spending|resource_exhausted/i.test(cause.message);
+      retryAfter = Date.now() + (providerLimit?60000:cause.status===429?15000:5000);
       unavailableMessage = cause.message;
     }
     throw cause;
   }
+}
+
+/** Two bounded clips let Rajesh start before the complete reply is synthesized. */
+export function splitCoachSpeech(text:string):string[]{
+ const value=text.trim();
+ if(value.length<=180)return value?[value]:[];
+ const boundaries=[...value.matchAll(/[.!?](?:["’”])?\s+/g)];
+ const end=boundaries.map(match=>match.index!+match[0].length).find(index=>index>=55&&index<=220);
+ const split=end||value.lastIndexOf(' ',180);
+ return split>40?[value.slice(0,split).trim(),value.slice(split).trim()].filter(Boolean):[value];
 }

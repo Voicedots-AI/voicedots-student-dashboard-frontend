@@ -132,3 +132,7 @@
   :root .s3-modal-backdrop { padding: 8px; }
   :root .s3-modal-card .s3-bottom-actions-row > * { flex: 1 1 100%; min-width: 0; }
 }
+
+.coach-popup-thread{display:flex;flex-direction:column;gap:10px;max-height:260px;overflow-y:auto;padding:4px}.coach-popup-turn{padding:10px 12px;background:#f0f6ff;border:1px solid #d9e7f7;border-radius:10px;font-size:12px}.coach-popup-turn.student{background:#f4faf7;border-color:#d8ebdf}.coach-popup-turn strong{font-size:11px;color:#42668b}.coach-popup-turn p{margin:5px 0 0;white-space:pre-wrap;line-height:1.65}
+
+.coach-popup-voice-controls{display:flex;align-items:center;flex-wrap:wrap;gap:10px}.coach-popup-voice-controls>span{font-size:11px;color:#526d8b;line-height:1.5}

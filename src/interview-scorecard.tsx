@@ -1,4 +1,4 @@
-import { selectRajeshDeviceVoice } from "./coach-device-voice";
+import {cancelSpeechRecognition,type RecognitionLike} from './speech-recognition';
 import { useState, useEffect, useRef, type FormEvent } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
@@ -18,7 +18,7 @@ import {
   PhoneCall,
 } from 'lucide-react';
 import { api, ApiError, json, type CandidateSatisfaction, type InterviewReportView } from './api';
-import { requestCoachSpeech } from './coach-voice-audio';
+import { requestCoachSpeech,splitCoachSpeech } from './coach-voice-audio';
 import { useAuth } from './auth';
 import { coachCallPath } from './coach-call-link';
 import { reportCompetencies } from './report-competencies';
@@ -54,8 +54,8 @@ export function InterviewScorecard({ view, sessionId, role, company }: { view: I
   const [callDriveId, setCallDriveId] = useState(searchParams.get('drive') || '');
   useEffect(() => {
     let active = true;
-    setCallDriveId('');
-    api<{ reports?: import('./api').Report[] }>('/api/student/reports').then(result => {
+    setCallDriveId(searchParams.get('drive') || '');
+    api<{ reports?: import('./api').Report[] }>(`/api/student/reports?report_session_id=${encodeURIComponent(sessionId)}`).then(result => {
       if (active) {
         const report=result.reports?.find(item=>item.session_id===sessionId);
         setCallDriveId(report?.drive_id || '');
@@ -135,7 +135,15 @@ export function InterviewScorecard({ view, sessionId, role, company }: { view: I
   const [discussionError,setDiscussionError] = useState('');
   const [discussionHistory,setDiscussionHistory] = useState<Array<{speaker:'student'|'officer';text:string}>>([]);
   const discussionRequest = useRef<AbortController|null>(null);
-  useEffect(()=>()=>{discussionRequest.current?.abort();},[sessionId]);
+  const lastDiscussionPrompt=useRef('');
+  const threadViewport=useRef<HTMLDivElement|null>(null);
+  useEffect(()=>{if(threadViewport.current)threadViewport.current.scrollTop=threadViewport.current.scrollHeight;},[discussionHistory]);
+  const [voiceConversation,setVoiceConversation]=useState(false),[popupListening,setPopupListening]=useState(false),[microphoneNotice,setMicrophoneNotice]=useState('');
+  const popupRecognition=useRef<RecognitionLike|null>(null);
+  const sendSpokenReply=useRef<(text:string)=>void>(()=>{});
+  function stopPopupListening(){const current=popupRecognition.current;popupRecognition.current=null;if(current){current.onresult=current.onerror=current.onend=null;cancelSpeechRecognition(current);}setPopupListening(false);}
+
+  useEffect(()=>{setDiscussionHistory([]);setCustomDialogue(null);setDiscussionError('');return()=>{discussionRequest.current?.abort();discussionRequest.current=null;};},[sessionId]);
   const [scheduleDataByDays,setScheduleDataByDays]=useState<Record<string,{track:string;topic:string;technical:string;communication:string}>>({});
   useEffect(()=>{
     let active=true;
@@ -160,17 +168,10 @@ export function InterviewScorecard({ view, sessionId, role, company }: { view: I
   const coachSpeechRequest = useRef<AbortController | null>(null);
   const [coachVoiceError, setCoachVoiceError] = useState('');
   const [coachVoiceLoading, setCoachVoiceLoading] = useState(false);
-  const coachAudioText = useRef('');
-  const coachDeviceSpeech = useRef<SpeechSynthesisUtterance | null>(null);
 
   function stopCoachVoice() {
     coachSpeechRequest.current?.abort();
     coachSpeechRequest.current = null;
-    if (coachDeviceSpeech.current) {
-      coachDeviceSpeech.current.onend = coachDeviceSpeech.current.onerror = null;
-      coachDeviceSpeech.current = null;
-      window.speechSynthesis.cancel();
-    }
     if (coachAudio.current) {
       coachAudio.current.onplaying = null;
       coachAudio.current.onended = null;
@@ -180,67 +181,51 @@ export function InterviewScorecard({ view, sessionId, role, company }: { view: I
     }
     if (coachAudioUrl.current) URL.revokeObjectURL(coachAudioUrl.current);
     coachAudioUrl.current = null;
-    coachAudioText.current = '';
     setCoachVoiceLoading(false);
     setIsCoachSpeaking(false);
   }
 
-  async function speakCoachText(text: string) {
+  async function speakCoachText(text: string, userInitiated = false) {
+    stopPopupListening();
     stopCoachVoice();
+    void userInitiated;
     setCoachVoiceError('');
     setCoachVoiceLoading(true);
     const controller = new AbortController();
     coachSpeechRequest.current = controller;
-    const deadline = AbortSignal.timeout(6000);
+    const signal=controller.signal;
     try {
-      const signal = AbortSignal.any([controller.signal, deadline]);
-      const blob = await requestCoachSpeech(text, signal, identity?.student.id || '');
-      if (controller.signal.aborted) return;
-      if (!blob.size) throw new Error('Empty coach audio');
-      const url = URL.createObjectURL(blob);
-      coachAudioUrl.current = url;
-      const player = new Audio(url);
-      coachAudio.current = player;
-      coachAudioText.current = text;
-      player.muted = false;
-      player.volume = 1;
-      player.playbackRate = 1.08;
-      player.onplaying = () => setIsCoachSpeaking(true);
-      player.onended = stopCoachVoice;
-      player.onerror = () => {
-        stopCoachVoice();
-        setCoachVoiceError('Voice is unavailable. You can continue reading the conversation.');
-      };
-      await player.play();
-    } catch (cause) {
-      if (controller.signal.aborted) return;
-      if (cause instanceof DOMException && cause.name === 'NotAllowedError') {
-        setCoachVoiceError('Your browser paused audio. Interact with this window to hear Dr. Rajesh.');
-        return;
+      const chunks=splitCoachSpeech(text);
+      const fetchClip=(chunk:string)=>requestCoachSpeech(chunk,AbortSignal.any([signal,AbortSignal.timeout(20000)]),identity?.student.id||'').then(blob=>({blob,error:null as unknown})).catch(error=>({blob:null,error}));
+      let pending=chunks.length?fetchClip(chunks[0]):null;
+      for(let index=0;index<chunks.length;index++){
+        const result=await pending!;
+        signal.throwIfAborted();
+        if(result.error)throw result.error;
+        if(!result.blob)throw new Error('Coach returned no audio. Retry voice.');
+        // Fetch one clip ahead while the current sentence is playing.
+        pending=index+1<chunks.length?fetchClip(chunks[index+1]):null;
+        if(coachAudioUrl.current)URL.revokeObjectURL(coachAudioUrl.current);
+        const url=URL.createObjectURL(result.blob);coachAudioUrl.current=url;
+        const player=new Audio(url);coachAudio.current=player;player.playbackRate=1.08;
+        await new Promise<void>((resolve,reject)=>{
+          const cleanup=()=>{signal.removeEventListener('abort',done);player.onended=null;player.onerror=null;};
+          const done=()=>{cleanup();resolve();};
+          player.onplaying=()=>{if(!signal.aborted){setCoachVoiceLoading(false);setIsCoachSpeaking(true);}};
+          player.onended=done;
+          player.onerror=()=>{cleanup();reject(new Error('Audio playback failed. Select Retry voice.'));};
+          signal.addEventListener('abort',done,{once:true});
+          void player.play().catch(error=>{cleanup();reject(error);});
+        });
+        signal.throwIfAborted();setIsCoachSpeaking(false);
+        if(pending)setCoachVoiceLoading(true);
       }
       stopCoachVoice();
-      const voices = window.speechSynthesis?.getVoices() || [];
-      const voice = selectRajeshDeviceVoice(voices);
-      if (voice) {
-        const cue = new SpeechSynthesisUtterance(text);
-        cue.voice = voice;
-        cue.lang = voice.lang;
-        coachDeviceSpeech.current = cue;
-        cue.onend = stopCoachVoice;
-        cue.onerror = () => {
-          stopCoachVoice();
-          setCoachVoiceError('Device voice could not play. You can continue reading the conversation.');
-        };
-        setIsCoachSpeaking(true);
-        setCoachVoiceError('Using your device’s voice for this reply.');
-        window.speechSynthesis.speak(cue);
-        return;
-      }
-      setCoachVoiceError(deadline.aborted
-        ? 'Coach voice took too long. You can continue reading the conversation.'
-        : cause instanceof Error ? cause.message : 'Voice is unavailable. You can continue reading the conversation.');
-    } finally {
-      if (!controller.signal.aborted) setCoachVoiceLoading(false);
+    } catch (cause) {
+      if(controller.signal.aborted)return;
+      const blocked=cause instanceof DOMException&&cause.name==='NotAllowedError';
+      stopCoachVoice();
+      setCoachVoiceError(blocked?'Select Retry voice to allow browser audio playback.':cause instanceof DOMException&&cause.name==='TimeoutError'?'Dr. Rajesh’s voice took too long. Retry voice or continue chatting below.':cause instanceof Error?cause.message:'Coach voice is unavailable. Retry or continue using text.');
     }
   }
 
@@ -251,8 +236,10 @@ export function InterviewScorecard({ view, sessionId, role, company }: { view: I
     if (!promptText.trim() || discussionRequest.current) return false;
     const controller = new AbortController();
     discussionRequest.current = controller;
+    lastDiscussionPrompt.current=promptText;
     setDiscussionBusy(true);
     setDiscussionError('');
+    stopPopupListening();
     stopCoachVoice();
     try {
       const result = await api<{reply:string;degraded?:boolean}>('/api/student/coach/officer/conversation', {
@@ -261,11 +248,11 @@ export function InterviewScorecard({ view, sessionId, role, company }: { view: I
         signal:controller.signal,timeoutMs:35000,
       });
       if (controller.signal.aborted) return false;
+      if(result.degraded)throw new Error('Detailed coaching is temporarily unavailable. Select Retry reply; your discussion is retained.');
       const reply = result.reply?.trim();
       if (!reply) throw new Error('The coach returned no reply. Please retry.');
       setCustomDialogue(reply);
       setDiscussionHistory(history=>[...history,{speaker:'student' as const,text:promptText},{speaker:'officer' as const,text:reply}].slice(-24));
-      if (result.degraded) setDiscussionError('Detailed coaching is temporarily unavailable. Please retry shortly.');
 
       return true;
     } catch (cause) {
@@ -279,6 +266,21 @@ export function InterviewScorecard({ view, sessionId, role, company }: { view: I
     }
   };
 
+  sendSpokenReply.current=(text)=>{void handleDiscussionPrompt(text);};
+  function startPopupListening(){
+    if(popupRecognition.current||discussionRequest.current||coachVoiceLoading||isCoachSpeaking||!showCoachPopup)return;
+    const Constructor=window.SpeechRecognition||window.webkitSpeechRecognition;
+    if(!Constructor){setVoiceConversation(false);setMicrophoneNotice('Voice input is unavailable in this browser. You can type your reply below.');return;}
+    const instance=new Constructor();instance.lang='en-IN';instance.continuous=false;instance.interimResults=false;
+    instance.onresult=event=>{for(let index=event.resultIndex;index<event.results.length;index++){const item=event.results[index];const text=item?.[0]?.transcript?.trim();if(item?.isFinal&&text){stopPopupListening();sendSpokenReply.current(text);break;}}};
+    instance.onerror=event=>{if(popupRecognition.current!==instance||event.error==='no-speech')return;setVoiceConversation(false);setMicrophoneNotice(event.error==='not-allowed'?'Microphone permission was denied. Allow access and select Start voice replies, or type instead.':'Microphone paused. Select Start voice replies to retry, or type below.');};
+    instance.onend=()=>{if(popupRecognition.current===instance){popupRecognition.current=null;setPopupListening(false);}};
+    popupRecognition.current=instance;
+    try{instance.start();setPopupListening(true);setMicrophoneNotice('');}catch{stopPopupListening();setVoiceConversation(false);setMicrophoneNotice('The microphone could not start. Retry voice replies or type below.');}
+  }
+  useEffect(()=>{if(voiceConversation&&showCoachPopup&&!discussionBusy&&!coachVoiceLoading&&!isCoachSpeaking&&!popupListening)startPopupListening();},[voiceConversation,showCoachPopup,discussionBusy,coachVoiceLoading,isCoachSpeaking,popupListening]);
+  useEffect(()=>{if(!showCoachPopup){setVoiceConversation(false);stopPopupListening();discussionRequest.current?.abort();}return()=>stopPopupListening();},[showCoachPopup,sessionId]);
+
   const defaultDialogueForStep: Record<number, string> = {
     1: `I've reviewed your interview for ${roleTitle}. Your overall score is ${overallScore}/100. ${competencies.length ? `Let's focus on ${[...competencies].sort((a,b)=>a.score-b.score).slice(0,2).map(item=>`${item.name} (${item.score}/100)`).join(' and ')}.` : 'Let’s review the available answer feedback together.'} This is preparation guidance; your placement team manages eligibility.`,
     2: `To reach placement readiness, how much time can you commit daily, and what is your preparation timeline? We can choose a realistic schedule around your availability.`,
@@ -286,17 +288,15 @@ export function InterviewScorecard({ view, sessionId, role, company }: { view: I
     4: `Let's review your saved learning schedule and adjust it to your goals and availability. If no schedule is saved yet, we can discuss what would work for you.`,
   };
 
-  const introDialogue = `Hi ${studentFirstName}! I'm Dr. Rajesh, your AI Coach. I've reviewed your ${companyName} interview for ${roleTitle}. Your score is ${overallScore} out of 100. ${competencies.length ? `Your priority areas include ${[...competencies].sort((a,b)=>a.score-b.score).slice(0,2).map(item=>`${item.name}, ${item.score} out of 100`).join(' and ')}.` : ''} I can help you improve and prepare for your next attempt. We can create a personalized improvement plan based on your weak areas. Would you like to start now?`;
+  const introDialogue = `Hi ${studentFirstName}, I'm Dr. Rajesh. Let's use your interview feedback to plan your next steps. What would help most today?`;
   const currentDialogue = customDialogue || (coachIntro ? introDialogue : defaultDialogueForStep[activeStep]);
 
   useEffect(() => {
     if (showCoachPopup) {
-      const timer = setTimeout(() => {
-        speakCoachText(currentDialogue);
-      }, 350);
-      return () => { clearTimeout(timer); stopCoachVoice(); };
+      void speakCoachText(currentDialogue);
+      return () => stopCoachVoice();
     }
-  }, [showCoachPopup, currentDialogue]);
+  }, [showCoachPopup,currentDialogue]);
 
   async function saveFeedback(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -541,11 +541,6 @@ export function InterviewScorecard({ view, sessionId, role, company }: { view: I
         >
           <div className={`s3-modal-card ${coachIntro ? 's3-reference-intro' : ''}`} role="dialog" aria-modal="true" aria-labelledby="scorecard-coach-title" onKeyDown={event => {
             if (event.key === 'Escape') { stopCoachVoice(); setShowCoachPopup(false); }
-          }} onPointerDown={() => {
-            if (coachAudio.current?.paused && coachAudioText.current === currentDialogue &&
-                coachVoiceError.includes('Your browser paused audio.')) {
-              void coachAudio.current.play().then(() => setCoachVoiceError('')).catch(() => {});
-            }
           }}>
             {/* Top Window Bar */}
             <div className="s3-top-window-bar">
@@ -601,14 +596,14 @@ export function InterviewScorecard({ view, sessionId, role, company }: { view: I
                   <h2 className="s3-coach-headline">Hi {studentFirstName}! I'm your AI Coach</h2>
                   <p className="s3-coach-subheadline">Personalized Placement Readiness Guidance</p>
                 </div>
-                {discussionError && <p role="alert" className="s3-voice-notice">{discussionError}</p>}
-                {coachVoiceError && <p role="status" className="s3-voice-notice">{coachVoiceError}</p>}
+                {discussionError && <div role="alert" className="s3-voice-notice"><p>{discussionError}</p><button type="button" className="s3-discussion-prompt-chip" disabled={discussionBusy} onClick={()=>void handleDiscussionPrompt(lastDiscussionPrompt.current)}>Retry reply</button></div>}
+                {coachVoiceError && <div role="status" className="s3-voice-notice"><p>{coachVoiceError}</p><button type="button" className="s3-discussion-prompt-chip" disabled={coachVoiceLoading} onClick={()=>void speakCoachText(currentDialogue,true)}>Retry voice</button></div>}
 
                 {coachIntro && <div className="s3-intro-conversation">
                   <p>I've reviewed your {companyName} interview for {roleTitle}. Your score is <strong>{overallScore}/100</strong>. I can help you improve and prepare for your next attempt.</p>
                   <p>We will create a personalized improvement plan based on your weak areas. Would you like to start now?</p>
                   <div className="s3-intro-checklist"><h3>We will work on:</h3>{['Identify your weak areas', 'Provide learning resources', 'Create a daily practice schedule', 'Schedule re-attempt interviews', 'Track your progress'].map(item => <div key={item}><CheckCircle2 size={19} aria-hidden="true"/><span>{item}</span></div>)}</div>
-                  <button type="button" className="s3-discussion-prompt-chip" onClick={() => { setCoachIntro(false); setActiveStep(1); setCustomDialogue(null); }}>Discuss my goals and availability</button>
+                  <button type="button" className="s3-discussion-prompt-chip" onClick={() => { setCoachIntro(false); setActiveStep(2); const opening="How much time can you realistically spend practising each day?"; setCustomDialogue(opening); setDiscussionHistory(history=>history.length?history:[{speaker:'officer',text:opening}]); }}>Discuss my goals and availability</button>
                 </div>}
                 <div className="s3-detailed-conversation" hidden={coachIntro} aria-busy={discussionBusy}>
                 {/* 4-Step Breadcrumbs Pagination */}
@@ -849,14 +844,17 @@ export function InterviewScorecard({ view, sessionId, role, company }: { view: I
                     <span className="s3-live-indicator-tag">● Live Discussion</span>
                   </div>
 
+                  {discussionHistory.length>0&&<div className="coach-popup-thread" ref={threadViewport} role="log" aria-label="Your discussion with Dr. Rajesh" aria-live="polite">{discussionHistory.map((turn,index)=><div key={index} className={`coach-popup-turn ${turn.speaker}`}><strong>{turn.speaker==='student'?'You':'Dr. Rajesh'}</strong><p>{turn.text}</p></div>)}</div>}
+                  <div className="coach-popup-voice-controls"><button type="button" className="s3-discussion-prompt-chip" disabled={!callDriveId} onClick={()=>{if(voiceConversation){setVoiceConversation(false);stopPopupListening();}else{setVoiceConversation(true);startPopupListening();}}}>{voiceConversation?'Stop voice replies':'Start voice replies'}</button><span role="status">{popupListening?'Listening to your reply…':voiceConversation?'Voice conversation on · listening resumes after Rajesh finishes.':'Type a reply or enable your microphone.'}</span></div>
+                  {microphoneNotice&&<p role="status" className="s3-voice-notice">{microphoneNotice}</p>}
                   {/* Interactive Quick Prompts Chips */}
                   <div className="s3-discussion-prompts-row">
                     <button
                       type="button"
                       className="s3-discussion-prompt-chip"
-                      onClick={() => handleDiscussionPrompt('How does this schedule reach 85%?')}
+                      onClick={() => handleDiscussionPrompt('Which part of my interview feedback should I practise first?')}
                     >
-                      💬 How does this reach 85%?
+                      What should I practise first?
                     </button>
                     <button
                       type="button"
@@ -899,7 +897,7 @@ export function InterviewScorecard({ view, sessionId, role, company }: { view: I
                       onChange={(e) => setDiscussionInput(e.target.value)}
                     />
                     <button type="submit" className="s3-discussion-send-btn" disabled={discussionBusy}>
-                      {discussionBusy ? "Reviewing your report…" : "Ask Dr. Rajesh →"}
+                      {discussionBusy ? "Thinking…" : "Send reply →"}
                     </button>
                   </form>
                 </div>
