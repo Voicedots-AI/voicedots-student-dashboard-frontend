@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -20,31 +20,42 @@ type ResourceCategory = 'all' | 'technical' | 'system_design' | 'behavioral' | '
 type Resource = { id: string | number; category: string; title: string; description: string; readTime: string; skillTag: string; level: string; actionUrl: string; actionLabel: string };
 
 const referenceGuides = [
+  { title: 'Computer science course notes', match: /computer science|algorithm|data structure/i, url: 'https://cs50.harvard.edu/x/' },
+  { title: 'Java learning guide', match: /\bjava\b(?!script)/i, url: 'https://dev.java/learn/' },
   { title: 'Python tutorial', match: /\bpython\b/i, url: 'https://docs.python.org/3/tutorial/' },
   { title: 'SQL tutorial', match: /\bsql\b|postgres/i, url: 'https://www.postgresql.org/docs/current/tutorial.html' },
   { title: 'pandas tutorials', match: /\bpandas\b|data cleaning/i, url: 'https://pandas.pydata.org/docs/getting_started/intro_tutorials/' },
-  { title: 'Structure interview answers with STAR', match: /communication|ownership|structured thinking|\bstar\b|behavioral/i, url: 'https://nationalcareers.service.gov.uk/careers-advice/interview-advice/the-star-method' },
+  { title: 'Structure interview answers with STAR', match: /communication|ownership|structured thinking|confidence|conduct|presentation|\bstar\b|behavioral/i, url: 'https://nationalcareers.service.gov.uk/careers-advice/interview-advice/the-star-method' },
   { title: 'MDN web development lessons', match: /javascript|\bhtml\b|\bcss\b|front.?end|web development/i, url: 'https://developer.mozilla.org/en-US/docs/Learn_web_development' },
   { title: 'Algorithms lessons and exercises', match: /algorithm|data structure|complexity/i, url: 'https://www.khanacademy.org/computing/computer-science/algorithms' },
 ];
-const exampleQuestions = [
-  { question: 'Tell me about a decision you owned on a project.', answer_guidance: 'Explain the situation, your decision, why you made it, and the result you observed.' },
-  { question: 'How would you investigate a result that looks wrong?', answer_guidance: 'Define the expected result, check your inputs, test one explanation at a time, and describe how you would verify the fix.' },
-];
-
 // Public learning material, never a substitute for saved student records.
 const learningLibrary = [
-  { title: 'Python for beginners', topic: 'Python · Programming', category: 'technical', format: 'video', source: 'freeCodeCamp · YouTube', description: 'Build your foundations in Python with a guided video course.', url: 'https://www.youtube.com/watch?v=kLZgQWjnUz0' },
-  { title: 'SQL and database fundamentals', topic: 'SQL · Databases', category: 'technical', format: 'video', source: 'freeCodeCamp · YouTube', description: 'Learn tables, queries, joins and database design using MySQL.', url: 'https://www.youtube.com/watch?v=HXV3zeQKqGY' },
-  ...referenceGuides.map(guide => ({ title: guide.title, topic: guide.title, category: guide.match.test('communication') ? 'behavioral' : 'technical', format: 'website', source: new URL(guide.url).hostname, description: 'Read the guide and apply one idea to your next practice answer.', url: guide.url })),
+  {title:'Java video lessons',topic:'Java',category:'technical',match:/\bjava\b(?!script)/i,format:'video',source:'Oracle · Learn Java',description:'Video lessons and Java exercises from the Java learning site.',url:'https://learn.java/'},
+  {title:'Python lectures and exercises',topic:'Python',category:'technical',match:/\bpython\b/i,format:'video',source:'Harvard · CS50P',description:'Python video lessons, course notes and independent practice exercises.',url:'https://cs50.harvard.edu/python/'},
+  { title: 'Python for beginners', topic: 'Python · Programming', category: 'technical', match: /\bpython\b/i, format: 'video', source: 'freeCodeCamp · YouTube', description: 'Build your foundations in Python with a guided video course.', url: 'https://www.youtube.com/watch?v=kLZgQWjnUz0' },
+  { title: 'SQL and database fundamentals', topic: 'SQL · Databases', category: 'technical', match: /\bsql\b|database/i, format: 'video', source: 'freeCodeCamp · YouTube', description: 'Learn tables, queries, joins and database design using MySQL.', url: 'https://www.youtube.com/watch?v=HXV3zeQKqGY' },
+  ...referenceGuides.map(guide => ({ title: guide.title, topic: guide.title, match: guide.match, category: guide.match.test('communication') ? 'behavioral' : 'technical', format: 'website', source: new URL(guide.url).hostname, description: 'Read the guide and apply one idea to your next practice answer.', url: guide.url })),
 ];
 
-export function CoachLearningResources({ resources = [], questions = [] }: { resources?: Resource[]; questions?: { question: string; topic?: string; answer_guidance?: string }[] }) {
+export function matchesCoachTopic(text:string,topic:string){
+  const normalize=(value:string)=>value.toLowerCase().replace(/[^a-z0-9+#]+/g,' ').trim();
+  const focus=normalize(topic).replace(/\b(programming|skills?|knowledge|fundamentals|basics)\b/g,'').replace(/\s+/g,' ').trim()||normalize(topic);
+  return !topic||(` ${normalize(text)} `).includes(` ${focus} `);
+}
+
+export function CoachLearningResources({ resources = [], questions = [], focusAreas=[] }: { resources?: Resource[]; questions?: { question: string; topic?: string; answer_guidance?: string }[];focusAreas?:string[] }) {
   const coachPath = useCoachCallPath();
   const [params] = useSearchParams();
   const [selectedCategory, setSelectedCategory] = useState<ResourceCategory>('all');
-  const [searchQuery, setSearchQuery] = useState(params.get('topic') || '');
+  const [searchQuery, setSearchQuery] = useState('');
   const [format, setFormat] = useState('all');
+  const [topic,setTopic]=useState(params.get('topic')||'');
+  const hints=[...focusAreas,...resources.map(r=>`${r.skillTag} ${r.description}`),...questions.map(q=>`${q.topic||''} ${q.question}`)].join(' ');
+  const technologies=['Java','Python','JavaScript','SQL','pandas'].filter(name=>matchesCoachTopic(hints,name));
+  const topics=[...new Set([...focusAreas,...resources.map(r=>r.skillTag),...technologies].filter(Boolean))];
+  useEffect(()=>{setTopic(params.get('topic')||'');setSearchQuery('');},[params.get('topic')]);
+  const matchesTopic=(text:string)=>matchesCoachTopic(text,topic);
 
   const categories = [
     { id: 'all' as const, label: 'All Resources' },
@@ -57,20 +68,24 @@ export function CoachLearningResources({ resources = [], questions = [] }: { res
   const filtered = resources.filter(res => {
     const matchesCat = (selectedCategory === 'all' || res.category === selectedCategory) && format === 'all';
     const matchesSearch = !searchQuery || res.title.toLowerCase().includes(searchQuery.toLowerCase()) || res.description.toLowerCase().includes(searchQuery.toLowerCase()) || res.skillTag.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesCat && matchesSearch;
+    return matchesCat && matchesSearch && matchesTopic(`${res.skillTag} ${res.title}`);
   });
   const library = learningLibrary.filter(item =>
+    topics.some(focus=>item.match.test(focus)) && (!topic||item.match.test(topic)) &&
     (selectedCategory === 'all' || item.category === selectedCategory) &&
     (format === 'all' || item.format === format) &&
     (!searchQuery.trim() || `${item.title} ${item.topic} ${item.source} ${item.description}`.toLowerCase().includes(searchQuery.trim().toLowerCase())));
-  const visibleQuestions = (questions.length ? questions : exampleQuestions).filter(item =>
-    !searchQuery.trim() || `${item.question} ${'topic' in item ? item.topic : ''} ${item.answer_guidance || ''}`.toLowerCase().includes(searchQuery.trim().toLowerCase()));
+  const visibleQuestions = questions.filter(item => matchesTopic(`${item.topic||''} ${item.question}`) && (
+    !searchQuery.trim() || `${item.question} ${'topic' in item ? item.topic : ''} ${item.answer_guidance || ''}`.toLowerCase().includes(searchQuery.trim().toLowerCase())));
   function resourceAction(item: Resource) {
+    if(!item.actionUrl.startsWith('/')){try{const url=new URL(item.actionUrl);return url.protocol==='https:'?url.href:'#';}catch{return '#';}}
+    if(item.actionUrl.startsWith('//'))return '#';
     if (!item.actionUrl.startsWith('/placement/schedule')) return item.actionUrl;
     const [path, query] = item.actionUrl.split('?');
-    const params = new URLSearchParams(query);
-    params.set('task', String(item.id));
-    return `${path}?${params}`;
+    const target = new URLSearchParams(query);
+    target.set('task', String(item.id));
+    if(params.get('report_session_id'))target.set('report_session_id',params.get('report_session_id')!);
+    return `${path}?${target}`;
   }
 
   return (
@@ -136,6 +151,7 @@ export function CoachLearningResources({ resources = [], questions = [] }: { res
         </div>
       </div>
 
+      <label className="coach-topic-selector">Focus skill<select aria-label="Focus skill" value={topic} onChange={e=>setTopic(e.target.value)}><option value="">All saved focus skills</option>{topics.map(value=><option key={value} value={value}>{value}</option>)}</select></label>
       <div className="resource-format-tabs" aria-label="Resource format">
         {[['all', 'All formats'], ['video', 'YouTube videos'], ['website', 'Websites & guides']].map(([value, label]) =>
           <button key={value} type="button" aria-pressed={format === value} onClick={() => setFormat(value)}>{label}</button>)}
@@ -175,6 +191,7 @@ export function CoachLearningResources({ resources = [], questions = [] }: { res
               <span style={{ fontSize: '12px', color: '#94a3b8' }}>{item.readTime}</span>
               <Link
                 to={resourceAction(item)}
+                target={item.actionUrl.startsWith('https://')?'_blank':undefined} rel={item.actionUrl.startsWith('https://')?'noopener noreferrer':undefined}
                 className="coach-primary"
                 style={{ fontSize: '12px', padding: '6px 14px', borderRadius: '9999px' }}
               >
@@ -186,7 +203,7 @@ export function CoachLearningResources({ resources = [], questions = [] }: { res
       </div>
 
       <section className="resource-library" aria-label="Learning library">
-        <div className="resource-section-heading"><div><h2>Learn, then put it into practice</h2><p>Public learning links. Open in a new tab; your progress changes only when you complete an activity.</p></div><span>{library.length} links</span></div>
+        <div className="resource-section-heading"><div><h2>Learn, then put it into practice</h2><p>Public learning links matched to the selected topic and recorded assessment context. Your progress changes only when you complete an activity.</p></div><span>{library.length} links</span></div>
         <div className="resource-library-grid">{library.map(item => <article className="resource-library-card" key={item.url}>
           <div className={`resource-library-icon ${item.format}`} aria-hidden="true">{item.format === 'video' ? <PlayCircle size={25}/> : <BookOpen size={25}/>}</div>
           <span className="resource-library-source">{item.source}</span>
@@ -196,7 +213,7 @@ export function CoachLearningResources({ resources = [], questions = [] }: { res
       </section>
 
       <section className="coach-stage-card" style={{marginTop:24,padding:24}}>
-        <h2>{questions.length ? 'Practice questions for your drive' : 'Example practice questions'}</h2>
+        <h2>Practice questions from your interview</h2>
         <p>Try each answer yourself, then review the preparation guidance.</p>
         {visibleQuestions.length === 0 && <p>No questions match this search. Try a different topic.</p>}
         {visibleQuestions.map((question,index) => <details key={`${index}-${question.question}`} style={{padding:'16px 0',borderBottom:'1px solid #e2e8f0'}}>

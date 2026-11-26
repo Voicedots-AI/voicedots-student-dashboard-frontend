@@ -1,0 +1,11 @@
+.journey-results-switcher{box-sizing:border-box;display:block;width:100%;min-width:0;height:auto;min-height:0;margin:0 0 16px;padding:16px;border:1px solid #d9e5f3;border-radius:14px;background:#fff;color:#183650;text-align:left}
+.journey-results-heading{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:12px}
+.journey-results-heading>div{display:grid;gap:4px}.journey-results-heading strong{font-size:15px;font-weight:650}.journey-results-heading div>span{font-size:12px;color:#607793}
+.journey-results-count{font-size:11px;white-space:nowrap;border-radius:99px;padding:5px 9px;background:#f0f6fd;color:#42668b}
+.journey-results-options{display:flex;flex-wrap:wrap;align-items:stretch;gap:10px;min-width:0}
+.journey-results-switcher a.journey-result-option{box-sizing:border-box;display:flex;flex-direction:column;align-items:stretch;justify-content:flex-start;gap:8px;flex:0 1 230px;width:230px;max-width:100%;height:auto;min-height:0;margin:0;padding:12px 14px;border:1px solid #dbe5f3;border-radius:12px;background:#f9fbff;color:#183650;text-decoration:none;line-height:1.4;text-align:left;transition:background .15s,border-color .15s}
+.journey-results-switcher a.journey-result-option:hover{background:#eff6ff;border-color:#8dbbfb}.journey-results-switcher a.journey-result-option.is-selected{background:#edf5ff;border-color:#0969da;box-shadow:inset 0 0 0 1px #0969da}
+.journey-result-option-top{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}.journey-result-option-top strong{font-size:12px;font-weight:650}.journey-result-state{font-size:10px;color:#42668b}.is-selected .journey-result-state{color:#0969da;font-weight:650}
+.journey-result-score{font-size:24px;font-weight:700;line-height:1.1;color:#174ea6}.journey-result-score small{font-size:12px;font-weight:400;margin-left:3px;color:#607793}.journey-result-date{font-size:11px;color:#607793}
+.journey-results-switcher a.journey-result-option:focus-visible{outline:3px solid #87b9ff;outline-offset:3px}
+@media(max-width:560px){.journey-results-switcher{padding:12px}.journey-results-switcher a.journey-result-option{flex:1 1 140px;width:auto}.journey-results-heading{align-items:flex-start}.journey-results-count{white-space:normal}}

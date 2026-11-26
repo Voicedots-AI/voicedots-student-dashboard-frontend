@@ -49,6 +49,7 @@ export function Practice() {
   const [selectedDriveId, setSelectedDriveId] = useState(requestedDriveId || "");
   const driveId = mode === "placement" ? selectedDriveId : null;
   const coachCycleId = params.get("coach_cycle");
+  const coachJourneyDrive=params.get("coach_drive"),coachTask=params.get("coach_task")||"";
   const drives = useResource<Drive[]>("/api/student/drives");
   const availableDrives = (drives.data || []).filter((drive) => {
     const actionable = ["start", "resume", "retry_preparation"].includes(drive.interview_action || "");
@@ -60,8 +61,8 @@ export function Practice() {
       && (actionable || releasedResult);
   });
   const selectedDrive = availableDrives.find((drive) => drive.id === driveId) || null;
-  const key = `vd_preparation_${identity!.student.id}_${driveId || coachCycleId || "practice"}`;
-  const draftKey = `vd_practice_draft_${identity!.student.id}_${driveId || coachCycleId || "practice"}`;
+  const key = `vd_preparation_${identity!.student.id}_${driveId || coachCycleId || (coachJourneyDrive?`${coachJourneyDrive}:${coachTask}`:"practice")}`;
+  const draftKey = `vd_practice_draft_${identity!.student.id}_${driveId || coachCycleId || (coachJourneyDrive?`${coachJourneyDrive}:${coachTask}`:"practice")}`;
   const [file, setFile] = useState<File | null>(null);
   const [resumePreview, setResumePreview] = useState<File | null>(null);
   const [role, setRole] = useState(() => sessionStorage.getItem(`${draftKey}:role`) || "");
@@ -304,7 +305,7 @@ export function Practice() {
   useEffect(() => {
     if (mode !== "placement" || !driveId) {
       setContext(null);
-      if (!coachCycleId) setContextLoading(false);
+      if (!coachCycleId&&!coachJourneyDrive) setContextLoading(false);
       return;
     }
     if (drives.loading) {
@@ -353,6 +354,16 @@ export function Practice() {
       .finally(()=>{if(!controller.signal.aborted)setContextLoading(false)});
     return()=>controller.abort();
   },[coachCycleId]);
+
+  useEffect(()=>{
+    if(!coachJourneyDrive||coachCycleId)return;
+    const controller=new AbortController();setContextLoading(true);setMode('practice');
+    const query=new URLSearchParams({drive_id:coachJourneyDrive,task_id:coachTask,report_session_id:params.get('report_session_id')||''});
+    api<{role_title:string;job_description:string;duration_minutes:number;difficulty:'intermediate';focus_skills:string[]}>(`/api/student/coach/practice-context?${query}`,{signal:controller.signal})
+      .then(data=>{if(!controller.signal.aborted){setRole(data.role_title);setJd(data.job_description+'\nRehearsal focus (practice only): '+data.focus_skills.join(', '));setDuration(String(data.duration_minutes));setDifficulty(data.difficulty);setNotice('Focused mock practice. This does not use a placement-drive attempt.');}})
+      .catch(e=>{if(!controller.signal.aborted)setError(e instanceof Error?e.message:'Practice context could not be loaded. Return to your schedule and retry.');})
+      .finally(()=>{if(!controller.signal.aborted)setContextLoading(false);});return()=>controller.abort();
+  },[coachJourneyDrive,coachTask,coachCycleId]);
 
   function remember(result: Preparation) {
     sessionStorage.removeItem(`${draftKey}:role`);

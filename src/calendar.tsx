@@ -52,7 +52,7 @@ type CalendarEvent = {
   id: string; kind: Kind; date: string; title: string; subtitle: string;
   startsAt?: number; endsAt?: number; dateOnly?: boolean; location?: string;
   status?: string; durationMinutes?: number; plan_id?: string; session_id?: string;
-  cycle_id?: string; session_type?: string; interviewAction?: string; drive_id?: string;
+  cycle_id?: string; session_type?: string; drive_id?: string; interviewAction?: string;
   interviewResumeAvailable?: boolean; resultAvailable?: boolean; personal?: PersonalEvent;
   coachDetails?: CoachPracticeDetails;
 };
@@ -286,6 +286,7 @@ export function Calendar() {
 
   function openCalendarEvent(event: CalendarEvent) { setMenuId(""); setDetail(event); }
   function openSystemEvent(event: CalendarEvent) {
+    if(event.kind==='coach'&&(event.session_type==='validation'||/mock|practice|rehearsal/i.test(event.title))){setDetail(null);navigate(event.cycle_id?`/practice?coach_cycle=${encodeURIComponent(event.cycle_id)}`:`/practice?${new URLSearchParams({coach_drive:event.drive_id||'',coach_task:''})}`);return;}
     setDetail(null);
     if (event.kind === "placement") { navigate(`/placements?drive=${encodeURIComponent(event.id)}`); return; }
     if (event.kind === "coach") {
@@ -343,6 +344,7 @@ export function Calendar() {
   }
   function resultFor(event: CalendarEvent) { return event.resultAvailable ? (reports.data?.reports || []).find((report) => report.drive_id === event.id && report.submission_id && !["held_for_review", "processing", "failed"].includes(report.status)) : undefined; }
   function eventPrimaryAction(event: CalendarEvent) {
+    if(event.kind==='coach'&&(event.session_type==='validation'||/mock|practice|rehearsal/i.test(event.title))){setDetail(null);navigate(event.cycle_id?`/practice?coach_cycle=${encodeURIComponent(event.cycle_id)}`:`/practice?${new URLSearchParams({coach_drive:event.drive_id||'',coach_task:''})}`);return;}
     if (event.kind === "coach" && event.drive_id) {
       setDetail(null);
       navigate(`/placement/schedule?drive=${encodeURIComponent(event.drive_id)}`);

@@ -231,9 +231,9 @@ export function CoachScheduleReattempt() {
   const lastOutcome = interviewOutcome(drive?.interview_session_status, drive?.interview_termination_reason, drive?.interview_termination_source);
   const reportOutcome = interviewOutcome(report?.session_status, report?.termination_reason, report?.termination_source);
   const windowEnded = !!drive?.window_end_at && Date.parse(drive.window_end_at) <= Date.now();
-  const closed = windowEnded || drive?.status === 'closed' || ['closed', 'expired'].includes(drive?.interview_status || '');
+  const closed = windowEnded || ['closed','cancelled','archived','removed'].includes(drive?.status||'') || ['closed', 'expired'].includes(drive?.interview_status || '');
   const canSchedule = !!drive && !closed && !drive.is_locked && drive.eligibility_status !== 'ineligible' &&
-    (remaining == null || remaining > 0) && ['start', 'retry_preparation'].includes(drive.interview_action || '');
+    (remaining == null || remaining > 0);
   const auth = useAuth();
   const student = auth.identity?.student;
 
@@ -261,10 +261,10 @@ export function CoachScheduleReattempt() {
   // Default display name and course
   const studentName = student?.full_name || 'Student';
   const studentDegree = student?.department_code
-    ? `B.E. ${student.department_code} | Final Year`
+    ? student.department_code
     : student?.program
-      ? `${student.program} | Final Year`
-      : 'B.E. CSE | Final Year';
+      ? student.program
+      : 'Student';
   const studentAvatarInitials = studentName
     .split(' ')
     .filter(Boolean)
@@ -325,13 +325,10 @@ export function CoachScheduleReattempt() {
   }
 
   function initDefaultDate() {
-    const next = new Date();
-    next.setDate(next.getDate() + 2);
-    const yyyy = next.getFullYear();
-    const mm = String(next.getMonth() + 1).padStart(2, '0');
-    const dd = String(next.getDate()).padStart(2, '0');
-    setSelectedDate(`${yyyy}-${mm}-${dd}`);
-    setSelectedTime('10:00');
+    const earliest=Math.max(Date.now()+3600000,Date.parse(drive?.window_start_at||'')||0);
+    const candidate=new Date(earliest);
+    setSelectedDate(indiaDate(candidate));
+    setSelectedTime(new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Kolkata',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(candidate));
   }
 
   // Submit Schedule / Reschedule
@@ -352,6 +349,8 @@ export function CoachScheduleReattempt() {
       return;
     }
 
+    if(selectedDt.getTime()<=Date.now()){setModalError('Choose a future date and time.');return;}
+    if((drive?.window_start_at&&selectedDt.getTime()<Date.parse(drive.window_start_at))||(drive?.window_end_at&&selectedDt.getTime()>Date.parse(drive.window_end_at))){setModalError('Choose a slot within the placement drive window.');return;}
     setScheduling(true);
     setModalError('');
 
@@ -552,7 +551,7 @@ export function CoachScheduleReattempt() {
                       }).format(new Date(attempt.completed_at))}</span>}
                       {outcome && <span>{outcome}</span>}
                       {attempt.date && <span>{[attempt.date, attempt.time].filter(Boolean).join(' · ')}</span>}
-                      {!completed && canSchedule && attempt.attempt_number === drive?.interview_next_attempt_number && attempt.can_schedule !== false && (
+                      {!completed && canSchedule && attempt.attempt_number > 1 && attempt.can_schedule !== false && (
                         <button type="button" className="reattempt-action-btn reschedule-btn" onClick={() => openScheduleModal(attempt.attempt_number)}>
                           {scheduled ? 'Reschedule' : 'Schedule attempt'}
                         </button>

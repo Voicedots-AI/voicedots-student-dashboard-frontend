@@ -14,7 +14,6 @@ import {
   MessageSquare,
   Sparkles,
   Clock,
-  Play,
   Check,
   Trophy,
   ArrowRight,
@@ -851,6 +850,10 @@ function ImprovementJourneyScreens() {
   const [savedContext, setSavedContext] = useState<SavedInterviewContext | null>(null);
   const [showQAModal, setShowQAModal] = useState<boolean>(false);
   const [scheduleTasks, setScheduleTasks] = useState<any[]>([]);
+  const highlightedTaskId=searchParams.get('task')||'';
+  useEffect(()=>{if(highlightedTaskId&&scheduleTasks.length)document.getElementById('coach-task-'+encodeURIComponent(highlightedTaskId))?.scrollIntoView({block:'center'});},[highlightedTaskId,scheduleTasks.length]);
+  const mockPracticePath=(taskId='')=>`/practice?${new URLSearchParams({coach_drive:searchParams.get('drive')||'',coach_task:taskId,report_session_id:searchParams.get('report_session_id')||''})}`;
+
   const [selectedLearningTask, setSelectedLearningTask] = useState<any>(null);
   const [updatingTaskId, setUpdatingTaskId] = useState<string | null>(null);
   const [taskNotice, setTaskNotice] = useState<string | null>(null);
@@ -1766,7 +1769,6 @@ function ImprovementJourneyScreens() {
     transcript: [],
   });
 
-  const progressMetrics = data?.progress_tracking || {};
   const readiness = data?.placement_readiness || {};
   const readinessScore = releasedReport?.report ? releasedReport.report.overall_score ?? null : readiness.overall_score ?? null;
   const practiceExamples = [
@@ -1805,6 +1807,7 @@ function ImprovementJourneyScreens() {
           : ""
         }`}
     >
+      {[4,5,6].includes(currentScreen)&&releasedReport?.session_id&&data.interview_result?.source_report_session_id&&releasedReport.session_id!==data.interview_result.source_report_session_id&&<p className="journey-preview" role="status">This saved learning plan belongs to another interview attempt. Your completed activities are preserved; the selected interview result and readiness scores remain available separately.</p>}
       {/* Page Heading - ONLY shown when NOT in full live call window, score screen, or coach sub-pages */}
       {!(currentScreen === 1 && interviewPhase === "live") && currentScreen !== 2 && currentScreen < 4 && (
         <div className="journey-header" style={{ marginBottom: "20px" }}>
@@ -3281,7 +3284,7 @@ function ImprovementJourneyScreens() {
                     <span className="s4-topic-icon-box" data-tone={index % 4}><BookOpen size={22} aria-hidden="true" /></span>
                     <div className="s4-topic-info">
                       <h3 className="s4-topic-title">{item.focus}</h3>
-                      <p className="s4-topic-desc s4-plan-summary">{item.activity}</p>
+                      <p className="s4-topic-desc s4-plan-summary">{item.activity}</p><Link className="journey-topic-link" to={`/placement/resources?${new URLSearchParams({...Object.fromEntries(searchParams),topic:item.focus})}`}>Open {item.focus} resources →</Link>
                       {(item.practice_steps?.length || item.success_check) ? <details className="s4-plan-details">
                         <summary>Practice steps & goal</summary>
                       {item.practice_steps?.length ? <ol className="journey-practice-steps">
@@ -3319,6 +3322,8 @@ function ImprovementJourneyScreens() {
 
           {/* Dynamic Screen Top Header with [5] badge, Real Notifications, and Real Student Candidate Chip */}
           {renderPortalScreenHeader(5, "Daily Learning Schedule")}
+          <div className="journey-task-actions"><Link className="vd-btn-secondary" to={mockPracticePath()}>Start focused mock practice</Link></div>
+
 
           {/* Feedback Notice Toast if updating */}
           {taskNotice && (
@@ -3361,7 +3366,7 @@ function ImprovementJourneyScreens() {
                   {scheduleTasks.map((t) => {
                     const isCompleted = t.status === "Completed";
                     return (
-                      <tr key={t.id} className={isCompleted ? "row-completed" : "row-pending"}>
+                      <tr key={t.id} id={`coach-task-${encodeURIComponent(t.id)}`} className={`${isCompleted?"row-completed":"row-pending"}${highlightedTaskId===t.id?" coach-task-highlight":""}`}>
                         <td className="s5-td-date">
                           <strong>{(t.date_label || t.date || "Self-paced").split(" ")[0]}</strong>
                           <span>{(t.date_label || t.date || "").split(" ").slice(1).join(" ")}</span>
@@ -3400,7 +3405,7 @@ function ImprovementJourneyScreens() {
                               className="s5-btn-action start"
                               disabled={updatingTaskId === t.id}
                               onClick={() => {
-                                setSelectedLearningTask(t);
+                                if(/mock|interview/i.test(`${t.type} ${t.activity}`))navigate(mockPracticePath(t.id));else setSelectedLearningTask(t);
                               }}
                             >
                               Start
@@ -3442,7 +3447,7 @@ function ImprovementJourneyScreens() {
                   drive: selectedDriveId || "",
                   topic: selectedLearningTask.focus || "",
                 })}`}>Open practice resources</Link>
-                <button type="button" className="vd-btn-secondary" onClick={() => downloadLearningActivity(selectedLearningTask)}>Download activity</button>
+                <Link className="vd-btn-secondary" to={mockPracticePath(selectedLearningTask.id)}>Start focused mock practice</Link><button type="button" className="vd-btn-secondary" onClick={() => downloadLearningActivity(selectedLearningTask)}>Download activity</button>
                 {selectedLearningTask.status !== "Completed" && <button type="button" className="vd-btn-primary"
                   disabled={updatingTaskId === selectedLearningTask.id}
                   onClick={() => void handleTaskAction(selectedLearningTask)}>
@@ -3469,7 +3474,7 @@ function ImprovementJourneyScreens() {
           SCREEN 6: Learning Resources & Practice Questions
           ========================================================================= */}
       {currentScreen === 6 && (
-        <CoachLearningResources resources={data.learning_resources?.cards || []} questions={data.learning_resources?.question_bank || []} />
+        <CoachLearningResources resources={data.learning_resources?.cards || []} questions={data.learning_resources?.question_bank?.length?data.learning_resources.question_bank:(releasedReport?.report?.question_reviews||[]).map((item:any)=>({question:item.question_text||item.question||'',topic:item.topic||item.focus||''})).filter((item:any)=>item.question)} focusAreas={(data.improvement_plan?.focus_areas?.length?data.improvement_plan.focus_areas:releasedReport?.report?.priority_improvement_areas||[]).map((item:any)=>item.focus).filter(Boolean)} />
       )}
 
       {/* =========================================================================
@@ -3500,43 +3505,10 @@ function ImprovementJourneyScreens() {
 
             {/* 3 Bottom Metric Stat Cards (Solid Blue and Green theme - ZERO purple) */}
             <div className="s8-metrics-grid">
-              {/* Blue Card 1 */}
-              <div className="s8-metric-card card-blue">
-                <div className="s8-metric-icon-box icon-blue">
-                  <BookOpen size={22} />
-                </div>
-                <div className="s8-metric-content">
-                  <strong className="s8-metric-value">{scheduleTasks.filter(task => task.status === "Completed").length} / {scheduleTasks.length}</strong>
-                  <span className="s8-metric-label">Learning Activities Completed</span>
-                </div>
-              </div>
-
-              {/* Green Card 2 */}
-              <div className="s8-metric-card card-green">
-                <div className="s8-metric-icon-box icon-green">
-                  <CheckCircle2 size={22} />
-                </div>
-                <div className="s8-metric-content">
-                  <strong className="s8-metric-value">
-                    {progressMetrics.questions_completed ?? "Not tracked"}{progressMetrics.questions_total > 0 ? ` / ${progressMetrics.questions_total}` : ""}
-                  </strong>
-                  <span className="s8-metric-label">Practice Questions Completed</span>
-                </div>
-              </div>
-
-              {/* Solid Blue Card 3 */}
-              <div className="s8-metric-card card-blue">
-                <div className="s8-metric-icon-box icon-blue">
-                  <Play size={20} fill="currentColor" />
-                </div>
-                <div className="s8-metric-content">
-                  <strong className="s8-metric-value">
-                    {progressMetrics.mock_interviews_completed ?? "Not tracked"}{progressMetrics.mock_interviews_total > 0 ? ` / ${progressMetrics.mock_interviews_total}` : ""}
-                  </strong>
-                  <span className="s8-metric-label">Mock Interviews Completed</span>
-                </div>
-              </div>
-            </div>
+              <Link className="s8-metric-card card-blue" to={`/placement/schedule?${searchParams}`}><div className="s8-metric-content"><strong className="s8-metric-value">{scheduleTasks.filter(t=>t.status==='Completed').length}</strong><span className="s8-metric-label">Completed learning activities</span></div></Link>
+              <Link className="s8-metric-card card-green" to={`/placement/schedule?${searchParams}`}><div className="s8-metric-content"><strong className="s8-metric-value">{scheduleTasks.filter(t=>t.status!=='Completed').length}</strong><span className="s8-metric-label">Activities still to practise</span></div></Link>
+              <Link className="s8-metric-card card-blue" to={`/placement/resources?${searchParams}`}><div className="s8-metric-content"><strong className="s8-metric-value">{scheduleTasks.length?Math.round(scheduleTasks.filter(t=>t.status==='Completed').length/scheduleTasks.length*100):0}%</strong><span className="s8-metric-label">Saved plan completion</span></div></Link>
+            </div><p className="journey-progress-explainer">Learning completion is marked by you. Interview scores and competency evidence come from released assessments.</p>
 
             {/* Bottom Actions */}
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "28px", paddingTop: "20px", borderTop: "1px solid #f1f5f9" }}>
