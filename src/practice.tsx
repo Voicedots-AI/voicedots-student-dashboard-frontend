@@ -1,3 +1,4 @@
+import {interviewAccessIssue} from './interview-capabilities';
 import { LanguageSelect, type InterviewLanguage } from "./interview-language";
 import {usePlacementATS} from "./placement-ats";
 import {evaluatedPlacementScore,meetsPlacementATSThreshold} from "./placement-eligibility";
@@ -124,6 +125,8 @@ export function Practice() {
   }, [driveId, identity?.student.id]);
 
   function requirePermissions() {
+    const unsupported=interviewAccessIssue();
+    if(driveId&&unsupported){showPermissionToast(unsupported);return false;}
     if (!driveId || placementMediaReady(window.__placementPanelMedia, identity!.student.id, driveId)) return true;
     setScreenReady(false);
     showPermissionToast('Please allow screen sharing, camera and microphone access to continue.');
@@ -146,6 +149,8 @@ export function Practice() {
 
   async function allowScreenSharing() {
     if (!driveId || permissionBusy) return;
+    const unsupported=interviewAccessIssue();
+    if(unsupported){showPermissionToast(unsupported);return;}
     setPermissionBusy(true);
     setScreenReady(false);
     const requestId = ++permissionRequest.current;
@@ -820,6 +825,7 @@ export function Practice() {
                         <button ref={shareButton} type="button" className={`button secondary${highlightShare ? ' permission-required-highlight' : ''}`} onClick={() => void allowScreenSharing()} disabled={permissionBusy || screenReady} aria-describedby="placement-permission-note" aria-invalid={highlightShare || undefined}>
                           <ShieldCheck size={16}/>{screenReady ? 'Interview access allowed' : permissionBusy ? 'Allow browser permissions…' : 'Allow interview access'}
                         </button>
+                        {interviewAccessIssue()&&<p role="status" className="placement-permission-note">{interviewAccessIssue()}</p>}
                         <span id="placement-permission-note">By allowing sharing, you agree to fullscreen, camera/mic recording and AI assessment. You also agree to transcript analytics and on-device camera measurements; analytics sends only numeric camera measurements and never infers emotions or affects scores.</span>
                       </div>
                       <div className="placement-primary-action">

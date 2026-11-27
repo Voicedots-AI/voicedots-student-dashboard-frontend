@@ -1,3 +1,4 @@
+import {streamCoachSpeech,unlockCoachAudio} from './coach-stream-audio';
 import {cancelSpeechRecognition,type RecognitionLike} from './speech-recognition';
 import { useState, useEffect, useRef, type FormEvent } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
@@ -18,8 +19,6 @@ import {
   PhoneCall,
 } from 'lucide-react';
 import { api, ApiError, json, type CandidateSatisfaction, type InterviewReportView } from './api';
-import { requestCoachSpeech,splitCoachSpeech } from './coach-voice-audio';
-import { useAuth } from './auth';
 import { coachCallPath } from './coach-call-link';
 import { reportCompetencies } from './report-competencies';
 
@@ -46,7 +45,6 @@ const feedbackQuestions = [
 ] as const;
 
 export function InterviewScorecard({ view, sessionId, role, company }: { view: InterviewReportView; sessionId: string; role?: string; company?: string|null; assessedAt?: string; durationSeconds?: number }) {
-  const { identity } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const [openingPlan, setOpeningPlan] = useState(false);
@@ -168,6 +166,8 @@ export function InterviewScorecard({ view, sessionId, role, company }: { view: I
   const coachSpeechRequest = useRef<AbortController | null>(null);
   const [coachVoiceError, setCoachVoiceError] = useState('');
   const [coachVoiceLoading, setCoachVoiceLoading] = useState(false);
+  const [coachStarted,setCoachStarted]=useState(false);
+  const [isVoiceMuted,setIsVoiceMuted]=useState(false);
 
   function stopCoachVoice() {
     coachSpeechRequest.current?.abort();
@@ -188,38 +188,14 @@ export function InterviewScorecard({ view, sessionId, role, company }: { view: I
   async function speakCoachText(text: string, userInitiated = false) {
     stopPopupListening();
     stopCoachVoice();
-    void userInitiated;
+    if(isVoiceMuted&&!userInitiated)return;
     setCoachVoiceError('');
     setCoachVoiceLoading(true);
     const controller = new AbortController();
     coachSpeechRequest.current = controller;
     const signal=controller.signal;
     try {
-      const chunks=splitCoachSpeech(text);
-      const fetchClip=(chunk:string)=>requestCoachSpeech(chunk,AbortSignal.any([signal,AbortSignal.timeout(20000)]),identity?.student.id||'').then(blob=>({blob,error:null as unknown})).catch(error=>({blob:null,error}));
-      let pending=chunks.length?fetchClip(chunks[0]):null;
-      for(let index=0;index<chunks.length;index++){
-        const result=await pending!;
-        signal.throwIfAborted();
-        if(result.error)throw result.error;
-        if(!result.blob)throw new Error('Coach returned no audio. Retry voice.');
-        // Fetch one clip ahead while the current sentence is playing.
-        pending=index+1<chunks.length?fetchClip(chunks[index+1]):null;
-        if(coachAudioUrl.current)URL.revokeObjectURL(coachAudioUrl.current);
-        const url=URL.createObjectURL(result.blob);coachAudioUrl.current=url;
-        const player=new Audio(url);coachAudio.current=player;player.playbackRate=1.08;
-        await new Promise<void>((resolve,reject)=>{
-          const cleanup=()=>{signal.removeEventListener('abort',done);player.onended=null;player.onerror=null;};
-          const done=()=>{cleanup();resolve();};
-          player.onplaying=()=>{if(!signal.aborted){setCoachVoiceLoading(false);setIsCoachSpeaking(true);}};
-          player.onended=done;
-          player.onerror=()=>{cleanup();reject(new Error('Audio playback failed. Select Retry voice.'));};
-          signal.addEventListener('abort',done,{once:true});
-          void player.play().catch(error=>{cleanup();reject(error);});
-        });
-        signal.throwIfAborted();setIsCoachSpeaking(false);
-        if(pending)setCoachVoiceLoading(true);
-      }
+      await streamCoachSpeech(text,signal,()=>{setCoachVoiceLoading(false);setIsCoachSpeaking(true);});
       stopCoachVoice();
     } catch (cause) {
       if(controller.signal.aborted)return;
@@ -292,11 +268,13 @@ export function InterviewScorecard({ view, sessionId, role, company }: { view: I
   const currentDialogue = customDialogue || (coachIntro ? introDialogue : defaultDialogueForStep[activeStep]);
 
   useEffect(() => {
-    if (showCoachPopup) {
+    if (showCoachPopup && coachStarted && !isVoiceMuted) {
       void speakCoachText(currentDialogue);
       return () => stopCoachVoice();
     }
-  }, [showCoachPopup,currentDialogue]);
+  }, [showCoachPopup,currentDialogue,isVoiceMuted,coachStarted]);
+
+  useEffect(()=>{if(!showCoachPopup){setCoachStarted(false);stopCoachVoice();}},[showCoachPopup]);
 
   async function saveFeedback(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -586,7 +564,10 @@ export function InterviewScorecard({ view, sessionId, role, company }: { view: I
                     <strong>Dr. Rajesh</strong>
                     <span>AI Placement Coach</span>
                   </div>
-                  <span role="status">{coachVoiceLoading ? "Preparing voice…" : isCoachSpeaking ? "Speaking…" : "Dr. Rajesh · Voice coach"}</span>
+                  <div className="coach-start-mute-controls">
+                    <button type="button" className="s3-audio-toggle-btn" disabled={coachVoiceLoading||isCoachSpeaking} aria-busy={coachVoiceLoading} onClick={()=>{void unlockCoachAudio().catch(e=>setCoachVoiceError(e instanceof Error?e.message:'Audio playback is blocked.'));setCoachStarted(true);setIsVoiceMuted(false);if(coachStarted&&!isVoiceMuted&&!isCoachSpeaking&&!coachVoiceLoading)void speakCoachText(currentDialogue,true);}}>Start</button>
+                    <button type="button" className="s3-audio-toggle-btn" disabled={!coachStarted} aria-pressed={isVoiceMuted} onClick={()=>{stopCoachVoice();setIsVoiceMuted(value=>!value);}}>{isVoiceMuted?'Unmute':'Mute'}</button>
+                  </div>
                 </div>
               </div>
 
